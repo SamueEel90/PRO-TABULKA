@@ -1,0 +1,38 @@
+{
+  "name": "pro-dashboard-next",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "npm run legacy:sync && next build",
+    "build:vercel": "npm run legacy:sync && npm run prisma:generate:postgres && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "legacy:sync": "node scripts/sync-legacy-assets.mjs",
+    "prisma:generate": "prisma generate",
+    "prisma:generate:sqlite": "prisma generate --schema prisma/schema.prisma",
+    "prisma:generate:postgres": "prisma generate --schema prisma/schema.postgres.prisma",
+    "prisma:dbpush:postgres": "prisma db push --schema prisma/schema.postgres.prisma",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "next": "^15.0.3",
+    "papaparse": "^5.4.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@types/node": "^22.9.0",
+    "@types/papaparse": "^5.3.15",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "eslint": "^9.14.0",
+    "eslint-config-next": "^15.0.3",
+    "prisma": "^5.22.0",
+    "typescript": "^5.6.3"
+  }
+}

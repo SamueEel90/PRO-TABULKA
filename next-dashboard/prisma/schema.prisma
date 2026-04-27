@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Store {
+  id            String            @id
+  name          String
+  gfName        String?
+  vklName       String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  dashboardNotes DashboardNote[]
+  monthlyValues MonthlyValue[]
+  users         User[]
+  weeklyOverrides WeeklyVodOverride[]
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String?
+  role           String
+  gfName         String?
+  vklName        String?
+  primaryStoreId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  primaryStore   Store?   @relation(fields: [primaryStoreId], references: [id])
+}
+
+model Metric {
+  code          String         @id
+  displayName   String
+  unit          String?
+  aggregation   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  monthlyValues MonthlyValue[]
+}
+
+model Month {
+  id            String         @id
+  label         String
+  year          Int
+  monthNumber   Int
+  businessYear  Int
+  businessOrder Int
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  monthlyValues MonthlyValue[]
+  importBatches ImportBatch[]
+}
+
+model ImportBatch {
+  id         String        @id @default(cuid())
+  source     String
+  fileName   String
+  uploadedBy String?
+  status     String        @default("completed")
+  rowCount   Int           @default(0)
+  createdAt  DateTime      @default(now())
+  monthId    String?
+  month      Month?        @relation(fields: [monthId], references: [id])
+  values     MonthlyValue[]
+}
+
+model MonthlyValue {
+  id            String      @id @default(cuid())
+  source        String
+  storeId       String
+  metricCode    String
+  monthId       String
+  value         Float
+  present       Boolean     @default(true)
+  importedAt    DateTime    @default(now())
+  importBatchId String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
+  metric        Metric      @relation(fields: [metricCode], references: [code])
+  month         Month       @relation(fields: [monthId], references: [id])
+  store         Store       @relation(fields: [storeId], references: [id])
+
+  @@unique([source, storeId, metricCode, monthId])
+  @@index([storeId, monthId])
+  @@index([monthId, source])
+}
+
+model DashboardNote {
+  id        String   @id @default(cuid())
+  scopeKey   String
+  scopeType  String
+  scopeId    String
+  scopeLabel String
+  metricKey  String
+  role       String
+  author     String
+  text       String
+  storeId    String?
+  updatedAt  DateTime @default(now())
+  createdAt  DateTime @default(now())
+  store      Store?   @relation(fields: [storeId], references: [id])
+
+  @@unique([scopeKey, role, metricKey])
+  @@index([scopeKey, metricKey])
+}
+
+model WeeklyVodOverride {
+  id               String   @id @default(cuid())
+  storeId          String
+  metric           String
+  monthLabel       String
+  weekIndex        Int
+  weekLabel        String
+  rangeLabel       String
+  value            Float
+  distributionMode String?
+  updatedAt        DateTime @default(now())
+  updatedBy        String
+  createdAt        DateTime @default(now())
+  store            Store    @relation(fields: [storeId], references: [id])
+
+  @@unique([storeId, metric, monthLabel, weekIndex])
+  @@index([storeId, monthLabel])
+}

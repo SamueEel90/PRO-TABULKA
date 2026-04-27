@@ -1,0 +1,3242 @@
+	<!DOCTYPE html>
+<html>
+	<head>
+		<base target="_top">
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>SUMAR PRO GJ2026</title>
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+		<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+		<?!= include('dashboardSharedHelpers'); ?>
+		<?!= include('sharedStyles'); ?>
+		<style>
+			:root {
+				--surface: rgba(255, 255, 255, 0.94);
+				--surface-strong: rgba(255, 255, 255, 0.98);
+				--badge-border: rgba(15, 23, 42, 0.16);
+			}
+
+			html {
+				-webkit-text-size-adjust: 100%;
+				font-size: 18px;
+			}
+
+			body {
+				margin: 0;
+				font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+				font-variant-numeric: tabular-nums;
+				font-feature-settings: 'tnum' 1, 'zero' 1;
+				color: var(--text);
+				background:
+					radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 30%),
+					radial-gradient(circle at top right, rgba(100, 116, 139, 0.12), transparent 26%),
+					linear-gradient(180deg, #f7fafd 0%, #edf3f8 46%, #e2eaf2 100%);
+				min-height: 100vh;
+			}
+
+			body::before {
+				content: '';
+				position: fixed;
+				inset: 0;
+				background-image: linear-gradient(rgba(19, 32, 51, 0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(19, 32, 51, 0.035) 1px, transparent 1px);
+				background-size: 30px 30px;
+				pointer-events: none;
+				mask-image: radial-gradient(circle at center, black 50%, transparent 100%);
+			}
+
+			button,
+			select {
+				font: inherit;
+			}
+
+			.hidden {
+				display: none !important;
+			}
+
+			.surface {
+				background: var(--surface);
+				backdrop-filter: blur(18px);
+				border: 1px solid rgba(255, 255, 255, 0.72);
+				box-shadow: var(--shadow);
+			}
+
+			.secondary-btn {
+				border: 0;
+				border-radius: var(--radius-md);
+				padding: 0.9em 1.2em;
+				font-weight: 800;
+				letter-spacing: 0.01em;
+				cursor: pointer;
+				transition: transform 0.2s ease;
+				background: var(--info-soft);
+				color: var(--navy);
+			}
+
+			.secondary-btn:hover {
+				transform: translateY(-1px);
+			}
+
+			.field-label {
+				display: inline-flex;
+				align-items: center;
+				margin-bottom: 0.375rem;
+				padding: 0.5em 0.833em;
+				border-radius: var(--radius-pill);
+				background: var(--info-soft);
+				font-size: 0.8125rem;
+				font-weight: 800;
+				text-transform: uppercase;
+				letter-spacing: 0.08em;
+				color: var(--navy);
+			}
+
+			.scope-select {
+				width: 100%;
+				border: 1px solid var(--line-strong);
+				border-radius: var(--radius-md);
+				padding: 1rem 1.125rem;
+				background: var(--surface-strong);
+				color: var(--text);
+			}
+
+			.support-text,
+			.tiny {
+				color: var(--muted);
+				line-height: 1.6;
+			}
+
+			.error-banner {
+				padding: 0.875rem 1rem;
+				border-radius: 0.875rem;
+				background: rgba(215, 25, 32, 0.1);
+				color: var(--brand-deep);
+				font-size: 0.875rem;
+			}
+
+			.loader {
+				position: fixed;
+				inset: 0;
+				display: grid;
+				place-items: center;
+				background: rgba(245, 239, 232, 0.36);
+				backdrop-filter: blur(8px);
+				z-index: 50;
+			}
+
+			.loader-card {
+				padding: 1.25rem 1.5rem;
+				border-radius: 1.25rem;
+				background: rgba(255, 255, 255, 0.94);
+				box-shadow: var(--shadow);
+				display: grid;
+				justify-items: center;
+				gap: 0.75rem;
+			}
+
+			.loader-spinner {
+				width: 2.125rem;
+				height: 2.125rem;
+				border-radius: 50%;
+				border: 3px solid rgba(215, 25, 32, 0.16);
+				border-top-color: var(--brand);
+				animation: spin 0.8s linear infinite;
+			}
+
+			@keyframes spin {
+				to {
+					transform: rotate(360deg);
+				}
+			}
+
+			.app-shell {
+				display: none;
+				min-height: 100vh;
+				padding: 1.125rem 1.5rem 1.75rem;
+			}
+
+			body.nav-open {
+				overflow: hidden;
+			}
+
+			.summary-header {
+				position: static;
+				display: flex;
+				justify-content: space-between;
+				align-items: flex-start;
+				gap: 1rem;
+				padding: 0.75rem 0 1rem;
+			}
+
+			.summary-header-left {
+				display: grid;
+				gap: 0.45rem;
+				padding: 1rem 1.15rem;
+				border-radius: 1.4rem;
+				background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.72));
+				border: 1px solid rgba(255, 255, 255, 0.82);
+				box-shadow: 0 18px 42px rgba(34, 56, 77, 0.10);
+				max-width: min(100%, 48rem);
+			}
+
+			.summary-header-right {
+				display: flex;
+				align-items: center;
+				gap: 0.625rem;
+				flex-wrap: wrap;
+				justify-content: flex-end;
+			}
+
+			.summary-actions {
+				display: flex;
+				justify-content: flex-end;
+				gap: 0.75rem;
+				flex-wrap: wrap;
+			}
+
+			.summary-badge {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.5rem;
+				width: fit-content;
+				padding: 0.5rem 0.75rem;
+				border-radius: var(--radius-pill);
+				background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.84));
+				border: 1px solid rgba(200, 79, 64, 0.14);
+				color: var(--brand);
+				font-size: 0.75rem;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+			}
+
+			.summary-header h1 {
+				margin: 0;
+				font-size: clamp(2rem, 4vw, 3rem);
+				line-height: 0.95;
+				letter-spacing: -0.04em;
+				max-width: 14ch;
+				text-wrap: balance;
+				color: #17344e;
+			}
+
+			#pageText {
+				max-width: 42rem;
+				font-size: 0.96rem;
+				line-height: 1.55;
+				color: #53677f;
+			}
+
+			.summary-shell {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr);
+				gap: 1rem;
+				align-items: start;
+			}
+
+			.nav-scrim {
+				position: fixed;
+				inset: 0;
+				background: rgba(15, 23, 42, 0.24);
+				backdrop-filter: blur(6px);
+				opacity: 0;
+				pointer-events: none;
+				transition: opacity 0.24s ease;
+				z-index: 35;
+			}
+
+			.app-shell.nav-open .nav-scrim {
+				opacity: 1;
+				pointer-events: auto;
+			}
+
+			.nav-panel,
+			.chart-panel {
+				border-radius: var(--radius-xl);
+				padding: 1.25rem;
+			}
+
+			.nav-panel {
+				position: fixed;
+				top: 0;
+				left: 0;
+				display: grid;
+				gap: 1rem;
+				width: clamp(19rem, 28vw, 24rem);
+				height: 100vh;
+				max-height: 100vh;
+				overflow-y: auto;
+				overflow-x: hidden;
+				padding: 1.25rem 0.75rem 1.25rem 1.25rem;
+				scrollbar-gutter: stable;
+				z-index: 40;
+				transform: translateX(calc(-100% - 1.5rem));
+				opacity: 0;
+				pointer-events: none;
+				transition: transform 0.28s ease, opacity 0.2s ease;
+			}
+
+			.app-shell.nav-open .nav-panel {
+				transform: translateX(0);
+				opacity: 1;
+				pointer-events: auto;
+			}
+
+			.nav-panel-head {
+				display: flex;
+				justify-content: space-between;
+				align-items: flex-start;
+				gap: 0.75rem;
+			}
+
+			.drawer-btn {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				gap: 0.6rem;
+				position: fixed;
+				top: 1rem;
+				right: 1rem;
+				z-index: 45;
+				box-shadow: 0 18px 32px rgba(15, 23, 42, 0.16);
+			}
+
+			.drawer-btn-lines {
+				display: inline-grid;
+				gap: 0.2rem;
+			}
+
+			.drawer-btn-lines span {
+				display: block;
+				width: 1rem;
+				height: 2px;
+				border-radius: 999px;
+				background: currentColor;
+			}
+
+			.drawer-close-btn {
+				padding: 0.75rem 0.9rem;
+				min-width: auto;
+			}
+
+			.panel-title {
+				margin: 0 0 0.5rem;
+				font-size: 0.75rem;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: var(--muted);
+			}
+
+			.nav-copy h2,
+			.chart-head-copy h2 {
+				margin: 0;
+				font-size: 1.5rem;
+				line-height: 1.05;
+			}
+
+			.count-strip,
+			.scope-strip,
+			.metric-strip {
+				display: flex;
+				gap: 0.5rem;
+				flex-wrap: wrap;
+			}
+
+			.count-chip,
+			.scope-chip,
+			.metric-chip {
+				display: inline-flex;
+				align-items: center;
+				flex-wrap: wrap;
+				gap: 0.375rem;
+				padding: 0.625rem 0.8rem;
+				border-radius: var(--radius-pill);
+				background: rgba(22, 54, 95, 0.07);
+				color: var(--navy);
+				font-size: 0.875rem;
+				font-weight: 800;
+				max-width: 100%;
+				overflow-wrap: anywhere;
+			}
+
+			.metric-chip {
+				background: rgba(255, 255, 255, 0.82);
+				border: 1px solid var(--line);
+			}
+
+			.tree-toolbar {
+				display: grid;
+				gap: 0.75rem;
+			}
+
+			.tree-list {
+				display: grid;
+				gap: 0.375rem;
+			}
+
+			.tree-node {
+				display: grid;
+				gap: 0.375rem;
+			}
+
+			.tree-row {
+				display: grid;
+				grid-template-columns: auto minmax(0, 1fr) auto;
+				align-items: center;
+				gap: 0.5rem;
+				padding: 0.75rem 0.875rem;
+				padding-left: calc((var(--depth, 0) * 0.95rem) + 0.875rem);
+				border-radius: 1rem;
+				background: rgba(255, 255, 255, 0.74);
+				border: 1px solid rgba(15, 23, 42, 0.07);
+				min-width: 0;
+			}
+
+			.tree-toggle,
+			.tree-spacer {
+				width: 1.75rem;
+				height: 1.75rem;
+				border-radius: 0.75rem;
+			}
+
+			.tree-toggle {
+				border: 0;
+				cursor: pointer;
+				background: rgba(22, 54, 95, 0.08);
+				color: var(--navy);
+				font-weight: 800;
+			}
+
+			.tree-button {
+				border: 0;
+				background: transparent;
+				padding: 0;
+				text-align: left;
+				cursor: pointer;
+				color: inherit;
+				display: grid;
+				gap: 0.125rem;
+				min-width: 0;
+			}
+
+			.tree-button strong {
+				font-size: 1rem;
+				line-height: 1.2;
+				overflow-wrap: anywhere;
+			}
+
+			.tree-button span {
+				font-size: 0.8125rem;
+				color: var(--muted);
+				overflow-wrap: anywhere;
+			}
+
+			.tree-row.is-active {
+				background: linear-gradient(135deg, rgba(215, 25, 32, 0.12), rgba(22, 54, 95, 0.08));
+				border-color: rgba(215, 25, 32, 0.18);
+				box-shadow: 0 14px 26px rgba(215, 25, 32, 0.1);
+			}
+
+			.tree-row.is-active .tree-button strong {
+				color: var(--brand-deep);
+			}
+
+			.tree-type {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				padding: 0.45rem 0.6rem;
+				border-radius: var(--radius-pill);
+				background: rgba(255, 255, 255, 0.86);
+				border: 1px solid var(--line);
+				font-size: 0.75rem;
+				font-weight: 800;
+				color: var(--navy);
+				justify-self: end;
+				flex-shrink: 0;
+			}
+
+			.tree-children {
+				display: grid;
+				gap: 0.375rem;
+			}
+
+			.nav-panel::-webkit-scrollbar {
+				width: 0.55rem;
+			}
+
+			.nav-panel::-webkit-scrollbar-track {
+				background: rgba(22, 54, 95, 0.06);
+				border-radius: 999px;
+			}
+
+			.nav-panel::-webkit-scrollbar-thumb {
+				background: rgba(22, 54, 95, 0.22);
+				border-radius: 999px;
+			}
+
+			.nav-panel::-webkit-scrollbar-thumb:hover {
+				background: rgba(22, 54, 95, 0.34);
+			}
+
+			.chart-panel {
+				display: grid;
+				gap: 1rem;
+				min-width: 0;
+			}
+
+			.chart-head {
+				display: grid;
+				gap: 1rem;
+			}
+
+			.chart-head-top {
+				display: flex;
+				justify-content: space-between;
+				align-items: flex-start;
+				gap: 1rem;
+				flex-wrap: wrap;
+			}
+
+			.chart-head-copy {
+				display: grid;
+				gap: 0.375rem;
+			}
+
+			.chart-filters {
+				display: grid;
+				grid-template-columns: minmax(16rem, 20rem) 1fr;
+				gap: 1rem;
+				align-items: end;
+			}
+
+			.chart-mode-tabs {
+				display: grid;
+				gap: 0.75rem;
+			}
+
+			.chart-filter-group {
+				display: grid;
+				gap: 0.45rem;
+			}
+
+			.chart-filter-group-head {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 0.75rem;
+				flex-wrap: wrap;
+			}
+
+			.chart-filter-group-label {
+				font-size: 0.72rem;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: var(--muted);
+			}
+
+			.chart-filter-group-copy {
+				font-size: 0.8rem;
+				color: var(--muted);
+			}
+
+			.chart-filter-row {
+				display: flex;
+				gap: 0.5rem;
+				flex-wrap: wrap;
+			}
+
+			.chart-mode-button {
+				border: 1px solid rgba(15, 23, 42, 0.08);
+				background: rgba(255, 255, 255, 0.72);
+				color: var(--navy);
+				padding: 0.72em 0.95em;
+				border-radius: 0.95rem;
+				font-weight: 800;
+				cursor: pointer;
+				transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+			}
+
+			.chart-mode-button.filter-month {
+				padding: 0.62em 0.82em;
+				border-radius: 0.85rem;
+				background: rgba(22, 54, 95, 0.05);
+			}
+
+			.chart-mode-button.filter-secondary {
+				background: rgba(248, 250, 252, 0.96);
+				border-color: rgba(22, 54, 95, 0.12);
+			}
+
+			.chart-mode-button:hover {
+				transform: translateY(-1px);
+			}
+
+			.chart-mode-button.is-active {
+				background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+				color: #fff;
+				border-color: transparent;
+				box-shadow: 0 18px 28px rgba(215, 25, 32, 0.18);
+			}
+
+			.chart-mode-button.filter-month.is-active,
+			.chart-mode-button.filter-secondary.is-active {
+				background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+				color: #fff;
+				border-color: transparent;
+			}
+
+			.chart-wrap {
+				height: 34rem;
+			}
+
+			.scope-overview {
+				display: grid;
+				grid-template-columns: repeat(4, minmax(0, 1fr));
+				gap: 0.75rem;
+			}
+
+			.scope-rollups {
+				display: grid;
+				gap: 1rem;
+			}
+
+			.rollup-section {
+				padding: 1rem;
+				border-radius: 1.2rem;
+				background: rgba(255, 255, 255, 0.72);
+				border: 1px solid rgba(15, 23, 42, 0.08);
+				display: grid;
+				gap: 0.85rem;
+			}
+
+			.rollup-section-head {
+				display: flex;
+				justify-content: space-between;
+				align-items: flex-end;
+				gap: 1rem;
+				flex-wrap: wrap;
+			}
+
+			.rollup-section-head h3 {
+				margin: 0.2rem 0 0;
+				font-size: 1.1rem;
+				line-height: 1.1;
+			}
+
+			.rollup-list {
+				display: grid;
+				gap: 0.75rem;
+			}
+
+			.rollup-row {
+				display: grid;
+				grid-template-columns: minmax(13rem, 18rem) minmax(0, 1fr);
+				gap: 0.75rem;
+				align-items: stretch;
+				padding: 0.8rem;
+				border-radius: 1rem;
+				background: rgba(248, 250, 252, 0.9);
+				border: 1px solid rgba(15, 23, 42, 0.06);
+			}
+
+			.rollup-row.is-active {
+				background: linear-gradient(145deg, rgba(215, 25, 32, 0.1), rgba(22, 54, 95, 0.08));
+				border-color: rgba(215, 25, 32, 0.18);
+				box-shadow: 0 16px 30px rgba(215, 25, 32, 0.08);
+			}
+
+			.rollup-row-button {
+				border: 0;
+				background: rgba(255, 255, 255, 0.84);
+				border-radius: 0.95rem;
+				padding: 0.9rem 1rem;
+				text-align: left;
+				cursor: pointer;
+				display: grid;
+				gap: 0.35rem;
+				align-content: center;
+				transition: transform 0.2s ease;
+			}
+
+			.rollup-row-button:hover {
+				transform: translateY(-1px);
+			}
+
+			.rollup-row-kicker {
+				font-size: 0.75rem;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: var(--muted);
+			}
+
+			.rollup-row-title {
+				font-size: 1.075rem;
+				font-weight: 800;
+				line-height: 1.15;
+				color: var(--text);
+			}
+
+			.rollup-row-caption {
+				font-size: 0.875rem;
+				color: var(--muted);
+			}
+
+			.rollup-row-grid {
+				display: grid;
+				grid-template-columns: repeat(4, minmax(0, 1fr));
+				gap: 0.65rem;
+			}
+
+			.scope-card {
+				padding: 0.95rem 1rem;
+				border-radius: 1rem;
+				background: rgba(22, 54, 95, 0.05);
+				border: 1px solid rgba(15, 23, 42, 0.05);
+			}
+
+			.scope-card-label {
+				font-size: 0.75rem;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: var(--muted);
+			}
+
+			.scope-card-value {
+				margin-top: 0.35rem;
+				font-size: 1.2rem;
+				font-weight: 800;
+				line-height: 1.1;
+			}
+
+			.scope-card-value.positive {
+				color: var(--green);
+			}
+
+			.scope-card-value.negative {
+				color: var(--brand);
+			}
+
+			.scope-card-value.neutral {
+				color: var(--navy);
+			}
+
+			.scope-card-meta {
+				margin-top: 0.35rem;
+				font-size: 0.78rem;
+				font-weight: 700;
+				line-height: 1.2;
+				color: var(--muted);
+			}
+
+			.scope-card-meta.positive {
+				color: var(--green);
+			}
+
+			.scope-card-meta.negative {
+				color: var(--brand);
+			}
+
+			.executive-metrics {
+				display: grid;
+				grid-template-columns: repeat(4, minmax(0, 1fr));
+				gap: 0.75rem;
+			}
+
+			.executive-card {
+				border: 1px solid rgba(15, 23, 42, 0.08);
+				border-radius: 1.15rem;
+				background: rgba(255, 255, 255, 0.76);
+				padding: 1rem;
+				cursor: pointer;
+				text-align: left;
+				display: grid;
+				gap: 0.75rem;
+				transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+			}
+
+			.executive-card:hover {
+				transform: translateY(-2px);
+				box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
+			}
+
+			.executive-card.is-active {
+				background: linear-gradient(145deg, rgba(215, 25, 32, 0.14), rgba(22, 54, 95, 0.08));
+				border-color: rgba(215, 25, 32, 0.22);
+				box-shadow: 0 20px 38px rgba(215, 25, 32, 0.12);
+			}
+
+			.executive-card-top,
+			.executive-card-bottom,
+			.executive-card-meta {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				gap: 0.625rem;
+			}
+
+			.executive-card-top {
+				align-items: flex-start;
+			}
+
+			.executive-card-label {
+				margin: 0;
+				font-size: 0.82rem;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: var(--muted);
+			}
+
+			.executive-card-title {
+				margin: 0.15rem 0 0;
+				font-size: 1.125rem;
+				font-weight: 800;
+				line-height: 1.15;
+			}
+
+			.executive-card-total {
+				font-size: 1.55rem;
+				font-weight: 800;
+				line-height: 1;
+				color: var(--text);
+			}
+
+			.executive-total-stack {
+				display: grid;
+				gap: 0.28rem;
+			}
+
+			.executive-total-kicker {
+				font-size: 0.75rem;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: var(--muted);
+			}
+
+			.executive-delta {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				padding: 0.45rem 0.65rem;
+				border-radius: var(--radius-pill);
+				font-size: 0.78rem;
+				font-weight: 800;
+				background: rgba(22, 54, 95, 0.08);
+				color: var(--navy);
+			}
+
+			.executive-delta.positive {
+				background: rgba(27, 143, 90, 0.12);
+				color: var(--green);
+			}
+
+			.executive-delta.negative {
+				background: rgba(215, 25, 32, 0.12);
+				color: var(--brand-deep);
+			}
+
+			.executive-progress {
+				height: 0.55rem;
+				border-radius: var(--radius-pill);
+				background: rgba(22, 54, 95, 0.08);
+				overflow: hidden;
+			}
+
+			.executive-progress-fill {
+				height: 100%;
+				border-radius: inherit;
+				background: linear-gradient(90deg, var(--navy), var(--brand));
+			}
+
+			.executive-progress-label,
+			.executive-card-caption {
+				font-size: 0.8125rem;
+				color: var(--muted);
+			}
+
+			.executive-card-caption strong {
+				color: var(--text);
+			}
+
+			.executive-stat-grid {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: 0.45rem;
+			}
+
+			.executive-stat {
+				padding: 0.55rem 0.6rem;
+				border-radius: 0.9rem;
+				background: rgba(248, 250, 252, 0.92);
+				border: 1px solid rgba(15, 23, 42, 0.06);
+				display: grid;
+				gap: 0.2rem;
+			}
+
+			.executive-stat-label {
+				font-size: 0.6875rem;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: var(--muted);
+			}
+
+			.executive-stat-value {
+				font-size: 0.9rem;
+				font-weight: 800;
+				line-height: 1.15;
+				color: var(--text);
+			}
+
+			.executive-stat-value.positive {
+				color: var(--green);
+			}
+
+			.executive-stat-value.negative {
+				color: var(--brand-deep);
+			}
+
+			.executive-stat-meta {
+				margin-top: 0.28rem;
+				font-size: 0.74rem;
+				font-weight: 700;
+				line-height: 1.2;
+				color: var(--muted);
+			}
+
+			.executive-stat-meta.positive {
+				color: var(--green);
+			}
+
+			.executive-stat-meta.negative {
+				color: var(--brand-deep);
+			}
+
+			.sparkline-bars {
+				display: grid;
+				grid-auto-flow: column;
+				grid-auto-columns: 1fr;
+				align-items: start;
+				gap: 0.18rem;
+			}
+
+			.sparkline-point {
+				display: grid;
+				grid-template-rows: 3rem auto;
+				gap: 0.18rem;
+				min-width: 0;
+			}
+
+			.sparkline-bar-wrap {
+				height: 3rem;
+				display: flex;
+				align-items: end;
+			}
+
+			.sparkline-bar {
+				width: 100%;
+				border-radius: 999px 999px 0.45rem 0.45rem;
+				background: linear-gradient(180deg, rgba(22, 54, 95, 0.9), rgba(215, 25, 32, 0.72));
+				min-height: 0.35rem;
+				opacity: 0.9;
+			}
+
+			.sparkline-label {
+				font-size: 0.625rem;
+				font-weight: 700;
+				line-height: 1;
+				text-align: center;
+				color: var(--muted);
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: clip;
+			}
+
+			.analysis-grid {
+				display: grid;
+				grid-template-columns: 1fr;
+				gap: 1rem;
+			}
+
+			.story-panel,
+			.quarter-panel,
+			.journey-panel {
+				padding: 1rem;
+				border-radius: 1.2rem;
+				background: rgba(255, 255, 255, 0.72);
+				border: 1px solid rgba(15, 23, 42, 0.08);
+			}
+
+			.story-panel,
+			.quarter-panel {
+				display: grid;
+				gap: 0.9rem;
+			}
+
+			.movers-panel {
+				display: grid;
+				gap: 0.9rem;
+			}
+
+			.movers-grid {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: 0.85rem;
+			}
+
+			.movers-column {
+				display: grid;
+				gap: 0.65rem;
+			}
+
+			.movers-column-head {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				gap: 0.65rem;
+				flex-wrap: wrap;
+			}
+
+			.movers-column-title {
+				margin: 0;
+				font-size: 0.96rem;
+				font-weight: 800;
+			}
+
+			.movers-badge {
+				display: inline-flex;
+				align-items: center;
+				padding: 0.35rem 0.55rem;
+				border-radius: var(--radius-pill);
+				font-size: 0.72rem;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+			}
+
+			.movers-badge.positive {
+				background: rgba(27, 143, 90, 0.12);
+				color: var(--green);
+			}
+
+			.movers-badge.negative {
+				background: rgba(215, 25, 32, 0.11);
+				color: var(--brand-deep);
+			}
+
+			.movers-list {
+				display: grid;
+				gap: 0.65rem;
+			}
+
+			.mover-item {
+				width: 100%;
+				padding: 0.9rem;
+				border-radius: 1rem;
+				border: 1px solid rgba(15, 23, 42, 0.08);
+				background: rgba(248, 250, 252, 0.86);
+				text-align: left;
+				display: grid;
+				gap: 0.6rem;
+				cursor: pointer;
+				transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+			}
+
+			.mover-item:hover {
+				transform: translateY(-1px);
+				box-shadow: 0 14px 24px rgba(15, 23, 42, 0.08);
+			}
+
+			.mover-item.is-active {
+				border-color: rgba(22, 54, 95, 0.28);
+				box-shadow: 0 16px 30px rgba(22, 54, 95, 0.12);
+			}
+
+			.mover-item-top {
+				display: flex;
+				justify-content: space-between;
+				align-items: flex-start;
+				gap: 0.75rem;
+			}
+
+			.mover-item-kicker {
+				font-size: 0.72rem;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: var(--muted);
+			}
+
+			.mover-item-title {
+				font-size: 1rem;
+				font-weight: 800;
+				line-height: 1.2;
+			}
+
+			.mover-item-delta {
+				font-size: 1rem;
+				font-weight: 800;
+				line-height: 1.1;
+				white-space: nowrap;
+			}
+
+			.mover-item-copy {
+				font-size: 0.86rem;
+				line-height: 1.5;
+				color: var(--muted);
+			}
+
+			.mover-item-metrics {
+				display: grid;
+				grid-template-columns: repeat(4, minmax(0, 1fr));
+				gap: 0.55rem;
+			}
+
+			.mover-stat {
+				padding: 0.65rem 0.7rem;
+				border-radius: 0.85rem;
+				background: rgba(255, 255, 255, 0.9);
+				border: 1px solid rgba(15, 23, 42, 0.06);
+				display: grid;
+				gap: 0.25rem;
+			}
+
+			.mover-stat-label {
+				font-size: 0.7rem;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: var(--muted);
+			}
+
+			.mover-stat-value {
+				font-size: 0.92rem;
+				font-weight: 800;
+				line-height: 1.2;
+			}
+
+			.mover-stat-value.positive {
+				color: var(--green);
+			}
+
+			.mover-stat-value.negative {
+				color: var(--brand-deep);
+			}
+
+			.mover-stat-value.neutral {
+				color: var(--navy);
+			}
+
+			.movers-empty {
+				padding: 0.95rem 1rem;
+				border-radius: 1rem;
+				background: rgba(248, 250, 252, 0.82);
+				border: 1px dashed rgba(15, 23, 42, 0.14);
+				color: var(--muted);
+				line-height: 1.55;
+			}
+
+			.story-hero {
+				padding: 1rem;
+				border-radius: 1rem;
+				background: linear-gradient(135deg, rgba(22, 54, 95, 0.08), rgba(215, 25, 32, 0.09));
+				display: grid;
+				gap: 0.5rem;
+			}
+
+			.story-kicker {
+				font-size: 0.75rem;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: var(--brand);
+			}
+
+			.story-headline {
+				margin: 0;
+				font-size: 1.32rem;
+				line-height: 1.15;
+			}
+
+			.story-copy {
+				margin: 0;
+				color: var(--muted);
+				line-height: 1.55;
+			}
+
+			.story-grid {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: 0.75rem;
+			}
+
+			.story-card {
+				padding: 0.9rem;
+				border-radius: 1rem;
+				background: rgba(248, 250, 252, 0.84);
+				border: 1px solid rgba(15, 23, 42, 0.06);
+				display: grid;
+				gap: 0.45rem;
+			}
+
+			.story-card-label {
+				font-size: 0.75rem;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: var(--muted);
+			}
+
+			.story-card-value {
+				font-size: 1.18rem;
+				font-weight: 800;
+				line-height: 1.1;
+			}
+
+			.story-card-copy {
+				font-size: 0.875rem;
+				color: var(--muted);
+				line-height: 1.55;
+			}
+
+			.journey-panel {
+				display: grid;
+				gap: 0.85rem;
+			}
+
+			.journey-head {
+				display: flex;
+				justify-content: space-between;
+				align-items: flex-end;
+				gap: 1rem;
+				flex-wrap: wrap;
+			}
+
+			.journey-strip {
+				display: grid;
+				grid-template-columns: repeat(4, minmax(0, 1fr));
+				gap: 0.65rem;
+				align-items: stretch;
+			}
+
+			.quarter-strip {
+				display: grid;
+				grid-template-columns: repeat(4, minmax(0, 1fr));
+				gap: 0.65rem;
+				align-items: stretch;
+			}
+
+			.month-card {
+				padding: 0.85rem;
+				border-radius: 1rem;
+				background: rgba(248, 250, 252, 0.9);
+				border: 1px solid rgba(15, 23, 42, 0.06);
+				display: grid;
+				gap: 0.45rem;
+				min-width: 0;
+			}
+
+			.month-card.positive {
+				background: linear-gradient(180deg, rgba(27, 143, 90, 0.12), rgba(248, 250, 252, 0.92));
+			}
+
+			.month-card.negative {
+				background: linear-gradient(180deg, rgba(215, 25, 32, 0.11), rgba(248, 250, 252, 0.92));
+			}
+
+			.month-card.neutral {
+				background: rgba(248, 250, 252, 0.9);
+			}
+
+			.month-card-header {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				gap: 0.5rem;
+			}
+
+			.month-card-title {
+				font-size: 0.9rem;
+				font-weight: 800;
+			}
+
+			.month-status {
+				display: inline-flex;
+				align-items: center;
+				padding: 0.3rem 0.5rem;
+				border-radius: var(--radius-pill);
+				background: rgba(22, 54, 95, 0.08);
+				font-size: 0.72rem;
+				font-weight: 800;
+				text-transform: uppercase;
+				letter-spacing: 0.08em;
+				color: var(--navy);
+			}
+
+			.month-card-metric {
+				display: grid;
+				gap: 0.28rem;
+				font-size: 0.8rem;
+				color: var(--muted);
+			}
+
+			.month-card-metric-meta {
+				font-size: 0.72rem;
+				font-weight: 700;
+				line-height: 1.2;
+				color: var(--muted);
+			}
+
+			.month-card-metric-meta.positive {
+				color: var(--green);
+			}
+
+			.month-card-metric-meta.negative {
+				color: var(--brand-deep);
+			}
+
+			.month-card-metric strong {
+				color: var(--text);
+			}
+
+			.month-card-metric strong.positive {
+				color: var(--green);
+			}
+
+			.month-card-metric strong.negative {
+				color: var(--brand-deep);
+			}
+
+			.month-card-metric strong.neutral {
+				color: var(--text);
+			}
+
+			@media (max-width: 1180px) {
+				.executive-metrics,
+				.story-grid {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+
+				.movers-grid,
+				.mover-item-metrics {
+					grid-template-columns: 1fr;
+				}
+
+				.journey-strip {
+					grid-template-columns: repeat(3, minmax(0, 1fr));
+				}
+
+				.quarter-strip {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+			}
+
+			@media (max-width: 1180px) {
+				.summary-shell {
+					grid-template-columns: 1fr;
+				}
+
+				.nav-panel {
+					width: clamp(18rem, 42vw, 22rem);
+				}
+
+				.chart-filters {
+					grid-template-columns: 1fr;
+				}
+
+				.scope-overview {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+
+				.rollup-row {
+					grid-template-columns: 1fr;
+				}
+
+				.rollup-row-grid {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+
+				.summary-actions {
+					justify-content: flex-start;
+				}
+			}
+
+			@media (max-width: 780px) {
+				.app-shell {
+					padding: 0.875rem 0.875rem 1.25rem;
+				}
+
+				.summary-header {
+					position: static;
+					flex-direction: column;
+				}
+
+				.summary-header-left {
+					max-width: 100%;
+				}
+
+				.nav-panel,
+				.chart-panel {
+					padding: 1rem;
+					border-radius: 1.375rem;
+				}
+
+				.nav-panel {
+					width: min(88vw, 22rem);
+					padding: 1rem 0.65rem 1rem 1rem;
+				}
+
+				.scope-overview {
+					grid-template-columns: 1fr;
+				}
+
+				.executive-metrics,
+				.story-grid {
+					grid-template-columns: 1fr;
+				}
+
+				.movers-grid,
+				.mover-item-metrics {
+					grid-template-columns: 1fr;
+				}
+
+				.executive-stat-grid {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+
+				.journey-strip {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+
+				.quarter-strip {
+					grid-template-columns: 1fr;
+				}
+
+				.rollup-row-grid {
+					grid-template-columns: 1fr;
+				}
+
+				.chart-wrap {
+					height: 24rem;
+				}
+
+				.tree-row {
+					grid-template-columns: auto 1fr;
+				}
+
+				.tree-type {
+					grid-column: 2;
+					justify-self: start;
+				}
+
+				.summary-header-right {
+					width: 100%;
+					justify-content: flex-start;
+				}
+
+				.summary-actions {
+					width: 100%;
+					justify-content: stretch;
+				}
+
+				.summary-actions .secondary-btn {
+					flex: 1 1 12rem;
+				}
+
+				.drawer-btn {
+					top: 0.875rem;
+					right: 0.875rem;
+					padding: 0.82em 1em;
+				}
+			}
+
+			/* ── Design polish: micro-interactions & hover states ── */
+			.scope-card {
+				transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+			}
+			.scope-card:hover {
+				transform: translateY(-2px);
+				box-shadow: 0 10px 24px rgba(34, 56, 77, 0.08);
+			}
+
+			.rollup-section {
+				transition: box-shadow var(--transition-base), border-color var(--transition-base);
+			}
+			.rollup-section:hover {
+				border-color: rgba(15, 23, 42, 0.14);
+				box-shadow: 0 14px 30px rgba(34, 56, 77, 0.08);
+			}
+
+			.rollup-row {
+				transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+			}
+			.rollup-row:hover {
+				transform: translateY(-1px);
+				box-shadow: 0 8px 20px rgba(34, 56, 77, 0.06);
+			}
+
+			.tree-row {
+				transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+			}
+			.tree-row:hover:not(.is-active) {
+				background: rgba(255, 255, 255, 0.92);
+				border-color: rgba(15, 23, 42, 0.12);
+			}
+
+			.story-panel,
+			.quarter-panel,
+			.journey-panel {
+				transition: box-shadow var(--transition-base), border-color var(--transition-base);
+			}
+			.story-panel:hover,
+			.quarter-panel:hover,
+			.journey-panel:hover {
+				border-color: rgba(15, 23, 42, 0.14);
+				box-shadow: 0 14px 30px rgba(34, 56, 77, 0.08);
+			}
+
+			.chart-mode-button {
+				transition: transform var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+			}
+
+			.executive-progress-fill {
+				transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+			}
+
+			/* Scrollbar styling */
+			body::-webkit-scrollbar { width: 0.5rem; }
+			body::-webkit-scrollbar-track { background: rgba(22, 54, 95, 0.04); }
+			body::-webkit-scrollbar-thumb { background: rgba(22, 54, 95, 0.18); border-radius: var(--radius-pill); }
+			body::-webkit-scrollbar-thumb:hover { background: rgba(22, 54, 95, 0.30); }
+		</style>
+	</head>
+	<body>
+		<div class="loader hidden" id="loader">
+			<div class="loader-card">
+				<div class="loader-spinner"></div>
+				<div><strong>Načítavam sumár</strong></div>
+				<div class="tiny">Pripravujem sumár Slovensko → GF → VKL → filiálky.</div>
+			</div>
+		</div>
+
+		<section class="app-shell" id="appShell">
+			<header class="summary-header">
+				<div class="summary-header-left">
+					<div class="summary-badge" id="headerBadge">PRO Sumár GJ2026</div>
+					<h1 id="pageTitle">Sumár PRO GJ 2026</h1>
+					<div class="support-text" id="pageText"></div>
+				</div>
+				<div class="summary-header-right">
+					<div class="error-banner hidden" id="pageError"></div>
+					<button class="secondary-btn drawer-btn" id="navToggleButton" type="button" aria-expanded="false" aria-controls="navPanel">
+						<span class="drawer-btn-lines" aria-hidden="true"><span></span><span></span><span></span></span>
+						<span>Navigácia</span>
+					</button>
+				</div>
+			</header>
+
+			<div class="nav-scrim" id="navScrim"></div>
+
+			<div class="summary-shell">
+				<aside class="nav-panel surface" id="navPanel" aria-label="Navigácia sumáru">
+					<div class="nav-panel-head">
+						<div class="nav-copy">
+							<div class="panel-title">Navigácia</div>
+							<h2>Výber levelu</h2>
+							<div class="support-text">SK/GF/VKL/Filiálka</div>
+						</div>
+						<button class="secondary-btn drawer-close-btn" id="navCloseButton" type="button" aria-label="Zavrieť navigáciu">Zavrieť</button>
+					</div>
+					<div class="count-strip" id="countStrip"></div>
+					<div class="tree-toolbar">
+						<div>
+							<div class="field-label">Metriky</div>
+							<select class="scope-select" id="metricSelect"></select>
+						</div>
+						<div class="scope-strip" id="scopeStrip"></div>
+					</div>
+					<div>
+						<div class="panel-title">Hierarchia</div>
+						<div class="tree-list" id="hierarchyTree"></div>
+					</div>
+				</aside>
+
+				<main class="chart-panel surface">
+					<div class="chart-head">
+						<div class="chart-head-top">
+							<div class="chart-head-copy">
+								<div class="panel-title">Graf SK/GF/VKL/Filiálka</div>
+								<h2 id="chartTitle">Slovensko</h2>
+								<div class="support-text" id="chartSubtitle"></div>
+							</div>
+							<div class="metric-strip" id="selectionMeta"></div>
+						</div>
+
+						<div class="chart-filters">
+							<div>
+								<div class="field-label">Metrika</div>
+								<div class="scope-select" id="metricEcho"></div>
+							</div>
+							<div>
+								
+								<div class="chart-mode-tabs" id="chartMonthFilterControls"></div>
+							</div>
+						</div>
+
+						<div class="summary-actions">
+							<button class="secondary-btn" id="refreshButton" type="button">Obnoviť dáta</button>
+							<button class="secondary-btn" id="openDashboardButton" type="button">Dashboard</button>
+							<button class="secondary-btn" id="logoutButton" type="button">Odhlásiť</button>
+						</div>
+
+						<div class="scope-overview" id="scopeOverview"></div>
+						<div class="executive-metrics" id="executiveMetrics"></div>
+						<div class="chart-wrap"><canvas id="unifiedChart"></canvas></div>
+						<div class="scope-rollups" id="scopeRollups"></div>
+					</div>
+
+					<div class="analysis-grid">
+						<section class="story-panel" id="insightPanel"></section>
+						<section class="story-panel movers-panel" id="moversPanel"></section>
+						<section class="quarter-panel" id="quarterPanel"></section>
+					</div>
+
+					<section class="journey-panel">
+						<div class="journey-head">
+							<div>
+								<div class="panel-title">Mesačný Prehľad</div>
+								<h2 id="journeyTitle">Mesiac po mesiaci</h2>
+							</div>
+							<div class="support-text" id="journeySubtitle"></div>
+						</div>
+						<div class="journey-strip" id="journeyStrip"></div>
+					</section>
+				</main>
+			</div>
+		</section>
+
+		<script>
+			const EXECUTIVE_METRICS = ['Čistý výkon', 'Hodiny netto', 'Obrat GJ2026', 'Štruktúra hodín'];
+
+			const CHART_PRIMARY_FILTER_ORDER = ['all', 'q1', 'q2', 'q3', 'q4'];
+			const CHART_SECONDARY_FILTER_ORDER = ['open', 'closed'];
+
+			const state = {
+				summary: null,
+				loginValue: '',
+				selectedMetric: 'Obrat GJ2026',
+				selectedNodeId: '',
+				expandedNodes: {},
+				selectedChartMonthFilter: 'all',
+				navOpen: false,
+				charts: {},
+			};
+
+			const currencyFormatter = new Intl.NumberFormat('sk-SK', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+			const numberFormatter = new Intl.NumberFormat('sk-SK', { maximumFractionDigits: 1 });
+			const {
+				normalizeMetricName,
+				hasActualRealValue,
+				getActualRealValue,
+				parseChartMonthLabel,
+				isChartMonthClosed,
+				getChartQuarterKey,
+				getMonthIndexesByFilter,
+				pickValuesByIndexes,
+				pickDataSeriesByIndexes,
+				filterChartSeriesByMonth,
+				CHART_MONTH_FILTERS,
+				getThemeColor,
+				drawRoundedRect,
+				escapeHtml,
+			} = window.ProDashboardShared;
+			let responsiveLayoutTimer = null;
+
+			function getDisplayPlanLabel() {
+				return 'Ročný Plán';
+			}
+
+			function getDisplayRealLabel() {
+				return 'IST';
+			}
+
+			function getDisplayRealIndicatorLabel(metric, snapshot) {
+				if (shouldUsePlanFallbackForMetric(metric) && snapshot && snapshot.isRealFallback) {
+					return 'IST + Predpoklad podľa plánu';
+				}
+				return getDisplayRealLabel();
+			}
+
+			function getDisplayForecastLabel() {
+				return 'Plán po úprave VOD';
+			}
+
+			function getDisplayDeltaLabel() {
+				return 'Δ Delta vs IST';
+			}
+
+			function getDisplayDeltaContextLabel() {
+				return 'Δ Delta vs IST / Ročný Plán';
+			}
+
+			function drawChartValueBadge(ctx, text, x, y, options) {
+				const config = options || {};
+				ctx.save();
+				ctx.font = config.font || '700 10px IBM Plex Sans';
+				ctx.textAlign = 'center';
+				ctx.textBaseline = 'middle';
+				const textWidth = ctx.measureText(text).width;
+				const width = textWidth + ((config.horizontalPadding != null ? config.horizontalPadding : 8) * 2);
+				const height = config.height != null ? config.height : 22;
+				drawRoundedRect(ctx, x - (width / 2), y - (height / 2), width, height, config.radius != null ? config.radius : 999);
+				ctx.fillStyle = config.backgroundColor || getThemeColor('--badge-bg', 'rgba(255,255,255,0.98)');
+				ctx.fill();
+				if (config.borderColor) {
+					ctx.lineWidth = config.borderWidth != null ? config.borderWidth : 1;
+					ctx.strokeStyle = config.borderColor;
+					ctx.stroke();
+				}
+				ctx.fillStyle = config.textColor || getThemeColor('--badge-text', '#0f172a');
+				ctx.fillText(text, x, y);
+				ctx.restore();
+			}
+
+			const staticValueLabelsPlugin = {
+				id: 'staticValueLabels',
+				afterDatasetsDraw: function(chart, args, pluginOptions) {
+					if (!pluginOptions || pluginOptions.display === false) {
+						return;
+					}
+					const visibleMetas = chart.getSortedVisibleDatasetMetas();
+					if (!visibleMetas.length) {
+						return;
+					}
+					const ctx = chart.ctx;
+					const chartTop = chart.chartArea ? chart.chartArea.top : 0;
+					const chartBottom = chart.chartArea ? chart.chartArea.bottom : chart.height;
+					ctx.save();
+					visibleMetas.forEach(function(meta, visibleIndex) {
+						const dataset = chart.data.datasets[meta.index];
+						if (!chart.isDatasetVisible(meta.index)) {
+							return;
+						}
+						meta.data.forEach(function(element, dataIndex) {
+							const rawValue = dataset.data[dataIndex];
+							if (rawValue === null || rawValue === undefined || rawValue === '') {
+								return;
+							}
+							const props = typeof element.getProps === 'function' ? element.getProps(['x', 'y'], true) : element.tooltipPosition();
+							const badgeY = Math.max(chartTop + 12, Math.min(chartBottom - 12, Number(props.y || 0) - 16 - ((visibleMetas.length - visibleIndex - 1) * 18)));
+							drawChartValueBadge(ctx, shortMetric(rawValue, dataset.valueFormat), Number(props.x || 0), badgeY, {
+								font: '700 10px IBM Plex Sans',
+								backgroundColor: getThemeColor('--badge-bg', 'rgba(255,255,255,0.98)'),
+								textColor: dataset.labelColor || getThemeColor('--badge-text', '#0f172a'),
+								borderColor: dataset.borderColor || getThemeColor('--badge-border', 'rgba(15,23,42,0.16)'),
+								borderWidth: 1,
+							});
+						});
+					});
+					ctx.restore();
+				}
+			};
+
+			Chart.register(staticValueLabelsPlugin);
+
+			document.getElementById('navToggleButton').addEventListener('click', function() {
+				setNavigationOpen(!state.navOpen);
+			});
+			document.getElementById('navCloseButton').addEventListener('click', function() {
+				setNavigationOpen(false);
+			});
+			document.getElementById('navScrim').addEventListener('click', function() {
+				setNavigationOpen(false);
+			});
+			document.getElementById('refreshButton').addEventListener('click', refreshSummaryCacheAndReload);
+			document.getElementById('openDashboardButton').addEventListener('click', function() { navigateToView(''); });
+			document.getElementById('logoutButton').addEventListener('click', handleLogout);
+			document.getElementById('metricSelect').addEventListener('change', function() {
+				state.selectedMetric = this.value;
+				renderSummary(state.summary);
+				closeNavigationForCompactLayout();
+			});
+			document.getElementById('executiveMetrics').addEventListener('click', function(event) {
+				const button = event.target.closest('[data-select-metric]');
+				if (!button) {
+					return;
+				}
+				state.selectedMetric = button.dataset.selectMetric;
+				renderSummary(state.summary);
+			});
+			document.getElementById('scopeRollups').addEventListener('click', function(event) {
+				const button = event.target.closest('[data-select-rollup-node]');
+				if (!button || !state.summary) {
+					return;
+				}
+				state.selectedNodeId = button.dataset.selectRollupNode;
+				expandNodeAncestors(state.summary, state.selectedNodeId);
+				renderSummary(state.summary);
+			});
+			document.getElementById('moversPanel').addEventListener('click', function(event) {
+				const button = event.target.closest('[data-select-mover-node]');
+				if (!button || !state.summary) {
+					return;
+				}
+				state.selectedNodeId = button.dataset.selectMoverNode;
+				expandNodeAncestors(state.summary, state.selectedNodeId);
+				renderSummary(state.summary);
+				closeNavigationForCompactLayout();
+			});
+			document.getElementById('chartMonthFilterControls').addEventListener('click', function(event) {
+				const button = event.target.closest('[data-chart-month-filter]');
+				if (!button) {
+					return;
+				}
+				state.selectedChartMonthFilter = button.dataset.chartMonthFilter;
+				renderSummary(state.summary);
+			});
+			document.getElementById('hierarchyTree').addEventListener('click', function(event) {
+				const toggleButton = event.target.closest('[data-toggle-node]');
+				if (toggleButton) {
+					const nodeId = toggleButton.dataset.toggleNode;
+					state.expandedNodes[nodeId] = !state.expandedNodes[nodeId];
+					renderHierarchy(state.summary);
+					return;
+				}
+				const selectButton = event.target.closest('[data-select-node]');
+				if (!selectButton) {
+					return;
+				}
+				state.selectedNodeId = selectButton.dataset.selectNode;
+				expandNodeAncestors(state.summary, state.selectedNodeId);
+				renderSummary(state.summary);
+				closeNavigationForCompactLayout();
+			});
+			window.addEventListener('resize', scheduleResponsiveRefresh);
+			if (window.visualViewport) {
+				window.visualViewport.addEventListener('resize', scheduleResponsiveRefresh);
+			}
+			document.addEventListener('keydown', function(event) {
+				if (event.key === 'Escape' && state.navOpen) {
+					setNavigationOpen(false);
+				}
+			});
+
+			state.loginValue = getRequestedLoginValue();
+			loadSummary();
+
+			function getRequestedLoginValue() {
+				try {
+					const params = new URLSearchParams(window.location.search || '');
+					return String(params.get('login') || '').trim();
+				} catch (error) {
+					return '';
+				}
+			}
+
+			function loadSummary() {
+				setLoading(true);
+				google.script.run
+					.withSuccessHandler(function(payload) {
+						state.summary = payload;
+						if (!payload.metrics.includes(state.selectedMetric)) {
+							state.selectedMetric = payload.metrics[0] || 'Obrat GJ2026';
+						}
+						if (!state.selectedNodeId) {
+							state.selectedNodeId = payload.defaultNodeId || (payload.hierarchy ? payload.hierarchy.rootId : '');
+						}
+						expandNodeAncestors(payload, state.selectedNodeId);
+						renderSummary(payload);
+						setLoading(false);
+					})
+					.withFailureHandler(function(error) {
+						setLoading(false);
+						showPageError(error.message || 'Nepodarilo sa načítať sumár.');
+						document.getElementById('appShell').style.display = 'block';
+					})
+					.getSummaryData(state.loginValue || null);
+			}
+
+			function refreshSummaryCacheAndReload() {
+				setLoading(true);
+				google.script.run
+					.withSuccessHandler(function() {
+						loadSummary();
+					})
+					.withFailureHandler(function(error) {
+						showPageError((error && error.message) ? error.message : 'Nepodarilo sa prepočítať summary cache.');
+						loadSummary();
+					})
+					.createSummaryCache();
+			}
+
+			function renderSummary(payload) {
+				if (!payload) {
+					return;
+				}
+				const currentNode = getCurrentNode(payload);
+				if (!currentNode) {
+					showPageError('Pre sumár nie sú dostupné žiadne scope dáta.');
+					return;
+				}
+				renderHeader(payload, currentNode);
+				renderMetricSelect(payload);
+				renderMonthFilterControls(payload.months || []);
+				renderHierarchy(payload);
+				renderSelectionMeta(payload, currentNode);
+				renderExecutiveMetrics(payload, currentNode);
+				renderScopeRollups(payload, currentNode);
+				renderChart(payload, currentNode);
+				renderMoversPanel(payload, currentNode);
+				renderInsightPanels(payload, currentNode);
+				document.getElementById('appShell').style.display = 'block';
+				hidePageError();
+			}
+
+			function setNavigationOpen(isOpen) {
+				state.navOpen = Boolean(isOpen);
+				document.getElementById('appShell').classList.toggle('nav-open', state.navOpen);
+				document.body.classList.toggle('nav-open', state.navOpen);
+				document.getElementById('navToggleButton').setAttribute('aria-expanded', state.navOpen ? 'true' : 'false');
+			}
+
+			function closeNavigationForCompactLayout() {
+				if (window.innerWidth <= 1180) {
+					setNavigationOpen(false);
+				}
+			}
+
+			function handleViewportResize() {
+				if (window.innerWidth > 1180 && state.navOpen) {
+					document.body.classList.toggle('nav-open', true);
+					return;
+				}
+				if (window.innerWidth > 1180 && !state.navOpen) {
+					document.body.classList.remove('nav-open');
+				}
+			}
+
+			function scheduleResponsiveRefresh() {
+				if (responsiveLayoutTimer) {
+					clearTimeout(responsiveLayoutTimer);
+				}
+
+				responsiveLayoutTimer = setTimeout(function() {
+					responsiveLayoutTimer = null;
+					handleViewportResize();
+					if (!state.summary) {
+						return;
+					}
+					renderSummary(state.summary);
+				}, 140);
+			}
+
+			function renderHeader(payload, currentNode) {
+				const summaryUser = payload.user || null;
+				const isAdmin = Boolean(summaryUser && summaryUser.role === 'ADMIN');
+				document.getElementById('openDashboardButton').classList.toggle('hidden', isAdmin);
+				document.getElementById('headerBadge').textContent = isAdmin ? 'Sumár GJ2026' : 'Sumár GJ2026';
+				document.getElementById('pageTitle').textContent = 'Sumár PRO GJ 2026';
+				document.getElementById('pageText').textContent = isAdmin
+					? 'SK, GF, VKL a ich filiálky.'
+					: 'SK, GF, VKL a ich filiálky.';
+				document.getElementById('countStrip').innerHTML = [
+					renderPill('GF', payload.gfCount),
+					renderPill('VKL', payload.vklCount),
+					renderPill('Filiálky', payload.storeCount),
+					renderPill('Aktualizované', payload.generatedAt)
+				].join('');
+				document.getElementById('scopeStrip').innerHTML = [
+					renderPill('Scope', currentNode.label),
+					renderPill('Rola', summaryUser ? summaryUser.role : 'GLOBAL')
+				].join('');
+			}
+
+			function renderMetricSelect(payload) {
+				document.getElementById('metricSelect').innerHTML = payload.metrics.map(function(metric) {
+					return '<option value="' + escapeHtml(metric) + '" ' + (metric === state.selectedMetric ? 'selected' : '') + '>' + escapeHtml(metric) + '</option>';
+				}).join('');
+				document.getElementById('metricEcho').textContent = state.selectedMetric;
+			}
+
+			function getChartMonthFilterOptions(months) {
+				const monthLabels = Array.isArray(months) ? months : [];
+				const options = CHART_PRIMARY_FILTER_ORDER.map(function(filterKey) {
+					return {
+						key: filterKey,
+						label: CHART_MONTH_FILTERS[filterKey].label,
+						suffix: CHART_MONTH_FILTERS[filterKey].suffix,
+						group: 'primary',
+					};
+				});
+
+				monthLabels.forEach(function(monthLabel, index) {
+					options.push({
+						key: 'month-' + index,
+						label: formatMonthShort(monthLabel),
+						suffix: 'Zobrazený je iba mesiac ' + monthLabel + '.',
+						group: 'month',
+					});
+				});
+
+				CHART_SECONDARY_FILTER_ORDER.forEach(function(filterKey) {
+					options.push({
+						key: filterKey,
+						label: CHART_MONTH_FILTERS[filterKey].label,
+						suffix: CHART_MONTH_FILTERS[filterKey].suffix,
+						group: 'secondary',
+					});
+				});
+
+				return options;
+			}
+
+			function getChartMonthFilterGroups(months) {
+				const options = getChartMonthFilterOptions(months);
+				return [
+					{
+						key: 'primary',
+						label: 'Hlavný pohľad',
+						copy: '',
+						options: options.filter(function(option) { return option.group === 'primary'; })
+					},
+					{
+						key: 'month',
+						label: 'Jednotlivé mesiace',
+						copy: '',
+						options: options.filter(function(option) { return option.group === 'month'; })
+					},
+					{
+						key: 'secondary',
+						label: 'Stav mesiacov',
+						copy: '',
+						options: options.filter(function(option) { return option.group === 'secondary'; })
+					}
+				].filter(function(group) {
+					return Array.isArray(group.options) && group.options.length;
+				});
+			}
+
+			function getChartMonthFilterMeta(filterKey, months) {
+				const options = getChartMonthFilterOptions(months);
+				for (let index = 0; index < options.length; index += 1) {
+					if (options[index].key === filterKey) {
+						return options[index];
+					}
+				}
+				return options[0] || { key: 'all', label: 'Všetky', suffix: '' };
+			}
+
+			function renderMonthFilterControls(months) {
+				const options = getChartMonthFilterOptions(months);
+				const groups = getChartMonthFilterGroups(months);
+				const selectedExists = options.some(function(option) {
+					return option.key === state.selectedChartMonthFilter;
+				});
+				if (!selectedExists) {
+					state.selectedChartMonthFilter = 'all';
+				}
+
+				document.getElementById('chartMonthFilterControls').innerHTML = groups.map(function(group) {
+					return ''
+						+ '<div class="chart-filter-group">'
+						+ '<div class="chart-filter-group-head">'
+						+ '<div class="chart-filter-group-label">' + escapeHtml(group.label) + '</div>'
+						+ '<div class="chart-filter-group-copy">' + escapeHtml(group.copy) + '</div>'
+						+ '</div>'
+						+ '<div class="chart-filter-row">'
+						+ group.options.map(function(option) {
+							const variantClass = option.group === 'month'
+								? ' filter-month'
+								: (option.group === 'secondary' ? ' filter-secondary' : '');
+							const activeClass = option.key === state.selectedChartMonthFilter ? 'chart-mode-button' + variantClass + ' is-active' : 'chart-mode-button' + variantClass;
+							return '<button class="' + activeClass + '" type="button" data-chart-month-filter="' + escapeHtml(option.key) + '">' + escapeHtml(option.label) + '</button>';
+						}).join('')
+						+ '</div>'
+						+ '</div>';
+				}).join('');
+			}
+
+			function renderHierarchy(payload) {
+				const hierarchy = payload.hierarchy || { rootId: '', nodes: {} };
+				const rootNode = hierarchy.nodes[hierarchy.rootId];
+				if (!rootNode) {
+					document.getElementById('hierarchyTree').innerHTML = '<div class="tiny">Hierarchia nie je dostupná.</div>';
+					return;
+				}
+				document.getElementById('hierarchyTree').innerHTML = renderTreeNode(payload, rootNode.id, 0);
+			}
+
+			function renderTreeNode(payload, nodeId, depth) {
+				const node = getNode(payload, nodeId);
+				if (!node) {
+					return '';
+				}
+				const hasChildren = Array.isArray(node.childIds) && node.childIds.length > 0;
+				const isExpanded = hasChildren ? Boolean(state.expandedNodes[node.id]) : false;
+				const activeClass = state.selectedNodeId === node.id ? 'tree-row is-active' : 'tree-row';
+				const metaText = node.type === 'STORE' ? '1 filiálka' : node.storeCount + ' filiálok';
+				return '<div class="tree-node">'
+					+ '<div class="' + activeClass + '" style="--depth:' + depth + ';">'
+					+ (hasChildren ? '<button class="tree-toggle" type="button" data-toggle-node="' + escapeHtml(node.id) + '">' + (isExpanded ? '−' : '+') + '</button>' : '<span class="tree-spacer"></span>')
+					+ '<button class="tree-button" type="button" data-select-node="' + escapeHtml(node.id) + '"><strong>' + escapeHtml(node.label) + '</strong><span>' + escapeHtml(metaText) + '</span></button>'
+					+ '<span class="tree-type">' + escapeHtml(getNodeTypeLabel(node.type)) + '</span>'
+					+ '</div>'
+					+ (hasChildren && isExpanded ? '<div class="tree-children">' + node.childIds.map(function(childId) { return renderTreeNode(payload, childId, depth + 1); }).join('') + '</div>' : '')
+					+ '</div>';
+			}
+
+			function renderSelectionMeta(payload, currentNode) {
+				const snapshot = getMetricSnapshotForFilter(currentNode, state.selectedMetric, payload.months || [], state.selectedChartMonthFilter);
+				const path = getNodePath(payload, currentNode.id).join(' / ');
+				const filterMeta = getChartMonthFilterMeta(state.selectedChartMonthFilter, payload.months || []);
+				document.getElementById('chartTitle').textContent = currentNode.label;
+				document.getElementById('chartSubtitle').textContent = path + ' • ' + filterMeta.suffix;
+				document.getElementById('selectionMeta').innerHTML = [
+					renderMetricPill('Typ', getNodeTypeLabel(currentNode.type)),
+					renderMetricPill('Scope', currentNode.storeCount + ' filiálok'),
+					renderMetricPill('Metrika', state.selectedMetric)
+				].join('');
+				document.getElementById('scopeOverview').innerHTML = [
+					renderScopeCard(getDisplayPlanLabel(), formatMetric(snapshot.plan, snapshot.format), 'neutral'),
+					renderScopeCard(getDisplayRealIndicatorLabel(state.selectedMetric, snapshot), snapshot.hasReal ? formatMetric(snapshot.real, snapshot.format) : '—', 'neutral', snapshot.hasReal ? formatPercentMeta(snapshot.realPctVsPlan) : '', snapshot.hasReal ? getVarianceClass(snapshot.real - snapshot.plan) : 'neutral'),
+					renderScopeCard(getDisplayForecastLabel(), formatMetric(snapshot.forecast, snapshot.format), getVarianceClass(snapshot.forecast - snapshot.plan), formatPercentMeta(snapshot.forecastPctVsPlan), getVarianceClass(snapshot.forecast - snapshot.plan)),
+					renderScopeCard(getDisplayDeltaLabel(), formatSignedMetric(snapshot.delta, snapshot.format), getVarianceClass(snapshot.delta), formatPercentMeta(snapshot.deltaPctVsPlan), getVarianceClass(snapshot.delta))
+				].join('');
+			}
+
+			function renderExecutiveMetrics(payload, currentNode) {
+				const availableMetrics = EXECUTIVE_METRICS.filter(function(metric) {
+					return payload.metrics.indexOf(metric) > -1;
+				});
+				document.getElementById('executiveMetrics').innerHTML = availableMetrics.map(function(metric) {
+					const snapshot = getMetricSnapshotForFilter(currentNode, metric, payload.months || [], state.selectedChartMonthFilter);
+					const fullSeries = getMetricSeries(currentNode, metric);
+					const filteredSeries = filterChartSeriesByMonth(payload.months || [], {
+						plan: fullSeries.plan,
+						real: fullSeries.real,
+						adjustment: fullSeries.adjustment,
+						forecast: fullSeries.forecast,
+						delta: fullSeries.delta,
+					}, state.selectedChartMonthFilter);
+					const peakMonth = getExtremumMonth(filteredSeries.labels || [], filteredSeries.forecast || [], 'max');
+					const attainment = getAttainmentPercent(snapshot.plan, snapshot.forecast);
+					const deltaClass = getVarianceClass(snapshot.delta);
+					return ''
+						+ '<button class="executive-card ' + (metric === state.selectedMetric ? 'is-active' : '') + '" type="button" data-select-metric="' + escapeHtml(metric) + '">'
+						+ '<div class="executive-card-top">'
+						+ '<div>'
+						+ '<div class="executive-card-label">Metrika</div>'
+						+ '<div class="executive-card-title">' + escapeHtml(metric) + '</div>'
+						+ '</div>'
+						+ '<span class="executive-delta ' + escapeHtml(deltaClass) + '">' + escapeHtml(getDisplayDeltaLabel()) + ' ' + escapeHtml(formatSignedMetric(snapshot.delta, snapshot.format)) + (snapshot.deltaPctVsPlan != null ? ' • ' + escapeHtml(formatSignedPercent(snapshot.deltaPctVsPlan)) : '') + '</span>'
+						+ '</div>'
+						+ '<div class="executive-total-stack">'
+						+ '<div class="executive-total-kicker">' + escapeHtml(getDisplayForecastLabel()) + '</div>'
+						+ '<div class="executive-card-total">' + escapeHtml(formatMetric(snapshot.forecast, snapshot.format)) + '</div>'
+						+ '</div>'
+						+ '<div class="executive-stat-grid">'
+						+ renderExecutiveStat(getDisplayPlanLabel(), formatMetric(snapshot.plan, snapshot.format), 'neutral')
+						+ renderExecutiveStat(getDisplayRealIndicatorLabel(metric, snapshot), snapshot.hasReal ? formatMetric(snapshot.real, snapshot.format) : '—', snapshot.hasReal ? getVarianceClass(snapshot.real - snapshot.plan) : 'neutral', snapshot.hasReal ? formatPercentMeta(snapshot.realPctVsPlan) : '', snapshot.hasReal ? getVarianceClass(snapshot.real - snapshot.plan) : 'neutral')
+						+ renderExecutiveStat(getDisplayForecastLabel(), formatMetric(snapshot.forecast, snapshot.format), getVarianceClass(snapshot.forecast - snapshot.plan), formatPercentMeta(snapshot.forecastPctVsPlan), getVarianceClass(snapshot.forecast - snapshot.plan))
+						+ renderExecutiveStat(getDisplayDeltaLabel(), formatSignedMetric(snapshot.delta, snapshot.format), deltaClass, formatPercentMeta(snapshot.deltaPctVsPlan), deltaClass)
+						+ '</div>'
+						+ '<div class="sparkline-bars">' + renderSparklineBars(filteredSeries.forecast, filteredSeries.labels || []) + '</div>'
+						+ '<div class="executive-progress"></div>'.replace('</div>', '<div class="executive-progress-fill" style="width:' + escapeHtml(String(Math.max(0, Math.min(100, attainment)))) + '%"></div></div>')
+						+ '<div class="executive-card-meta">'
+						+ '<div class="executive-progress-label">Plnenie plánu <strong>' + escapeHtml(numberFormatter.format(attainment)) + '%</strong></div>'
+						+ '<div class="executive-card-caption">Peak: <strong>' + escapeHtml(peakMonth.label) + '</strong></div>'
+						+ '</div>'
+						+ '</button>';
+				}).join('');
+			}
+
+			function renderExecutiveStat(label, value, varianceClass, metaText, metaClass) {
+				return ''
+					+ '<div class="executive-stat">'
+					+ '<div class="executive-stat-label">' + escapeHtml(label) + '</div>'
+					+ '<div class="executive-stat-value ' + escapeHtml(varianceClass || 'neutral') + '">' + escapeHtml(value) + '</div>'
+					+ (metaText ? '<div class="executive-stat-meta ' + escapeHtml(metaClass || 'neutral') + '">' + escapeHtml(metaText) + '</div>' : '')
+					+ '</div>';
+			}
+
+			function renderScopeRollups(payload, currentNode) {
+				const groups = buildScopeRollupGroups(payload, currentNode);
+				const container = document.getElementById('scopeRollups');
+				container.innerHTML = groups.map(function(group) {
+					return renderScopeRollupSection(group, payload);
+				}).join('');
+			}
+
+			function renderMoversPanel(payload, currentNode) {
+				const container = document.getElementById('moversPanel');
+				const moverContext = buildMoverContext(payload, currentNode);
+				const entries = moverContext.nodes.map(function(node) {
+					const snapshot = getMetricSnapshotForFilter(node, state.selectedMetric, payload.months || [], state.selectedChartMonthFilter);
+					return {
+						node: node,
+						snapshot: snapshot,
+						delta: Number(snapshot.delta || 0),
+						attainment: getAttainmentPercent(snapshot.plan, snapshot.forecast),
+						path: getNodePath(payload, node.id).join(' • '),
+					};
+				});
+
+				if (entries.length < 2) {
+					container.innerHTML = ''
+						+ '<div>'
+						+ '<div class="panel-title">Top / Bottom movers</div>'
+						+ '<h2 style="margin:0;">V tejto vetve zatiaľ nie je porovnanie</h2>'
+						+ '</div>'
+						+ '<div class="movers-empty">Aktuálny výber nemá dostatok relevantných uzlov na porovnanie. Skús kliknúť o level vyššie alebo nižšie v hierarchii.</div>';
+					return;
+				}
+
+				const topEntries = entries.slice().sort(function(left, right) {
+					return right.delta - left.delta;
+				}).slice(0, 3);
+				const bottomEntries = entries.slice().sort(function(left, right) {
+					return left.delta - right.delta;
+				}).slice(0, 3);
+
+				container.innerHTML = ''
+					+ '<div>'
+					+ '<div class="panel-title">Top / Bottom movers</div>'
+					+ '<h2 style="margin:0;">Kto najviac hýbe metrikou ' + escapeHtml(state.selectedMetric) + '</h2>'
+					+ '</div>'
+					+ '<div class="support-text">' + escapeHtml(moverContext.copy) + '</div>'
+					+ '<div class="movers-grid">'
+					+ renderMoversColumn('Top movers', 'Najsilnejšie pozitívne ' + getDisplayDeltaContextLabel() + '.', 'positive', topEntries)
+					+ renderMoversColumn('Bottom movers', 'Najslabšie ' + getDisplayDeltaContextLabel() + '.', 'negative', bottomEntries)
+					+ '</div>';
+			}
+
+			function buildMoverContext(payload, currentNode) {
+				const filterMeta = getChartMonthFilterMeta(state.selectedChartMonthFilter, payload.months || []);
+				const childNodes = (currentNode.childIds || []).map(function(childId) {
+					return getNode(payload, childId);
+				}).filter(Boolean);
+				if (childNodes.length) {
+					return {
+						nodes: childNodes,
+						copy: 'Porovnanie' + currentNode.label + ' pre filter ' + filterMeta.suffix + '.',
+					};
+				}
+
+				const parentNode = currentNode.parentId ? getNode(payload, currentNode.parentId) : null;
+				const siblingNodes = parentNode ? (parentNode.childIds || []).map(function(childId) {
+					return getNode(payload, childId);
+				}).filter(function(node) {
+					return node && String(node.type || '').toUpperCase() === String(currentNode.type || '').toUpperCase();
+				}) : [];
+
+				if (siblingNodes.length > 1) {
+					return {
+						nodes: siblingNodes,
+						copy: 'Aktuálny uzol nemá ďalší drill-down, preto porovnávam súrodenecké uzly v rámci ' + parentNode.label + ' pre filter ' + filterMeta.suffix + '.',
+					};
+				}
+
+				return { nodes: [], copy: '' };
+			}
+
+			function renderMoversColumn(title, copy, tone, entries) {
+				return ''
+					+ '<div class="movers-column">'
+					+ '<div class="movers-column-head">'
+					+ '<div>'
+					+ '<h3 class="movers-column-title">' + escapeHtml(title) + '</h3>'
+					+ '<div class="support-text">' + escapeHtml(copy) + '</div>'
+					+ '</div>'
+					+ '<span class="movers-badge ' + escapeHtml(tone) + '">' + escapeHtml(String(entries.length)) + ' uzly</span>'
+					+ '</div>'
+					+ '<div class="movers-list">'
+					+ entries.map(function(entry, index) {
+						return renderMoverItem(entry, index);
+					}).join('')
+					+ '</div>'
+					+ '</div>';
+			}
+
+			function renderMoverItem(entry, index) {
+				const snapshot = entry.snapshot;
+				const deltaClass = getVarianceClass(entry.delta);
+				const istClass = snapshot.hasReal ? getVarianceClass(snapshot.real - snapshot.plan) : 'neutral';
+				const forecastClass = getVarianceClass(snapshot.forecast - snapshot.plan);
+				const isActive = state.selectedNodeId === entry.node.id;
+				return ''
+					+ '<button class="mover-item ' + (isActive ? 'is-active' : '') + '" type="button" data-select-mover-node="' + escapeHtml(entry.node.id) + '">'
+					+ '<div class="mover-item-top">'
+					+ '<div>'
+					+ '<div class="mover-item-kicker">#' + escapeHtml(String(index + 1)) + ' • ' + escapeHtml(getNodeTypeLabel(entry.node.type)) + '</div>'
+					+ '<div class="mover-item-title">' + escapeHtml(entry.node.label) + '</div>'
+					+ '</div>'
+					+ '<div class="mover-item-delta ' + escapeHtml(deltaClass) + '">' + escapeHtml(formatSignedMetric(entry.delta, snapshot.format)) + '</div>'
+					+ '</div>'
+					+ '<div class="mover-item-copy">' + escapeHtml(entry.path) + '</div>'
+					+ '<div class="mover-item-metrics">'
+					+ '<div class="mover-stat"><div class="mover-stat-label">' + escapeHtml(getDisplayPlanLabel()) + '</div><div class="mover-stat-value neutral">' + escapeHtml(formatMetric(snapshot.plan, snapshot.format)) + '</div></div>'
+					+ '<div class="mover-stat"><div class="mover-stat-label">' + escapeHtml(getDisplayRealIndicatorLabel(state.selectedMetric, snapshot)) + '</div><div class="mover-stat-value ' + escapeHtml(istClass) + '">' + escapeHtml(snapshot.hasReal ? formatMetric(snapshot.real, snapshot.format) : '—') + '</div></div>'
+					+ '<div class="mover-stat"><div class="mover-stat-label">' + escapeHtml(getDisplayForecastLabel()) + '</div><div class="mover-stat-value ' + escapeHtml(forecastClass) + '">' + escapeHtml(formatMetric(snapshot.forecast, snapshot.format)) + '</div></div>'
+					+ '<div class="mover-stat"><div class="mover-stat-label">Plnenie</div><div class="mover-stat-value ' + escapeHtml(deltaClass) + '">' + escapeHtml(numberFormatter.format(entry.attainment)) + '%</div></div>'
+					+ '</div>'
+					+ '</button>';
+			}
+
+			function buildScopeRollupGroups(payload, currentNode) {
+				const gfNodes = getRelevantRollupNodes(payload, currentNode, 'GF');
+				const vklNodes = getRelevantRollupNodes(payload, currentNode, 'VKL');
+				const storeNodes = getRelevantRollupNodes(payload, currentNode, 'STORE');
+				const groups = [];
+				if (gfNodes.length) {
+					groups.push({
+						title: 'GF riadok',
+						copy: 'Rovnaký KPI riadok pre každý relevantný GF v aktuálnej vetve a metrike ' + state.selectedMetric + '.',
+						nodes: gfNodes,
+					});
+				}
+				if (vklNodes.length) {
+					groups.push({
+						title: 'VKL riadok',
+						copy: 'Rovnaký KPI riadok pre každý relevantný VKL v aktuálnej vetve a metrike ' + state.selectedMetric + '.',
+						nodes: vklNodes,
+					});
+				}
+				if (storeNodes.length) {
+					groups.push({
+						title: 'Filiálky VKL',
+						copy: 'Pod vybraným VKL sú zobrazené rovnaké KPI riadky pre každú jeho filiálku v metrike ' + state.selectedMetric + '.',
+						nodes: storeNodes,
+					});
+				}
+				return groups;
+			}
+
+			function getRelevantRollupNodes(payload, currentNode, targetType) {
+				const activeType = String((currentNode && currentNode.type) || '').toUpperCase();
+				if (!currentNode || !targetType) {
+					return [];
+				}
+
+				if (targetType === 'GF') {
+					if (activeType === 'GLOBAL') {
+						return getImmediateChildrenByType(payload, currentNode, 'GF');
+					}
+					if (activeType === 'GF') {
+						return [currentNode];
+					}
+					if (activeType === 'VKL') {
+						return getParentNodesByType(payload, currentNode, 'GF');
+					}
+					if (activeType === 'STORE') {
+						const parentVkl = getNode(payload, currentNode.parentId);
+						return parentVkl ? getParentNodesByType(payload, parentVkl, 'GF') : [];
+					}
+				}
+
+				if (targetType === 'VKL') {
+					if (activeType === 'GLOBAL') {
+						return collectDescendantNodesByType(payload, currentNode.id, 'VKL');
+					}
+					if (activeType === 'GF') {
+						return getImmediateChildrenByType(payload, currentNode, 'VKL');
+					}
+					if (activeType === 'VKL') {
+						return [currentNode];
+					}
+					if (activeType === 'STORE') {
+						const parentNode = getNode(payload, currentNode.parentId);
+						return parentNode && String(parentNode.type || '').toUpperCase() === 'VKL' ? [parentNode] : [];
+					}
+				}
+
+				if (targetType === 'STORE') {
+					if (activeType === 'VKL') {
+						return getImmediateChildrenByType(payload, currentNode, 'STORE');
+					}
+				}
+
+				return [];
+			}
+
+			function getImmediateChildrenByType(payload, node, targetType) {
+				return (node.childIds || []).map(function(childId) {
+					return getNode(payload, childId);
+				}).filter(function(childNode) {
+					return childNode && String(childNode.type || '').toUpperCase() === targetType;
+				});
+			}
+
+			function getParentNodesByType(payload, node, targetType) {
+				const result = [];
+				let activeId = node ? node.parentId : '';
+				while (activeId) {
+					const parentNode = getNode(payload, activeId);
+					if (!parentNode) {
+						break;
+					}
+					if (String(parentNode.type || '').toUpperCase() === targetType) {
+						result.push(parentNode);
+						break;
+					}
+					activeId = parentNode.parentId;
+				}
+				return result;
+			}
+
+			function collectDescendantNodesByType(payload, nodeId, targetType) {
+				const startNode = getNode(payload, nodeId);
+				if (!startNode) {
+					return [];
+				}
+				const result = [];
+				(startNode.childIds || []).forEach(function(childId) {
+					const childNode = getNode(payload, childId);
+					if (!childNode) {
+						return;
+					}
+					if (String(childNode.type || '').toUpperCase() === targetType) {
+						result.push(childNode);
+					}
+					result.push.apply(result, collectDescendantNodesByType(payload, childNode.id, targetType));
+				});
+				return result;
+			}
+
+			function renderScopeRollupSection(group, payload) {
+				return ''
+					+ '<section class="rollup-section">'
+					+ '<div class="rollup-section-head">'
+					+ '<div>'
+					+ '<div class="panel-title">Prehľad po leveloch riadenia</div>'
+					+ '<h3>' + escapeHtml(group.title) + '</h3>'
+					+ '</div>'
+					+ '<div class="support-text">' + escapeHtml(group.copy) + '</div>'
+					+ '</div>'
+					+ '<div class="rollup-list">'
+					+ group.nodes.map(function(node) {
+						return renderScopeRollupRow(node, payload);
+					}).join('')
+					+ '</div>'
+					+ '</section>';
+			}
+
+			function renderScopeRollupRow(node, payload) {
+				const snapshot = getMetricSnapshotForFilter(node, state.selectedMetric, payload && payload.months ? payload.months : [], state.selectedChartMonthFilter);
+				const isActive = state.selectedNodeId === node.id;
+				return ''
+					+ '<div class="rollup-row ' + (isActive ? 'is-active' : '') + '">'
+					+ '<button class="rollup-row-button" type="button" data-select-rollup-node="' + escapeHtml(node.id) + '">'
+					+ '<div class="rollup-row-kicker">' + escapeHtml(getNodeTypeLabel(node.type)) + ' • ' + escapeHtml(String(node.storeCount || 0)) + ' filiálok</div>'
+					+ '<div class="rollup-row-title">' + escapeHtml(node.label) + '</div>'
+					+ '<div class="rollup-row-caption">Klik rozbalí další level riadenia.</div>'
+					+ '</button>'
+					+ '<div class="rollup-row-grid">'
+					+ renderScopeCard(getDisplayPlanLabel(), formatMetric(snapshot.plan, snapshot.format), 'neutral')
+					+ renderScopeCard(getDisplayRealIndicatorLabel(state.selectedMetric, snapshot), snapshot.hasReal ? formatMetric(snapshot.real, snapshot.format) : '—', 'neutral', snapshot.hasReal ? formatPercentMeta(snapshot.realPctVsPlan) : '', snapshot.hasReal ? getVarianceClass(snapshot.real - snapshot.plan) : 'neutral')
+					+ renderScopeCard(getDisplayForecastLabel(), formatMetric(snapshot.forecast, snapshot.format), getVarianceClass(snapshot.forecast - snapshot.plan), formatPercentMeta(snapshot.forecastPctVsPlan), getVarianceClass(snapshot.forecast - snapshot.plan))
+					+ renderScopeCard(getDisplayDeltaLabel(), formatSignedMetric(snapshot.delta, snapshot.format), getVarianceClass(snapshot.delta), formatPercentMeta(snapshot.deltaPctVsPlan), getVarianceClass(snapshot.delta))
+					+ '</div>'
+					+ '</div>';
+			}
+
+			function renderChart(payload, currentNode) {
+				if (typeof Chart === 'undefined') {
+					return;
+				}
+				renderOrUpdateChart('unifiedChart', buildNodeChartConfig(payload, currentNode, state.selectedMetric, state.selectedChartMonthFilter));
+			}
+
+			function renderInsightPanels(payload, currentNode) {
+				const insight = buildMetricInsight(payload, currentNode, state.selectedMetric);
+				document.getElementById('insightPanel').innerHTML = ''
+					+ '<div>'
+					+ '<div class="panel-title">Ročný Prehľad</div>'
+					+ '<h2 style="margin:0;">Čo hovorí ročný vývoj</h2>'
+					+ '</div>'
+					+ '<div class="story-hero">'
+					+ '<div class="story-kicker">Signal pre ' + escapeHtml(state.selectedMetric) + '</div>'
+					+ '<p class="story-headline">' + escapeHtml(insight.headline) + '</p>'
+					+ '<p class="story-copy">' + escapeHtml(insight.copy) + '</p>'
+					+ '</div>'
+					+ '<div class="story-grid">'
+					+ renderStoryCard('Ročné plnenie', insight.attainmentLabel, insight.attainmentCopy, insight.attainmentClass)
+					+ renderStoryCard('Tempo uzavretých mesiacov', insight.closedLabel, insight.closedCopy, insight.closedClass)
+					+ renderStoryCard('Trend roka', insight.trendLabel, insight.trendCopy, insight.trendClass)
+					+ renderStoryCard('Peak a dip', insight.extremumLabel, insight.extremumCopy, 'neutral')
+					+ '</div>';
+
+				document.getElementById('quarterPanel').innerHTML = ''
+					+ '<div class="journey-head">'
+					+ '<div>'
+					+ '<div class="panel-title">Kvartálny Prehľad</div>'
+					+ '<h2 style="margin:0;">Kvartálny obraz roka</h2>'
+					+ '</div>'
+					+ '<div class="support-text">Kvartály sú zobrazené v rovnakom card formáte ako mesačný journey.</div>'
+					+ '</div>'
+					+ '<div class="quarter-strip">'
+					+ insight.quarters.map(function(quarter) {
+						return renderQuarterJourneyCard(quarter);
+					}).join('')
+					+ '</div>';
+
+				document.getElementById('journeyTitle').textContent = 'Mesiac po mesiaci • ' + state.selectedMetric;
+				document.getElementById('journeySubtitle').textContent = insight.journeySubtitle;
+				document.getElementById('journeyStrip').innerHTML = insight.monthCards.map(function(monthCard) {
+					return renderMonthJourneyCard(monthCard);
+				}).join('');
+			}
+
+			function buildNodeChartConfig(payload, node, metric, filterKey) {
+				const months = payload.months || [];
+				const indexes = getMonthIndexesByFilter(payload.months || [], filterKey);
+				const fullComputation = buildMetricComputation(node, metric, months, null);
+				const filteredComputation = buildMetricComputation(node, metric, months, indexes);
+				const filtered = filterChartSeriesByMonth(months, fullComputation.series, filterKey);
+				return buildUnifiedMetricChart({
+					labels: filtered.labels.map(formatMonthShort),
+					format: fullComputation.format,
+					plan: filtered.plan,
+					forecast: filtered.forecast,
+					real: filteredComputation.hasReal ? filtered.real : [],
+					hasReal: filteredComputation.hasReal,
+				});
+			}
+
+			function buildUnifiedMetricChart(config) {
+				return {
+					type: 'line',
+					data: { labels: config.labels, datasets: buildUnifiedMetricDatasets(config) },
+					options: chartOptions(config.format, { chartPaddingTop: 84, labelMode: 'badge-all' })
+				};
+			}
+
+			function buildUnifiedMetricDatasets(config) {
+				const datasets = [
+					createOverlayDataset({ label: getDisplayPlanLabel(), data: config.plan, borderColor: getThemeColor('--chart-plan', '#2563eb'), backgroundColor: getThemeColor('--chart-plan-soft', 'rgba(37,99,235,0.18)'), valueFormat: config.format, order: 1 }),
+					createOverlayDataset({ label: getDisplayForecastLabel(), data: config.forecast, borderColor: getThemeColor('--chart-forecast', '#c0352b'), backgroundColor: getThemeColor('--chart-forecast-soft', 'rgba(192,53,43,0.18)'), valueFormat: config.format, order: 2 })
+				];
+				if (config.hasReal) {
+					datasets.push(createOverlayDataset({ label: getDisplayRealLabel(), data: config.real, borderColor: getThemeColor('--chart-ist', '#111827'), backgroundColor: getThemeColor('--chart-ist-soft', 'rgba(17,24,39,0.12)'), valueFormat: config.format, order: 4 }));
+				}
+				return datasets;
+			}
+
+			function createOverlayDataset(config) {
+				return {
+					type: 'line',
+					label: config.label,
+					data: config.data,
+					borderColor: config.borderColor,
+					backgroundColor: config.backgroundColor,
+					labelColor: config.borderColor,
+					valueFormat: config.valueFormat,
+					fill: true,
+					tension: 0.28,
+					borderWidth: config.borderWidth != null ? config.borderWidth : 3,
+					pointRadius: config.pointRadius != null ? config.pointRadius : 3,
+					pointHoverRadius: config.pointHoverRadius != null ? config.pointHoverRadius : 5,
+					pointBackgroundColor: '#ffffff',
+					pointBorderColor: config.borderColor,
+					pointBorderWidth: 2,
+					borderDash: config.borderDash,
+					order: config.order || 0
+				};
+			}
+
+			function chartOptions(format, options) {
+				const config = options || {};
+				return {
+					responsive: true,
+					maintainAspectRatio: false,
+					interaction: { mode: 'index', intersect: false },
+					layout: { padding: { top: config.chartPaddingTop || 0, right: 10, bottom: 10, left: 0 } },
+					plugins: {
+						legend: { labels: { color: getThemeColor('--text', '#16324a'), usePointStyle: true, boxWidth: 8, font: { family: 'IBM Plex Sans', weight: '600' } } },
+						tooltip: { backgroundColor: getThemeColor('--tooltip-bg', 'rgba(19, 35, 52, 0.94)'), callbacks: { label: function(context) { return context.dataset.label + ': ' + formatMetric(context.raw, format); } } },
+						staticValueLabels: { display: config.labelMode === 'badge-all' }
+					},
+					scales: {
+						x: { grid: { display: false }, ticks: { color: getThemeColor('--muted', '#63778f'), font: { family: 'IBM Plex Sans', weight: '600' } } },
+						y: { grid: { color: getThemeColor('--grid', 'rgba(22, 43, 68, 0.10)') }, ticks: { color: getThemeColor('--muted', '#63778f'), font: { family: 'IBM Plex Sans', weight: '600' }, callback: function(value) { return shortMetric(value, format); } } }
+					}
+				};
+			}
+
+			function renderOrUpdateChart(id, config) {
+				const existing = state.charts[id];
+				if (existing && existing.config.type === config.type) {
+					existing.data = config.data;
+					Object.assign(existing.options, config.options || {});
+					if (config.plugins) { existing.config.plugins = config.plugins; }
+					existing.update();
+					return;
+				}
+				if (existing) { existing.destroy(); }
+				state.charts[id] = new Chart(document.getElementById(id), config);
+			}
+
+			function getCurrentNode(payload) {
+				return getNode(payload, state.selectedNodeId) || getNode(payload, payload.defaultNodeId || (payload.hierarchy ? payload.hierarchy.rootId : ''));
+			}
+
+			function getNode(payload, nodeId) {
+				return payload && payload.hierarchy && payload.hierarchy.nodes ? payload.hierarchy.nodes[nodeId] : null;
+			}
+
+			function getNodePath(payload, nodeId) {
+				const labels = [];
+				let activeId = nodeId;
+				while (activeId) {
+					const node = getNode(payload, activeId);
+					if (!node) {
+						break;
+					}
+					labels.unshift(node.label);
+					activeId = node.parentId;
+				}
+				return labels;
+			}
+
+			function expandNodeAncestors(payload, nodeId) {
+				let activeId = nodeId;
+				while (activeId) {
+					state.expandedNodes[activeId] = true;
+					const node = getNode(payload, activeId);
+					activeId = node ? node.parentId : '';
+				}
+			}
+
+			function findMetric(node, metric) {
+				return node.metrics.find(function(item) { return normalizeMetricName(item.metric) === normalizeMetricName(metric); }) || { metric: metric, format: 'number', rows: [] };
+			}
+
+			function findRow(metricSection, type) {
+				return metricSection.rows.find(function(row) { return row.type === type; }) || { values: [], total: 0 };
+			}
+
+			function sumMetricValues(values, indexes) {
+				if (!Array.isArray(values) || !values.length) {
+					return 0;
+				}
+				if (Array.isArray(indexes) && indexes.length) {
+					return indexes.reduce(function(sum, index) {
+						return sum + Number(values[index] || 0);
+					}, 0);
+				}
+				return values.reduce(function(sum, value) {
+					return sum + Number(value || 0);
+				}, 0);
+			}
+
+			function shouldUsePlanFallbackForMetric(metric) {
+				return [
+					'Čistý výkon',
+					'Hodiny netto',
+					'Obrat GJ2026'
+				].some(function(fallbackMetric) {
+					return normalizeMetricName(fallbackMetric) === normalizeMetricName(metric);
+				});
+			}
+
+			function hasMetricRowRealData(row, indexes) {
+				const targetIndexes = Array.isArray(indexes) && indexes.length
+					? indexes
+					: null;
+				if (Array.isArray(row.hasRealFlags) && row.hasRealFlags.length) {
+					return (targetIndexes || row.hasRealFlags.map(function(flag, index) { return index; })).some(function(index) {
+						return Boolean(row.hasRealFlags[index]);
+					});
+				}
+				if (Array.isArray(row.actualValues) && row.actualValues.length) {
+					return (targetIndexes || row.actualValues.map(function(value, index) { return index; })).some(function(index) {
+						return Math.abs(Number(row.actualValues[index] || 0)) > 0.0001;
+					});
+				}
+				if (Array.isArray(row.values) && row.values.length) {
+					return (targetIndexes || row.values.map(function(value, index) { return index; })).some(function(index) {
+						return Math.abs(Number(row.values[index] || 0)) > 0.0001;
+					});
+				}
+				return Math.abs(Number(row.actualTotal || row.total || 0)) > 0.0001;
+			}
+
+			function hasFallbackRealDisplay(metric, row, months, indexes) {
+				if (!shouldUsePlanFallbackForMetric(metric) || !row) {
+					return false;
+				}
+
+				const activeIndexes = Array.isArray(indexes) && indexes.length
+					? indexes
+					: (Array.isArray(row.values) ? row.values.map(function(value, index) { return index; }) : []);
+
+				return activeIndexes.some(function(index) {
+					const monthLabel = Array.isArray(months) ? months[index] : '';
+					if (monthLabel && isChartMonthClosed(monthLabel)) {
+						return false;
+					}
+					return !hasActualRealValue(row, index);
+				});
+			}
+
+			function getDisplayedMetricValue(metric, planRow, realRow, index) {
+				if (hasActualRealValue(realRow, index)) {
+					return getActualRealValue(realRow, index);
+				}
+
+				if (Array.isArray(realRow && realRow.values)) {
+					const displayedValue = Number(realRow.values[index] || 0);
+					if (Math.abs(displayedValue) > 0.0001 || !shouldUsePlanFallbackForMetric(metric)) {
+						return displayedValue;
+					}
+				}
+
+				if (shouldUsePlanFallbackForMetric(metric)) {
+					return Number(planRow && planRow.values ? planRow.values[index] : 0);
+				}
+
+				return Number(realRow && realRow.values ? realRow.values[index] : 0);
+			}
+
+			function buildCleanPerformanceComputation(node, indexes, months) {
+				const turnoverMetric = findMetric(node, 'Obrat GJ2026');
+				const hoursMetric = findMetric(node, 'Hodiny netto');
+				const turnoverPlanRow = findRow(turnoverMetric, 'plan');
+				const turnoverRealRow = findRow(turnoverMetric, 'real');
+				const turnoverForecastRow = findRow(turnoverMetric, 'forecast');
+				const hoursPlanRow = findRow(hoursMetric, 'plan');
+				const hoursRealRow = findRow(hoursMetric, 'real');
+				const hoursForecastRow = findRow(hoursMetric, 'forecast');
+				const monthCount = Math.max(
+					Array.isArray(turnoverPlanRow.values) ? turnoverPlanRow.values.length : 0,
+					Array.isArray(turnoverRealRow.values) ? turnoverRealRow.values.length : 0,
+					Array.isArray(turnoverForecastRow.values) ? turnoverForecastRow.values.length : 0,
+					Array.isArray(hoursPlanRow.values) ? hoursPlanRow.values.length : 0,
+					Array.isArray(hoursRealRow.values) ? hoursRealRow.values.length : 0,
+					Array.isArray(hoursForecastRow.values) ? hoursForecastRow.values.length : 0
+				);
+				const hasIndexes = Array.isArray(indexes) && indexes.length;
+				const activeIndexes = hasIndexes
+					? indexes
+					: Array.from({ length: monthCount }, function(value, index) { return index; });
+				const toPerformanceValue = function(turnoverValue, hourValue) {
+					return Number(hourValue || 0) ? Number(turnoverValue || 0) / Number(hourValue || 0) : 0;
+				};
+				const planValues = [];
+				const realValues = [];
+				const actualValues = [];
+				const forecastValues = [];
+				const deltaValues = [];
+				const hasRealFlags = [];
+				const displayedTurnoverValues = [];
+				const displayedHourValues = [];
+
+				Array.from({ length: monthCount }, function(value, index) { return index; }).forEach(function(index) {
+					const planTurnover = Number(turnoverPlanRow.values && turnoverPlanRow.values[index] || 0);
+					const planHours = Number(hoursPlanRow.values && hoursPlanRow.values[index] || 0);
+					const hasActual = hasActualRealValue(turnoverRealRow, index) && hasActualRealValue(hoursRealRow, index);
+					const actualTurnover = hasActual ? getActualRealValue(turnoverRealRow, index) : 0;
+					const actualHours = hasActual ? getActualRealValue(hoursRealRow, index) : 0;
+					const displayedTurnover = getDisplayedMetricValue('Obrat GJ2026', turnoverPlanRow, turnoverRealRow, index);
+					const displayedHours = getDisplayedMetricValue('Hodiny netto', hoursPlanRow, hoursRealRow, index);
+					const forecastTurnover = Number(turnoverForecastRow.values && turnoverForecastRow.values[index] || 0);
+					const forecastHours = Number(hoursForecastRow.values && hoursForecastRow.values[index] || 0);
+
+					planValues.push(toPerformanceValue(planTurnover, planHours));
+					realValues.push(toPerformanceValue(displayedTurnover, displayedHours));
+					actualValues.push(hasActual ? toPerformanceValue(actualTurnover, actualHours) : 0);
+					forecastValues.push(toPerformanceValue(forecastTurnover, forecastHours));
+					deltaValues.push(forecastValues[index] - realValues[index]);
+					hasRealFlags.push(hasActual);
+					displayedTurnoverValues.push(displayedTurnover);
+					displayedHourValues.push(displayedHours);
+				});
+
+				const planTurnoverTotal = sumMetricValues(turnoverPlanRow.values || [], activeIndexes);
+				const planHourTotal = sumMetricValues(hoursPlanRow.values || [], activeIndexes);
+				const displayedTurnoverTotal = sumMetricValues(displayedTurnoverValues, activeIndexes);
+				const displayedHourTotal = sumMetricValues(displayedHourValues, activeIndexes);
+				const forecastTurnoverTotal = sumMetricValues(turnoverForecastRow.values || [], activeIndexes);
+				const forecastHourTotal = sumMetricValues(hoursForecastRow.values || [], activeIndexes);
+				const plan = toPerformanceValue(planTurnoverTotal, planHourTotal);
+				const real = toPerformanceValue(displayedTurnoverTotal, displayedHourTotal);
+				const forecast = toPerformanceValue(forecastTurnoverTotal, forecastHourTotal);
+				const hasReal = hasMetricRowRealData(turnoverRealRow, indexes)
+					&& hasMetricRowRealData(hoursRealRow, indexes);
+				const isRealFallback = hasFallbackRealDisplay('Obrat GJ2026', turnoverRealRow, months, activeIndexes)
+					|| hasFallbackRealDisplay('Hodiny netto', hoursRealRow, months, activeIndexes);
+
+				return {
+					metric: 'Čistý výkon',
+					format: 'number',
+					plan: plan,
+					real: real,
+					adjustment: forecast,
+					forecast: forecast,
+					delta: forecast - real,
+					hasReal: hasReal,
+					isRealFallback: isRealFallback,
+					planValues: planValues,
+					realValues: realValues,
+					actualValues: actualValues,
+					forecastValues: forecastValues,
+					deltaValues: deltaValues,
+					hasRealFlags: hasRealFlags,
+				};
+			}
+
+			function buildStandardMetricComputation(node, metric, months, indexes) {
+				const metricSection = findMetric(node, metric);
+				const planRow = findRow(metricSection, 'plan');
+				const realRow = findRow(metricSection, 'real');
+				const adjustmentRow = findRow(metricSection, 'adjustment');
+				const forecastRow = findRow(metricSection, 'forecast');
+				const deltaRow = findRow(metricSection, 'delta');
+				const hasIndexes = Array.isArray(indexes) && indexes.length;
+				const series = {
+					plan: Array.isArray(planRow.values) ? planRow.values : [],
+					real: Array.isArray(realRow.values) ? realRow.values : [],
+					adjustment: Array.isArray(adjustmentRow.values) ? adjustmentRow.values : [],
+					forecast: Array.isArray(forecastRow.values) ? forecastRow.values : [],
+					delta: Array.isArray(deltaRow.values) ? deltaRow.values : [],
+				};
+				const activeSeries = hasIndexes ? pickDataSeriesByIndexes(series, indexes) : series;
+
+				return {
+					metric: metricSection.metric || metric,
+					format: metricSection.format || 'number',
+					plan: hasIndexes ? summarizeMetricSeries(metric, activeSeries.plan) : Number(planRow.total || 0),
+					real: hasIndexes ? summarizeMetricSeries(metric, activeSeries.real) : Number(realRow.total || 0),
+					adjustment: hasIndexes ? summarizeMetricSeries(metric, activeSeries.adjustment) : Number(adjustmentRow.total || 0),
+					forecast: hasIndexes ? summarizeMetricSeries(metric, activeSeries.forecast) : Number(forecastRow.total || 0),
+					delta: hasIndexes ? summarizeMetricSeries(metric, activeSeries.delta) : Number(deltaRow.total || 0),
+					hasReal: hasMetricRowRealData(realRow, hasIndexes ? indexes : null),
+					isRealFallback: hasFallbackRealDisplay(metric, realRow, months || [], hasIndexes ? indexes : null),
+					series: series,
+				};
+			}
+
+			function buildMetricComputation(node, metric, months, indexes) {
+				if (normalizeMetricName(metric) === normalizeMetricName('Čistý výkon')) {
+					const cleanPerformance = buildCleanPerformanceComputation(node, indexes, months || []);
+					return {
+						metric: cleanPerformance.metric,
+						format: cleanPerformance.format,
+						plan: cleanPerformance.plan,
+						real: cleanPerformance.real,
+						adjustment: cleanPerformance.adjustment,
+						forecast: cleanPerformance.forecast,
+						delta: cleanPerformance.delta,
+						hasReal: cleanPerformance.hasReal,
+						isRealFallback: cleanPerformance.isRealFallback,
+						series: {
+							plan: cleanPerformance.planValues,
+							real: cleanPerformance.realValues,
+							adjustment: cleanPerformance.forecastValues,
+							forecast: cleanPerformance.forecastValues,
+							delta: cleanPerformance.deltaValues,
+						},
+					};
+				}
+
+				return buildStandardMetricComputation(node, metric, months || [], indexes);
+			}
+
+			function toMetricSnapshot(computation) {
+				return {
+					format: computation.format,
+					plan: computation.plan,
+					real: computation.real,
+					adjustment: computation.adjustment,
+					forecast: computation.forecast,
+					delta: computation.delta,
+					hasReal: computation.hasReal,
+					isRealFallback: computation.isRealFallback,
+					realPctVsPlan: getPercentDeltaVsPlan(computation.plan, computation.real),
+					forecastPctVsPlan: getPercentDeltaVsPlan(computation.plan, computation.forecast),
+					deltaPctVsPlan: getDeltaPercentVsPlan(computation.plan, computation.delta),
+				};
+			}
+
+			function getMetricSnapshot(node, metric) {
+				return toMetricSnapshot(buildMetricComputation(node, metric, state.summary && state.summary.months ? state.summary.months : [], null));
+			}
+
+			function getMetricSnapshotForFilter(node, metric, months, filterKey) {
+				if (!node || !metric || !months) {
+					return getMetricSnapshot(node, metric);
+				}
+				const indexes = getMonthIndexesByFilter(months || [], filterKey);
+				return toMetricSnapshot(buildMetricComputation(node, metric, months || [], indexes));
+			}
+
+			function getMetricSeries(node, metric) {
+				const computation = buildMetricComputation(node, metric, state.summary && state.summary.months ? state.summary.months : [], null);
+				return {
+					metric: computation.metric,
+					format: computation.format,
+					plan: computation.series.plan,
+					real: computation.series.real,
+					adjustment: computation.series.adjustment,
+					forecast: computation.series.forecast,
+					delta: computation.series.delta,
+				};
+			}
+
+			function buildMetricInsight(payload, node, metric) {
+				const months = payload.months || [];
+				const series = getMetricSeries(node, metric);
+				const snapshot = getMetricSnapshot(node, metric);
+				const closedIndexes = months.reduce(function(result, month, index) {
+					if (isChartMonthClosed(month)) {
+						result.push(index);
+					}
+					return result;
+				}, []);
+				const openIndexes = months.reduce(function(result, month, index) {
+					if (!isChartMonthClosed(month)) {
+						result.push(index);
+					}
+					return result;
+				}, []);
+				const closedSnapshot = toMetricSnapshot(buildMetricComputation(node, metric, months, closedIndexes));
+				const closedPlan = closedSnapshot.plan;
+				const closedReal = closedSnapshot.real;
+				const closedAttainment = getAttainmentPercent(closedPlan, closedReal);
+				const trend = getSeriesTrend(metric, series.forecast);
+				const peakMonth = getExtremumMonth(months, series.forecast, 'max');
+				const dipMonth = getExtremumMonth(months, series.forecast, 'min');
+				const attainment = getAttainmentPercent(snapshot.plan, snapshot.forecast);
+				const headline = buildInsightHeadline(metric, snapshot, trend, peakMonth);
+				const copy = buildInsightCopy(metric, snapshot, closedIndexes.length, openIndexes.length, trend);
+				return {
+					headline: headline,
+					copy: copy,
+					attainmentLabel: numberFormatter.format(attainment) + '% voči ročnému plánu',
+					attainmentCopy: 'Odchýlka ' + getDisplayForecastLabel() + ' voči ročnému plánu je ' + formatSignedMetric(snapshot.forecast - snapshot.plan, snapshot.format) + '.',
+					attainmentClass: getVarianceClass(snapshot.forecast - snapshot.plan),
+					closedLabel: closedIndexes.length ? numberFormatter.format(closedAttainment) + '% v uzavretých mesiacoch' : 'Zatiaľ bez uzavretých mesiacov',
+					closedCopy: closedIndexes.length ? 'IST proti plánu v uzavretej časti roka sleduje tempo ' + formatMetric(closedReal, snapshot.format) + ' vs ' + formatMetric(closedPlan, snapshot.format) + '.' : 'Po uzavretí prvých mesiacov sa tu zobrazí presné tempo IST voči plánu.',
+					closedClass: getVarianceClass(closedReal - closedPlan),
+					trendLabel: trend.label,
+					trendCopy: trend.copy,
+					trendClass: trend.className,
+					extremumLabel: peakMonth.label + ' / ' + dipMonth.label,
+					extremumCopy: 'Najsilnejší mesiac predikcie je ' + peakMonth.label + ' (' + formatMetric(peakMonth.value, snapshot.format) + '), najslabší je ' + dipMonth.label + ' (' + formatMetric(dipMonth.value, snapshot.format) + ').',
+					quarters: buildQuarterSummaries(node, metric, snapshot.format, months, series),
+					journeySubtitle: 'Farebný tón ukazuje ' + getDisplayDeltaContextLabel() + ' v jednotlivých mesiacoch.',
+					monthCards: months.map(function(month, index) {
+						const monthSnapshot = toMetricSnapshot(buildMetricComputation(node, metric, months, [index]));
+						const deltaValue = Number((series.delta && series.delta[index]) || 0);
+						return {
+							label: formatMonthShort(month),
+							status: isChartMonthClosed(month) ? 'Uzavretý' : 'Otvorený',
+							className: getVarianceClass(deltaValue),
+							plan: formatMetric(series.plan[index], snapshot.format),
+							planMeta: '',
+							realLabel: getDisplayRealIndicatorLabel(metric, monthSnapshot),
+							real: formatMetric(series.real[index], snapshot.format),
+							realClass: getVarianceClass(Number(series.real[index] || 0) - Number(series.plan[index] || 0)),
+							realMeta: monthSnapshot.hasReal ? formatPercentMeta(monthSnapshot.realPctVsPlan) : '',
+							forecast: formatMetric(series.forecast[index], snapshot.format),
+							forecastClass: getVarianceClass(Number(series.forecast[index] || 0) - Number(series.plan[index] || 0)),
+							forecastMeta: formatPercentMeta(monthSnapshot.forecastPctVsPlan),
+							delta: formatSignedMetric(deltaValue, snapshot.format),
+							deltaClass: getVarianceClass(deltaValue),
+							deltaMeta: formatPercentMeta(monthSnapshot.deltaPctVsPlan),
+						};
+					})
+				};
+			}
+
+			function buildQuarterSummaries(node, metric, format, months, series) {
+				return ['q1', 'q2', 'q3', 'q4'].map(function(quarterKey) {
+					const indexes = months.reduce(function(result, month, index) {
+						if (getChartQuarterKey(month) === quarterKey) {
+							result.push(index);
+						}
+						return result;
+					}, []);
+					const quarterSnapshot = toMetricSnapshot(buildMetricComputation(node, metric, months, indexes));
+					const plan = quarterSnapshot.plan;
+					const real = quarterSnapshot.real;
+					const forecast = quarterSnapshot.forecast;
+					const deltaValue = quarterSnapshot.delta;
+					const closedCount = indexes.filter(function(index) {
+						return isChartMonthClosed(months[index]);
+					}).length;
+					return {
+						key: quarterKey.toUpperCase(),
+						plan: formatMetric(plan, format),
+						planMeta: '',
+						realLabel: getDisplayRealIndicatorLabel(metric, quarterSnapshot),
+						real: formatMetric(real, format),
+						realClass: getVarianceClass(real - plan),
+						realMeta: quarterSnapshot.hasReal ? formatPercentMeta(quarterSnapshot.realPctVsPlan) : '',
+						forecast: formatMetric(forecast, format),
+						forecastClass: getVarianceClass(forecast - plan),
+						forecastMeta: formatPercentMeta(quarterSnapshot.forecastPctVsPlan),
+						delta: formatSignedMetric(deltaValue, format),
+						className: getVarianceClass(deltaValue),
+						deltaClass: getVarianceClass(deltaValue),
+						deltaMeta: formatPercentMeta(quarterSnapshot.deltaPctVsPlan),
+						status: closedCount === indexes.length && indexes.length ? 'Uzavretý' : closedCount ? 'Mix IST/' + getDisplayForecastLabel() : getDisplayForecastLabel(),
+						copy: getDisplayPlanLabel() + ' ' + formatMetric(plan, format) + ' • ' + getDisplayForecastLabel() + ' ' + formatMetric(forecast, format),
+					};
+				});
+			}
+
+			function getPercentDeltaVsPlan(plan, value) {
+				return Number(plan || 0) ? ((Number(value || 0) - Number(plan || 0)) / Number(plan || 0)) * 100 : null;
+			}
+
+			function getDeltaPercentVsPlan(plan, delta) {
+				return Number(plan || 0) ? (Number(delta || 0) / Number(plan || 0)) * 100 : null;
+			}
+
+			function summarizeMetricSeries(metric, values) {
+				if (normalizeMetricName(metric) === normalizeMetricName('Čistý výkon')) {
+					return values.length ? values.reduce(function(sum, value) { return sum + Number(value || 0); }, 0) / values.length : 0;
+				}
+				return values.reduce(function(sum, value) { return sum + Number(value || 0); }, 0);
+			}
+
+			function getSeriesTrend(metric, values) {
+				const validValues = (values || []).map(function(value) { return Number(value || 0); });
+				if (!validValues.length) {
+					return { label: 'Bez trendu', copy: 'Pre túto metriku zatiaľ nie sú dostupné hodnoty.', className: 'neutral' };
+				}
+				const windowSize = Math.min(3, validValues.length);
+				const startValues = validValues.slice(0, windowSize);
+				const endValues = validValues.slice(-windowSize);
+				const start = summarizeMetricSeries(metric, startValues);
+				const end = summarizeMetricSeries(metric, endValues);
+				const delta = end - start;
+				const ratio = start ? (delta / Math.abs(start)) * 100 : 0;
+				if (Math.abs(delta) < 0.0001) {
+					return { label: 'Stabilný rytmus', copy: 'Začiatok a koniec roka sú prakticky na rovnakej úrovni.', className: 'neutral' };
+				}
+				if (delta > 0) {
+					return { label: 'Rastie o ' + numberFormatter.format(Math.abs(ratio)) + '%', copy: 'Posledná tretina roka je vyššie než prvé mesiace.', className: 'positive' };
+				}
+				return { label: 'Spomaľuje o ' + numberFormatter.format(Math.abs(ratio)) + '%', copy: 'Záver roka je pod úrovňou prvých mesiacov a treba sledovať momentum.', className: 'negative' };
+			}
+
+			function getExtremumMonth(months, values, mode) {
+				if (!months.length || !values.length) {
+					return { label: '—', value: 0 };
+				}
+				const result = months.reduce(function(best, month, index) {
+					const value = Number(values[index] || 0);
+					if (!best) {
+						return { label: formatMonthShort(month), value: value };
+					}
+					if (mode === 'min' ? value < best.value : value > best.value) {
+						return { label: formatMonthShort(month), value: value };
+					}
+					return best;
+				}, null);
+				return result || { label: '—', value: 0 };
+			}
+
+			function getAttainmentPercent(plan, forecast) {
+				return Number(plan || 0) ? (Number(forecast || 0) / Number(plan || 0)) * 100 : 0;
+			}
+
+			function formatSignedPercent(value) {
+				if (value == null || !isFinite(Number(value))) {
+					return '—';
+				}
+				const numeric = Number(value || 0);
+				const prefix = numeric > 0 ? '+' : numeric < 0 ? '−' : '';
+				return prefix + numberFormatter.format(Math.abs(numeric)) + ' %';
+			}
+
+			function formatPercentMeta(value) {
+				if (value == null || !isFinite(Number(value))) {
+					return '';
+				}
+				return formatSignedPercent(value) + ' vs plán';
+			}
+
+			function renderSparklineBars(values, labels) {
+				const numericValues = (values || []).map(function(value) { return Math.abs(Number(value || 0)); });
+				const maxValue = Math.max.apply(null, numericValues.concat([0]));
+				const monthLabels = labels || [];
+				return numericValues.map(function(value, index) {
+					const height = maxValue ? Math.max(12, Math.round((value / maxValue) * 100)) : 12;
+					return ''
+						+ '<span class="sparkline-point">'
+						+ '<span class="sparkline-bar-wrap"><span class="sparkline-bar" style="height:' + escapeHtml(String(height)) + '%"></span></span>'
+						+ '<span class="sparkline-label">' + escapeHtml(formatMonthMini(monthLabels[index])) + '</span>'
+						+ '</span>';
+				}).join('');
+			}
+
+			function formatMonthMini(label) {
+				const parts = String(label || '').trim().split(/\s+/);
+				if (!parts.length || !parts[0]) {
+					return '';
+				}
+				return parts[0].slice(0, 3).toLowerCase();
+			}
+
+			function buildInsightHeadline(metric, snapshot, trend, peakMonth) {
+				const deltaClass = getVarianceClass(snapshot.forecast - snapshot.plan);
+				if (deltaClass === 'positive') {
+					return metric + ' je nad plánom a jeho najsilnejší bod roka prichádza v ' + peakMonth.label + '.';
+				}
+				if (deltaClass === 'negative') {
+					return metric + ' je pod plánom a potrebuje zvrátiť vývoj v ďalších mesiacoch.';
+				}
+				return metric + ' ide blízko plánu a rozhodovať bude hlavne momentum v druhej časti roka.';
+			}
+
+			function buildInsightCopy(metric, snapshot, closedMonthCount, openMonthCount, trend) {
+				return 'Ročná hodnota ' + getDisplayForecastLabel() + ' je ' + formatMetric(snapshot.forecast, snapshot.format) + ', čo znamená ' + formatSignedMetric(snapshot.forecast - snapshot.plan, snapshot.format) + ' proti plánu. Uzavretých mesiacov: ' + closedMonthCount + ', otvorených: ' + openMonthCount + '. Trend momentálne hovorí: ' + trend.label + '.';
+			}
+
+			function renderStoryCard(label, value, copy, className) {
+				return ''
+					+ '<div class="story-card">'
+					+ '<div class="story-card-label">' + escapeHtml(label) + '</div>'
+					+ '<div class="story-card-value ' + escapeHtml(className || 'neutral') + '">' + escapeHtml(value) + '</div>'
+					+ '<div class="story-card-copy">' + escapeHtml(copy) + '</div>'
+					+ '</div>';
+			}
+
+			function renderQuarterJourneyCard(quarter) {
+				return ''
+					+ '<div class="month-card quarter-card ' + escapeHtml(quarter.className || 'neutral') + '">'
+					+ '<div class="month-card-header">'
+					+ '<div class="month-card-title">' + escapeHtml(quarter.key) + '</div>'
+					+ '<span class="month-status">' + escapeHtml(quarter.status) + '</span>'
+					+ '</div>'
+					+ '<div class="month-card-metric">' + escapeHtml(getDisplayPlanLabel()) + ' <strong>' + escapeHtml(quarter.plan) + '</strong>' + (quarter.planMeta ? '<div class="month-card-metric-meta">' + escapeHtml(quarter.planMeta) + '</div>' : '') + '</div>'
+					+ '<div class="month-card-metric">' + escapeHtml(quarter.realLabel || getDisplayRealLabel()) + ' <strong class="' + escapeHtml(quarter.realClass || 'neutral') + '">' + escapeHtml(quarter.real) + '</strong>' + (quarter.realMeta ? '<div class="month-card-metric-meta ' + escapeHtml(quarter.realClass || 'neutral') + '">' + escapeHtml(quarter.realMeta) + '</div>' : '') + '</div>'
+					+ '<div class="month-card-metric">' + escapeHtml(getDisplayForecastLabel()) + ' <strong class="' + escapeHtml(quarter.forecastClass || 'neutral') + '">' + escapeHtml(quarter.forecast) + '</strong>' + (quarter.forecastMeta ? '<div class="month-card-metric-meta ' + escapeHtml(quarter.forecastClass || 'neutral') + '">' + escapeHtml(quarter.forecastMeta) + '</div>' : '') + '</div>'
+					+ '<div class="month-card-metric">' + escapeHtml(getDisplayDeltaLabel()) + ' <strong class="' + escapeHtml(quarter.deltaClass || 'neutral') + '">' + escapeHtml(quarter.delta) + '</strong>' + (quarter.deltaMeta ? '<div class="month-card-metric-meta ' + escapeHtml(quarter.deltaClass || 'neutral') + '">' + escapeHtml(quarter.deltaMeta) + '</div>' : '') + '</div>'
+					+ '</div>';
+			}
+
+			function renderMonthJourneyCard(monthCard) {
+				return ''
+					+ '<div class="month-card ' + escapeHtml(monthCard.className || 'neutral') + '">'
+					+ '<div class="month-card-header">'
+					+ '<div class="month-card-title">' + escapeHtml(monthCard.label) + '</div>'
+					+ '<span class="month-status">' + escapeHtml(monthCard.status) + '</span>'
+					+ '</div>'
+					+ '<div class="month-card-metric">' + escapeHtml(getDisplayPlanLabel()) + ' <strong>' + escapeHtml(monthCard.plan) + '</strong>' + (monthCard.planMeta ? '<div class="month-card-metric-meta">' + escapeHtml(monthCard.planMeta) + '</div>' : '') + '</div>'
+					+ '<div class="month-card-metric">' + escapeHtml(monthCard.realLabel || getDisplayRealLabel()) + ' <strong class="' + escapeHtml(monthCard.realClass || 'neutral') + '">' + escapeHtml(monthCard.real) + '</strong>' + (monthCard.realMeta ? '<div class="month-card-metric-meta ' + escapeHtml(monthCard.realClass || 'neutral') + '">' + escapeHtml(monthCard.realMeta) + '</div>' : '') + '</div>'
+					+ '<div class="month-card-metric">' + escapeHtml(getDisplayForecastLabel()) + ' <strong class="' + escapeHtml(monthCard.forecastClass || 'neutral') + '">' + escapeHtml(monthCard.forecast) + '</strong>' + (monthCard.forecastMeta ? '<div class="month-card-metric-meta ' + escapeHtml(monthCard.forecastClass || 'neutral') + '">' + escapeHtml(monthCard.forecastMeta) + '</div>' : '') + '</div>'
+					+ '<div class="month-card-metric">' + escapeHtml(getDisplayDeltaLabel()) + ' <strong class="' + escapeHtml(monthCard.deltaClass || 'neutral') + '">' + escapeHtml(monthCard.delta) + '</strong>' + (monthCard.deltaMeta ? '<div class="month-card-metric-meta ' + escapeHtml(monthCard.deltaClass || 'neutral') + '">' + escapeHtml(monthCard.deltaMeta) + '</div>' : '') + '</div>'
+					+ '</div>';
+			}
+
+			function renderPill(label, value) {
+				return '<span class="count-chip"><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(String(value)) + '</span>';
+			}
+
+			function renderMetricPill(label, value) {
+				return '<span class="metric-chip"><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(String(value)) + '</span>';
+			}
+
+			function renderScopeCard(label, value, varianceClass, metaText, metaClass) {
+				return '<div class="scope-card"><div class="scope-card-label">' + escapeHtml(label) + '</div><div class="scope-card-value ' + escapeHtml(varianceClass || 'neutral') + '">' + value + '</div>' + (metaText ? '<div class="scope-card-meta ' + escapeHtml(metaClass || 'neutral') + '">' + escapeHtml(metaText) + '</div>' : '') + '</div>';
+			}
+
+			function getNodeTypeLabel(type) {
+				const normalized = String(type || '').toUpperCase();
+				if (normalized === 'GLOBAL') { return 'SLOVENSKO'; }
+				if (normalized === 'GF') { return 'GF'; }
+				if (normalized === 'VKL') { return 'VKL'; }
+				if (normalized === 'STORE') { return 'FILIÁLKA'; }
+				return normalized;
+			}
+
+			function getVarianceClass(value) {
+				if (Number(value || 0) > 0.0001) { return 'positive'; }
+				if (Number(value || 0) < -0.0001) { return 'negative'; }
+				return 'neutral';
+			}
+
+			function formatMetric(value, format) {
+				if (format === 'currency') { return currencyFormatter.format(Number(value || 0)); }
+				if (format === 'hours') { return numberFormatter.format(Number(value || 0)) + ' h'; }
+				return numberFormatter.format(Number(value || 0));
+			}
+
+			function formatSignedMetric(value, format) {
+				const numeric = Number(value || 0);
+				const prefix = numeric > 0 ? '+' : numeric < 0 ? '−' : '';
+				return prefix + formatMetric(Math.abs(numeric), format);
+			}
+
+			function formatAbbreviatedCurrency(value) {
+				const numeric = Number(value || 0);
+				const absolute = Math.abs(numeric);
+				if (absolute >= 999500) {
+					return numberFormatter.format(numeric / 1000000) + ' mil. €';
+				}
+				if (absolute >= 1000) {
+					return numberFormatter.format(numeric / 1000) + ' tis. €';
+				}
+				return currencyFormatter.format(numeric);
+			}
+
+			function shortMetric(value, format) {
+				const numeric = Number(value || 0);
+				if (format === 'currency') {
+					return formatAbbreviatedCurrency(numeric);
+				}
+				if (Math.abs(numeric) >= 1000) { return numberFormatter.format(numeric / 1000) + 'k'; }
+				return formatMetric(numeric, format);
+			}
+
+			function formatMonthShort(label) {
+				const parts = String(label || '').trim().split(/\s+/);
+				if (parts.length < 2) { return label; }
+				return parts[0].slice(0, 3) + ' ' + parts[1];
+			}
+
+			function setLoading(isLoading) {
+				document.getElementById('loader').classList.toggle('hidden', !isLoading);
+			}
+
+			function showPageError(message) {
+				const banner = document.getElementById('pageError');
+				banner.textContent = message;
+				banner.classList.remove('hidden');
+			}
+
+			function hidePageError() {
+				document.getElementById('pageError').classList.add('hidden');
+			}
+
+			function handleLogout() {
+				navigateToView('', { preserveLogin: false });
+			}
+
+			function navigateToView(view, options) {
+				const config = options || {};
+				google.script.run.withSuccessHandler(function(appUrl) { navigateToAppView(appUrl, view, config); }).withFailureHandler(function() { navigateToAppView('', view, config); }).getWebAppUrl();
+			}
+
+			function navigateToAppView(appUrl, view, options) {
+				const config = options || {};
+				const baseUrl = appUrl || window.location.href;
+				const url = new URL(baseUrl);
+				url.search = '';
+				if (view) { url.searchParams.set('view', view); }
+				if (config.preserveLogin !== false && state.loginValue) { url.searchParams.set('login', state.loginValue); }
+				window.top.location.href = url.toString();
+			}
+		</script>
+	</body>
+</html>
