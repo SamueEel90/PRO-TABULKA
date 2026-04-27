@@ -111,54 +111,52 @@ export async function PUT(request: Request) {
       }
     }
 
-    await prisma.$transaction(async (tx) => {
-      for (const store of normalizedStores) {
-        await tx.store.upsert({
-          where: { id: store.id },
-          update: {
-            name: store.name,
-            gfName: store.gfName,
-            vklName: store.vklName,
-          },
-          create: {
-            id: store.id,
-            name: store.name,
-            gfName: store.gfName,
-            vklName: store.vklName,
-          },
-        });
-      }
+    for (const store of normalizedStores) {
+      await prisma.store.upsert({
+        where: { id: store.id },
+        update: {
+          name: store.name,
+          gfName: store.gfName,
+          vklName: store.vklName,
+        },
+        create: {
+          id: store.id,
+          name: store.name,
+          gfName: store.gfName,
+          vklName: store.vklName,
+        },
+      });
+    }
 
-      for (const user of normalizedUsers) {
-        if (user.markedForDelete) {
-          if (user.id) {
-            await tx.user.deleteMany({ where: { id: user.id } });
-          } else if (user.email) {
-            await tx.user.deleteMany({ where: { email: user.email } });
-          }
-          continue;
+    for (const user of normalizedUsers) {
+      if (user.markedForDelete) {
+        if (user.id) {
+          await prisma.user.deleteMany({ where: { id: user.id } });
+        } else if (user.email) {
+          await prisma.user.deleteMany({ where: { email: user.email } });
         }
-
-        await tx.user.upsert({
-          where: { email: user.email },
-          update: {
-            name: user.name,
-            role: user.role,
-            gfName: user.gfName,
-            vklName: user.vklName,
-            primaryStoreId: user.primaryStoreId,
-          },
-          create: {
-            email: user.email,
-            name: user.name,
-            role: user.role,
-            gfName: user.gfName,
-            vklName: user.vklName,
-            primaryStoreId: user.primaryStoreId,
-          },
-        });
+        continue;
       }
-    });
+
+      await prisma.user.upsert({
+        where: { email: user.email },
+        update: {
+          name: user.name,
+          role: user.role,
+          gfName: user.gfName,
+          vklName: user.vklName,
+          primaryStoreId: user.primaryStoreId,
+        },
+        create: {
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          gfName: user.gfName,
+          vklName: user.vklName,
+          primaryStoreId: user.primaryStoreId,
+        },
+      });
+    }
 
     return NextResponse.json({
       ok: true,

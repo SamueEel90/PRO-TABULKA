@@ -22,53 +22,51 @@ export async function POST(request: Request) {
       loginSheetName,
     });
 
-    await prisma.$transaction(async (tx) => {
-      for (const store of parsedImport.stores) {
-        await tx.store.upsert({
-          where: { id: store.id },
-          update: {
-            name: store.name,
-            gfName: store.gfName,
-            vklName: store.vklName,
-          },
-          create: {
-            id: store.id,
-            name: store.name,
-            gfName: store.gfName,
-            vklName: store.vklName,
-          },
-        });
-      }
-
-      for (const user of parsedImport.users) {
-        await tx.user.upsert({
-          where: { email: user.email },
-          update: {
-            name: user.name,
-            role: user.role,
-            gfName: user.gfName || null,
-            vklName: user.vklName || null,
-            primaryStoreId: user.primaryStoreId || null,
-          },
-          create: {
-            email: user.email,
-            name: user.name,
-            role: user.role,
-            gfName: user.gfName || null,
-            vklName: user.vklName || null,
-            primaryStoreId: user.primaryStoreId || null,
-          },
-        });
-      }
-
-      await tx.importBatch.create({
-        data: {
-          source: 'STRUCTURE_LOGIN',
-          fileName: file.name,
-          uploadedBy,
-          rowCount: parsedImport.stores.length + parsedImport.users.length,
+    for (const store of parsedImport.stores) {
+      await prisma.store.upsert({
+        where: { id: store.id },
+        update: {
+          name: store.name,
+          gfName: store.gfName,
+          vklName: store.vklName,
+        },
+        create: {
+          id: store.id,
+          name: store.name,
+          gfName: store.gfName,
+          vklName: store.vklName,
         },
       });
+    }
+
+    for (const user of parsedImport.users) {
+      await prisma.user.upsert({
+        where: { email: user.email },
+        update: {
+          name: user.name,
+          role: user.role,
+          gfName: user.gfName || null,
+          vklName: user.vklName || null,
+          primaryStoreId: user.primaryStoreId || null,
+        },
+        create: {
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          gfName: user.gfName || null,
+          vklName: user.vklName || null,
+          primaryStoreId: user.primaryStoreId || null,
+        },
+      });
+    }
+
+    await prisma.importBatch.create({
+      data: {
+        source: 'STRUCTURE_LOGIN',
+        fileName: file.name,
+        uploadedBy,
+        rowCount: parsedImport.stores.length + parsedImport.users.length,
+      },
     });
 
     return NextResponse.json({
