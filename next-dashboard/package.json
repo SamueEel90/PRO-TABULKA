@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run legacy:sync && next build",
+    "build": "node scripts/build.mjs",
     "build:vercel": "npm run legacy:sync && npm run prisma:generate:postgres && next build",
     "start": "next start",
     "lint": "next lint",
