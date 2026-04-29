@@ -10,7 +10,7 @@ export function LegacyIndexSidebar() {
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3.5h6l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V5A1.5 1.5 0 0 1 7.5 3.5z" /><path d="M14 3.5V8h4" /><path d="M9 11h6" /><path d="M9 14.5h6" /></svg>
           <span className="shell-utility-badge" id="scopeNotesIndicator" aria-hidden="true" />
         </button>
-        <button className="shell-utility-button" id="themeModeToggle" type="button" role="switch" aria-checked="false" aria-label="Prepnúť tmavý mód" title="Prepnúť vzhľad" data-theme-mode="light">
+        <button className="shell-utility-button js-theme-mode-toggle" type="button" role="switch" aria-checked="false" aria-label="Prepnúť tmavý mód" title="Prepnúť vzhľad" data-theme-toggle="mode" data-theme-mode="light">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.2" /><path d="M12 19.3v2.2" /><path d="M21.5 12h-2.2" /><path d="M4.7 12H2.5" /><path d="M18.7 5.3l-1.6 1.6" /><path d="M6.9 17.1l-1.6 1.6" /><path d="M18.7 18.7l-1.6-1.6" /><path d="M6.9 6.9L5.3 5.3" /></svg>
         </button>
       </div>

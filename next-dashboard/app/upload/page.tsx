@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { MonthlyValuesEditor } from '@/components/monthly-values-editor';
 import { StructureUsersEditor } from '@/components/structure-users-editor';
 import { UploadForm } from '@/components/upload-form';
 
@@ -49,6 +50,8 @@ ADMIN | ADMIN EMAIL | GF | GF EMAIL | VKL | VKL EMAIL | VOD | VOD EMAIL
 Samuel | samuel@firma.sk | Ivan Bosák | bosak@firma.sk | Barišová Monika | monika@firma.sk | 2020 | 2020@firma.sk`}</pre>
 		<p className="note">Import štruktúry a loginov upsertne GF/VKL väzby na filiálkach a používateľov podľa login sheetu. VOD login sa páruje cez stĺpec `VOD` na kód filiálky.</p>
       </section>
+
+      <MonthlyValuesEditor />
     </main>
   );
 }

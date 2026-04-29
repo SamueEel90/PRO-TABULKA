@@ -9,6 +9,11 @@ export function LegacyIndexLoginShell({ initialLogin = '' }: LegacyIndexLoginShe
 
   return (
     <section className={`login-shell${hasInitialLogin ? ' hidden' : ''}`} id="loginShell">
+      <div className="login-shell-utility-bar" aria-label="Rýchle akcie prihlásenia">
+        <button className="shell-utility-button js-theme-mode-toggle" type="button" role="switch" aria-checked="false" aria-label="Prepnúť tmavý mód" title="Prepnúť vzhľad" data-theme-toggle="mode" data-theme-mode="light">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.2" /><path d="M12 19.3v2.2" /><path d="M21.5 12h-2.2" /><path d="M4.7 12H2.5" /><path d="M18.7 5.3l-1.6 1.6" /><path d="M6.9 17.1l-1.6 1.6" /><path d="M18.7 18.7l-1.6-1.6" /><path d="M6.9 6.9L5.3 5.3" /></svg>
+        </button>
+      </div>
       <div className="login-card">
         <div className="login-brand">
           <img src="https://upload.wikimedia.org/wikipedia/commons/6/65/Kaufland_Deutschland.png" alt="Kaufland logo" />

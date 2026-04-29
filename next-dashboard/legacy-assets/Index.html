@@ -214,10 +214,21 @@
 			}
 
 			.login-shell {
+				position: relative;
 				min-height: 100vh;
 				display: grid;
 				place-items: center;
 				padding: var(--space-8);
+			}
+
+			.login-shell-utility-bar {
+				position: fixed;
+				top: 1rem;
+				right: 1rem;
+				z-index: 145;
+				display: inline-flex;
+				align-items: center;
+				gap: 0.55rem;
 			}
 
 			.login-card,
@@ -2800,29 +2811,34 @@
 			}
 
 			tr[data-row-type="recommendation"],
-			tr[data-row-type="recommendation-result"] {
+			tr[data-row-type="recommendation-result"],
+			tr[data-row-type="vacation-guide"] {
 				background: linear-gradient(90deg, rgba(126, 225, 255, 0.22) 0%, rgba(108, 197, 255, 0.14) 54%, rgba(255, 255, 255, 0.94) 100%);
 			}
 
 			body.theme-dark tr[data-row-type="recommendation"],
-			body.theme-dark tr[data-row-type="recommendation-result"] {
+			body.theme-dark tr[data-row-type="recommendation-result"],
+			body.theme-dark tr[data-row-type="vacation-guide"] {
 				background: linear-gradient(90deg, rgba(75, 184, 255, 0.16) 0%, rgba(83, 212, 203, 0.1) 54%, rgba(15, 31, 49, 0.9) 100%);
 			}
 
 			tr[data-row-type="recommendation"] td,
-			tr[data-row-type="recommendation-result"] td {
+			tr[data-row-type="recommendation-result"] td,
+			tr[data-row-type="vacation-guide"] td {
 				background: rgba(119, 214, 255, 0.10);
 				box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 -1px 0 rgba(102, 204, 255, 0.24);
 			}
 
 			body.theme-dark tr[data-row-type="recommendation"] td,
-			body.theme-dark tr[data-row-type="recommendation-result"] td {
+			body.theme-dark tr[data-row-type="recommendation-result"] td,
+			body.theme-dark tr[data-row-type="vacation-guide"] td {
 				background: rgba(75, 184, 255, 0.08);
 				box-shadow: inset 0 1px 0 rgba(184, 215, 244, 0.08), inset 0 -1px 0 rgba(83, 212, 203, 0.18);
 			}
 
 			tr[data-row-type="recommendation"] td:first-child,
-			tr[data-row-type="recommendation-result"] td:first-child {
+			tr[data-row-type="recommendation-result"] td:first-child,
+			tr[data-row-type="vacation-guide"] td:first-child {
 				color: #8f171c;
 				font-weight: 800;
 			}
@@ -3582,7 +3598,7 @@
 			.metric-table-scroll tbody tr {
 				transition: background var(--transition-fast);
 			}
-			.metric-table-scroll tbody tr:not([data-row-type="forecast"]):not([data-row-type="adjustment"]):not([data-row-type="structure-days"]):not([data-row-type="delta"]):not([data-row-type="recommendation"]):not([data-row-type="recommendation-result"]):nth-child(even) {
+			.metric-table-scroll tbody tr:not([data-row-type="forecast"]):not([data-row-type="adjustment"]):not([data-row-type="structure-days"]):not([data-row-type="delta"]):not([data-row-type="recommendation"]):not([data-row-type="recommendation-result"]):not([data-row-type="vacation-guide"]):nth-child(even) {
 				background: rgba(100, 116, 139, 0.026);
 			}
 			.metric-table-scroll tbody tr:hover {
@@ -3649,6 +3665,11 @@
 			<button class="recalc-fab save-fab hidden" id="saveFabButton" type="button">Uložiť zmeny</button>
 		<button class="recalc-fab hidden" id="recalcButton" type="button">Prepočítať</button>
 		<section class="login-shell" id="loginShell">
+			<div class="login-shell-utility-bar" aria-label="Rýchle akcie prihlásenia">
+				<button class="shell-utility-button js-theme-mode-toggle" type="button" role="switch" aria-checked="false" aria-label="Prepnúť tmavý mód" title="Prepnúť vzhľad" data-theme-toggle="mode" data-theme-mode="light">
+					<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"></circle><path d="M12 2.5v2.2"></path><path d="M12 19.3v2.2"></path><path d="M21.5 12h-2.2"></path><path d="M4.7 12H2.5"></path><path d="M18.7 5.3l-1.6 1.6"></path><path d="M6.9 17.1l-1.6 1.6"></path><path d="M18.7 18.7l-1.6-1.6"></path><path d="M6.9 6.9L5.3 5.3"></path></svg>
+				</button>
+			</div>
 			<div class="login-card">
 				<div class="login-brand"><img src="https://upload.wikimedia.org/wikipedia/commons/6/65/Kaufland_Deutschland.png" alt="Kaufland logo">Kaufland PRO GJ 2026 </div>
 				<h1>PRO GJ 2026.</h1>
@@ -3685,7 +3706,7 @@
 					<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3.5h6l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V5A1.5 1.5 0 0 1 7.5 3.5z"></path><path d="M14 3.5V8h4"></path><path d="M9 11h6"></path><path d="M9 14.5h6"></path></svg>
 					<span class="shell-utility-badge" id="scopeNotesIndicator" aria-hidden="true"></span>
 				</button>
-				<button class="shell-utility-button" id="themeModeToggle" type="button" role="switch" aria-checked="false" aria-label="Prepnúť tmavý mód" title="Prepnúť vzhľad" data-theme-mode="light">
+				<button class="shell-utility-button js-theme-mode-toggle" type="button" role="switch" aria-checked="false" aria-label="Prepnúť tmavý mód" title="Prepnúť vzhľad" data-theme-toggle="mode" data-theme-mode="light">
 					<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"></circle><path d="M12 2.5v2.2"></path><path d="M12 19.3v2.2"></path><path d="M21.5 12h-2.2"></path><path d="M4.7 12H2.5"></path><path d="M18.7 5.3l-1.6 1.6"></path><path d="M6.9 17.1l-1.6 1.6"></path><path d="M18.7 18.7l-1.6-1.6"></path><path d="M6.9 6.9L5.3 5.3"></path></svg>
 				</button>
 			</div>
@@ -4076,15 +4097,17 @@
 			}
 
 			function updateThemeToggleUi() {
-				var toggle = document.getElementById('themeModeToggle');
-				if (!toggle) {
+				var toggles = document.querySelectorAll('[data-theme-toggle="mode"]');
+				if (!toggles.length) {
 					return;
 				}
 				var isDark = state.themeMode === 'dark';
-				toggle.setAttribute('aria-checked', isDark ? 'true' : 'false');
-				toggle.setAttribute('data-theme-mode', isDark ? 'dark' : 'light');
-				toggle.classList.toggle('is-active', isDark);
-				toggle.setAttribute('title', isDark ? 'Prepnúť na svetlý režim' : 'Prepnúť na tmavý režim');
+				toggles.forEach(function(toggle) {
+					toggle.setAttribute('aria-checked', isDark ? 'true' : 'false');
+					toggle.setAttribute('data-theme-mode', isDark ? 'dark' : 'light');
+					toggle.classList.toggle('is-active', isDark);
+					toggle.setAttribute('title', isDark ? 'Prepnúť na svetlý režim' : 'Prepnúť na tmavý režim');
+				});
 			}
 
 			function getToggleIconMarkup(iconKey) {
@@ -4336,7 +4359,9 @@
 				setAllFilteredMetricsCollapsed(false);
 			});
 			document.getElementById('menuToggleButton').addEventListener('click', toggleTopBar);
-			document.getElementById('themeModeToggle').addEventListener('click', toggleThemeMode);
+			document.querySelectorAll('[data-theme-toggle="mode"]').forEach(function(toggle) {
+				toggle.addEventListener('click', toggleThemeMode);
+			});
 			document.getElementById('scopeNotesButton').addEventListener('click', function() {
 				state.topBarCollapsed = true;
 				updateTopBarState();
@@ -4563,8 +4588,6 @@
 				google.script.run
 					.withSuccessHandler(function(payload) {
 						state.vklNoteScopeMode = resolveVklNoteScopeMode(payload, state.vklNoteScopeMode);
-						state.dashboard = payload;
-						state.previewDashboard = null;
 						if (!config.preservePending) {
 							state.pendingAdjustments = {};
 							state.pendingWeeklyAdjustments = {};
@@ -4574,9 +4597,11 @@
 							state.metricNotesLoading = {};
 							state.pendingNotes = {};
 						}
+						state.dashboard = buildPreviewDashboard(payload);
+						state.previewDashboard = null;
 						state.activeNoteMetric = '';
 						closeNoteModal();
-						renderDashboard(payload);
+						renderDashboard(state.dashboard);
 						if (!config.silent) {
 							setLoadingState(false);
 						}
@@ -5759,6 +5784,7 @@
 						return 'delta';
 					case 'recommendation':
 					case 'recommendation-result':
+					case 'vacation-guide':
 						return 'recommendation';
 					default:
 						return 'special';
@@ -6805,6 +6831,8 @@
 							case 'delta':
 							case 'recommendation':
 								return '<td class="' + focusedCellClass + ' ' + getDeltaCellClass(value) + '"><span class="delta-value">' + formatSignedMetric(value, section.format) + '</span></td>';
+							case 'vacation-guide':
+								return '<td class="' + focusedCellClass + '">' + formatMetric(value, section.format) + '</td>';
 							case 'recommendation-result':
 								return appendCellClass(renderForecastTableCell(value, sectionPlanRow.values[entry.index], section.format), focusedCellClass);
 							case 'forecast':
@@ -7367,7 +7395,8 @@
 				const normalizedMetric = normalizeMetricName(section && section.metric);
 				return hasForecastAdjustmentPair(section)
 					&& normalizedMetric !== normalizeMetricName('Čistý výkon')
-					&& normalizedMetric !== normalizeMetricName('Hodiny netto');
+					&& normalizedMetric !== normalizeMetricName('Hodiny netto')
+					&& normalizedMetric !== normalizeMetricName('Hodiny Brutto GJ2026');
 			}
 
 			function getRoundModeForFormat(format) {
@@ -7610,6 +7639,10 @@
 				}
 
 				const metricName = normalizeMetricName(section && section.metric);
+				if (metricName === normalizeMetricName('Dovolenka (-)')) {
+					return buildVacationPlanningGuideRow(section, months);
+				}
+
 				if (metricName === normalizeMetricName('Obrat GJ2026') || metricName === normalizeMetricName('Hodiny netto')) {
 					const recommendation = computeRecommendationDistribution(section, months);
 					if (!recommendation) {
@@ -7629,6 +7662,96 @@
 				}
 
 				return null;
+			}
+
+			function buildVacationPlanningGuideRow(section, months) {
+				if (!section || !Array.isArray(section.rows) || !Array.isArray(months) || !months.length) {
+					return null;
+				}
+
+				const planRow = section.rows.find(function(row) { return row.type === 'plan'; }) || null;
+				const forecastRow = section.rows.find(function(row) { return row.type === 'forecast'; }) || planRow;
+				const realRow = section.rows.find(function(row) { return row.type === 'real'; }) || null;
+				const adjustmentRow = section.rows.find(function(row) { return row.type === 'adjustment'; }) || null;
+				if (!planRow) {
+					return null;
+				}
+
+				const distributionProfile = {
+					marec: 7,
+					april: 6,
+					'apríl': 6,
+					maj: 10,
+					jun: 10,
+					'jún': 10,
+					jul: 10,
+					'júl': 10,
+					august: 16,
+					september: 7,
+					oktober: 8,
+					'október': 8,
+					november: 7,
+					december: 0,
+					januar: 7,
+					'január': 7,
+					februar: 6,
+					'február': 6,
+				};
+
+				const monthWeights = months.map(function(month) {
+					const parts = String(month || '').trim().split(/\s+/);
+					const monthName = normalizeMetricName(parts[0] || '');
+					return Number(distributionProfile[monthName] || 0);
+				});
+				if (sumArray(monthWeights) <= 0) {
+					return null;
+				}
+
+				const annualTarget = Math.max(0, Number(forecastRow && forecastRow.total || planRow.total || 0));
+				const values = months.map(function() { return 0; });
+				const openIndexes = [];
+				let lockedTotal = 0;
+
+				months.forEach(function(month, index) {
+					const hasActual = hasActualRealValue(realRow, index);
+					const isClosed = Boolean(adjustmentRow && adjustmentRow.closed && adjustmentRow.closed[index]);
+					if (hasActual) {
+						const actualValue = Number(getActualRealValue(realRow, index) || 0);
+						values[index] = normalizeStoredMetricValue(actualValue, section.format || 'number');
+						lockedTotal += actualValue;
+						return;
+					}
+
+					if (isClosed) {
+						const lockedForecastValue = Number(forecastRow && forecastRow.values ? forecastRow.values[index] : 0);
+						values[index] = normalizeStoredMetricValue(lockedForecastValue, section.format || 'number');
+						lockedTotal += lockedForecastValue;
+						return;
+					}
+
+					openIndexes.push(index);
+				});
+
+				const remainingTarget = Math.max(0, annualTarget - lockedTotal);
+				const openWeights = openIndexes.map(function(index) {
+					return Number(monthWeights[index] || 0);
+				});
+				const distributedValues = distributeWeightedValue(
+					remainingTarget,
+					sumArray(openWeights) > 0 ? openWeights : openIndexes.map(function() { return 1; }),
+					section.format
+				);
+
+				openIndexes.forEach(function(monthIndex, openIndex) {
+					values[monthIndex] = distributedValues[openIndex];
+				});
+
+				return {
+					type: 'vacation-guide',
+					label: 'Odporúčané čerpanie',
+					values: values,
+					total: normalizeStoredMetricValue(sumArray(values), section.format || 'number'),
+				};
 			}
 
 			function buildPerformanceRecommendationRow(context, months) {
@@ -7992,6 +8115,10 @@
 					return '<td class="year-total-cell ' + getDeltaCellClass(row.total) + '">' + formatSignedMetric(row.total, format) + '</td>';
 				}
 
+				if (row.type === 'vacation-guide') {
+					return '<td class="year-total-cell">' + formatMetric(row.total, format) + '</td>';
+				}
+
 				return '<td class="year-total-cell ' + (row.type === 'delta' ? getDeltaCellClass(row.total) : '') + '">' + (row.type === 'delta' ? formatSignedMetric(row.total, format) : formatMetric(row.total, format)) + '</td>';
 			}
 
@@ -8327,8 +8454,7 @@
 					'Struktúra filiálky (plné úväzky)',
 					'Štruktúra filiálky (plné úväzky)',
 					'Štruktúra hodín',
-					'Dlhodobá neprítomnosť (33+ dní) (b)',
-					'Hodiny Brutto GJ2026'
+					'Dlhodobá neprítomnosť (33+ dní) (b)'
 				];
 
 				return dependencyMetrics.some(function(metric) {
@@ -8345,6 +8471,8 @@
 				}
 
 				const structureHoursRow = workforceSection.rows.find(function(row) { return row.type === 'structure-hours-derived'; });
+				const structureHoursPlanRow = workforceSection.rows.find(function(row) { return row.type === 'structure-hours-plan'; }) || structureHoursRow;
+				const structureHoursRealRow = workforceSection.rows.find(function(row) { return row.type === 'structure-hours-real'; }) || structureHoursPlanRow;
 				const longPlanRow = longAbsenceSection.rows.find(function(row) { return row.type === 'plan'; });
 				const longRealRow = longAbsenceSection.rows.find(function(row) { return row.type === 'real'; });
 				const longForecastRow = longAbsenceSection.rows.find(function(row) { return row.type === 'forecast'; }) || longPlanRow;
@@ -8353,23 +8481,50 @@
 				const adjustmentRow = grossSection.rows.find(function(row) { return row.type === 'adjustment'; });
 				const forecastRow = grossSection.rows.find(function(row) { return row.type === 'forecast'; });
 				const deltaRow = grossSection.rows.find(function(row) { return row.type === 'delta'; });
-				if (!structureHoursRow || !longPlanRow || !planRow || !adjustmentRow || !forecastRow) {
+				if (!structureHoursRow || !structureHoursPlanRow || !structureHoursRealRow || !longPlanRow || !planRow || !realRow || !adjustmentRow || !forecastRow) {
 					return;
 				}
 
-				if (!hasPendingGrossDependencyChanges()) {
-					return;
-				}
+				planRow.values = previewPayload.months.map(function(month, index) {
+					return roundPreviewValue(
+						Number(structureHoursPlanRow.values[index] || 0) - Number(longPlanRow.values[index] || 0),
+						'integer'
+					);
+				});
+				planRow.total = roundPreviewValue(sumArray(planRow.values), 'integer');
+
+				const grossActualValues = previewPayload.months.map(function(month, index) {
+					const hasStructureActual = hasActualRealValue(structureHoursRealRow, index);
+					const hasLongActual = hasActualRealValue(longRealRow, index);
+					if (!hasStructureActual && !hasLongActual) {
+						return 0;
+					}
+
+					const structureActual = hasStructureActual
+						? Number(getActualRealValue(structureHoursRealRow, index) || 0)
+						: Number(structureHoursPlanRow.values[index] || 0);
+					const longActual = hasLongActual
+						? Number(getActualRealValue(longRealRow, index) || 0)
+						: Number(longPlanRow.values[index] || 0);
+					return roundPreviewValue(structureActual - longActual, 'integer');
+				});
+				const grossHasActualFlags = previewPayload.months.map(function(month, index) {
+					return hasActualRealValue(structureHoursRealRow, index) || hasActualRealValue(longRealRow, index);
+				});
+				realRow.actualValues = grossActualValues.slice();
+				realRow.hasRealFlags = grossHasActualFlags.slice();
+				realRow.values = previewPayload.months.map(function(month, index) {
+					return grossHasActualFlags[index] ? Number(grossActualValues[index] || 0) : Number(planRow.values[index] || 0);
+				});
+				realRow.total = roundPreviewValue(sumArray(realRow.values), 'integer');
+				realRow.actualTotal = roundPreviewValue(sumArray(grossActualValues.filter(function(value, index) {
+					return grossHasActualFlags[index];
+				})), 'integer');
 
 				forecastRow.values = previewPayload.months.map(function(month, index) {
 					const hasActual = hasActualRealValue(realRow, index);
 					if (hasActual) {
 						return Number(getActualRealValue(realRow, index) || 0);
-					}
-
-					const pendingValue = getPendingAdjustmentValue(grossSection.metric, month);
-					if (pendingValue != null) {
-						return Number(pendingValue);
 					}
 
 					const longTermValue = hasActualRealValue(longRealRow, index)

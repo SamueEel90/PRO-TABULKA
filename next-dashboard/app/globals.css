@@ -573,6 +573,69 @@ button:hover {
   margin: 16px 0;
 }
 
+.editor-toolbar--filters {
+  align-items: flex-end;
+}
+
+.editor-field {
+  min-width: min(420px, 100%);
+  display: grid;
+  gap: 8px;
+}
+
+.editor-field span {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.editor-field select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.editor-summary-chip {
+  min-width: 140px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface-3);
+}
+
+.editor-summary-chip strong {
+  display: block;
+  font-size: 1.1rem;
+}
+
+.editor-summary-chip span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.segmented-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0 10px;
+}
+
+.tab-button {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+.tab-button--active {
+  background: linear-gradient(180deg, #e12229, #ba151c);
+  color: white;
+  border-color: transparent;
+}
+
 .admin-editor-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -602,6 +665,10 @@ button:hover {
   border-collapse: collapse;
 }
 
+.admin-table--wide {
+  min-width: max-content;
+}
+
 .admin-table th,
 .admin-table td {
   padding: 10px;
@@ -624,6 +691,14 @@ button:hover {
   border-radius: 12px;
   border: 1px solid var(--line);
   background: var(--surface-2);
+}
+
+.metric-name-cell {
+  min-width: 240px;
+}
+
+.month-value-cell {
+  min-width: 132px;
 }
 
 .admin-row--deleted {

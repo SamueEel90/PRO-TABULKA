@@ -19,6 +19,8 @@ const GLOBAL_SCOPE_NOTE_METRIC = '__GLOBAL_SCOPE_NOTES__';
 const BUSINESS_YEAR_START_MONTH_INDEX = 2;
 const WORKFORCE_STRUCTURE_METRIC = 'Štruktúra filiálky (plné úväzky)';
 const STRUCTURE_HOURS_METRIC = 'Štruktúra hodín';
+const LONG_ABSENCE_METRIC = 'Dlhodobá neprítomnosť (33+ dní) (b)';
+const GROSS_HOURS_METRIC = 'Hodiny Brutto GJ2026';
 const NET_HOURS_PLAN_VT_METRIC = 'Hodiny netto Plan VT';
 const NET_HOURS_PLAN_DELTA_METRIC = 'Hodiny netto vs Netto Plan VT Δ h';
 const WORKING_DAYS_METRIC = 'Pracovné dni zamestnancov';
@@ -63,8 +65,8 @@ const DASHBOARD_MONTH_ALIASES: Record<string, number> = {
 
 const UI_METRIC_ORDER = [
   WORKFORCE_STRUCTURE_METRIC,
-  'Dlhodobá neprítomnosť (33+ dní) (b)',
-  'Hodiny Brutto GJ2026',
+  LONG_ABSENCE_METRIC,
+  GROSS_HOURS_METRIC,
   'Pracovné dni zamestnancov',
   'Sviatok zatvorené',
   STRUCTURE_HOURS_METRIC,
@@ -100,7 +102,7 @@ const EXCLUDED_METRICS = new Set([
 ]);
 
 const PLAN_AS_PENDING_DELTA_METRICS = new Set([
-  'Dlhodobá neprítomnosť (33+ dní) (b)',
+  LONG_ABSENCE_METRIC,
   'Externá pracovná agentúra (+) Reinigung',
   'Externá pracovná agentúra (+) Wareneinräumung',
   'PN Krátkodobé',
@@ -607,6 +609,16 @@ function getCanonicalMetrics(sourceData: AggregatedSourceData) {
   const hasTurnover = (Object.keys(sourceData) as SourceName[]).some((source) => Boolean(sourceData[source][TURNOVER_METRIC]));
   if (hasTurnover) {
     metrics.add(TURNOVER_METRIC);
+  }
+
+  const hasGrossHoursDependencies = (Object.keys(sourceData) as SourceName[]).some((source) => {
+    if (sourceData[source][STRUCTURE_HOURS_METRIC] || sourceData[source][LONG_ABSENCE_METRIC] || sourceData[source][WORKFORCE_STRUCTURE_METRIC]) {
+      return true;
+    }
+    return WORKFORCE_STRUCTURE_BANDS.some((band) => Boolean(sourceData[source][band.key]));
+  });
+  if (hasGrossHoursDependencies) {
+    metrics.add(GROSS_HOURS_METRIC);
   }
 
   return Array.from(metrics).sort((left, right) => {
@@ -1145,6 +1157,28 @@ function buildMetricMonthCell(
       variancePct: plan ? variance / plan : 0,
       closedMonth,
       hasRealData: hasMeaningfulIstMonthData && (hours.hasRealData || turnover.hasRealData),
+    };
+  }
+
+  if (normalizeMetricName(metric) === normalizeMetricName(GROSS_HOURS_METRIC)) {
+    const structureHoursCell = buildMetricMonthCell(sourceData, STRUCTURE_HOURS_METRIC, month, 'hours', storeAggregatedByStoreId);
+    const longAbsenceCell = buildMetricMonthCell(sourceData, LONG_ABSENCE_METRIC, month, 'hours', storeAggregatedByStoreId);
+    const plan = structureHoursCell.plan - longAbsenceCell.plan;
+    const real = structureHoursCell.real - longAbsenceCell.real;
+    const derivedForecast = structureHoursCell.forecast - longAbsenceCell.forecast;
+    const hasRealData = structureHoursCell.hasRealData || longAbsenceCell.hasRealData;
+    const forecastBase = closedMonth && hasRealData ? real : derivedForecast;
+    const variance = forecastBase - plan;
+
+    return {
+      plan: roundMetric(plan, format),
+      real: roundMetric(real, format),
+      adjustment: roundMetric(closedMonth && hasRealData ? 0 : derivedForecast - plan, format),
+      forecast: roundMetric(forecastBase, format),
+      variance: roundMetric(variance, format),
+      variancePct: plan ? variance / plan : 0,
+      closedMonth,
+      hasRealData,
     };
   }
 
@@ -1763,6 +1797,9 @@ export async function saveDashboardChangesToSql(
 
     for (const update of adjustmentUpdates) {
       const canonicalMetric = canonicalizeMetric(update.metric);
+      if (canonicalMetric === GROSS_HOURS_METRIC) {
+        continue;
+      }
       const month = resolveDashboardMonth(update.month);
       const metricCode = metricCodeFromName(canonicalMetric);
       await prisma.metric.upsert({

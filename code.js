@@ -3026,8 +3026,6 @@ function buildTable(dataset, months, scope, planData, realData, vodData, precomp
 		const deltaRow = buildSmartDeltaRow_(metric, metricRow, months);
 		const rows = metric === WORKFORCE_STRUCTURE_METRIC
 			? buildWorkforceStructureSectionRows_(scope.storeIds, months, dataset.rows, planData.records, realData.records, realData.presence, vodData.records, vodData.presence)
-			: metric === GROSS_HOURS_METRIC
-				? buildGrossHoursSectionRows_(scope.storeIds, months, dataset.rows, planData.records, realData.records, vodData.records)
 			: buildDefaultMetricRows_(metric, metricRow, totals, adjustmentTotal, deltaRow, scope.storeIds, months, vodData.records);
 
 		sections.push({
@@ -3056,13 +3054,9 @@ function buildMetricBreakdown_(metric, months, scope, storeDatasets, storeNames,
 		const deltaRow = buildSmartDeltaRow_(metric, metricRow, months);
 		const rows = metric === WORKFORCE_STRUCTURE_METRIC
 			? buildWorkforceStructureSectionRows_([storeId], months, storeDataset.rows, planRecords, realRecords, realPresence, vodRecords, vodPresence)
-			: metric === GROSS_HOURS_METRIC
-				? buildGrossHoursSectionRows_([storeId], months, storeDataset.rows, planRecords, realRecords, vodRecords)
 			: buildDefaultMetricRows_(metric, metricRow, totals, adjustmentTotal, deltaRow, [storeId], months, vodRecords);
 		const forecastTotal = metric === WORKFORCE_STRUCTURE_METRIC
 			? summarizeMetric_(STRUCTURE_HOURS_METRIC, getMetricRow_(storeDataset.rows, STRUCTURE_HOURS_METRIC, months), months).forecast
-			: metric === GROSS_HOURS_METRIC
-				? sumValues_(buildGrossHoursSectionRows_([storeId], months, storeDataset.rows, planRecords, realRecords, vodRecords)[0].values)
 			: totals.forecast;
 
 		return {
