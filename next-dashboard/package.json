@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "legacy:sync": "node scripts/sync-legacy-assets.mjs",
+    "import:ist": "node scripts/import-ist.mjs",
     "import:plan": "node scripts/import-plan.mjs",
     "import:structure-login": "node scripts/import-structure-login.mjs",
     "prisma:generate": "prisma generate",

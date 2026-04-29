@@ -84,6 +84,8 @@
 				--content-max: 111.25rem;
 				--sidebar-w: min(24rem, calc(100vw - 1.75rem));
 				--sticky-col: 11.875rem;
+				--sticky-col-laptop: 9.5rem;
+				--sticky-col-tablet: 8.5rem;
 				--dot-from: #af1c23;
 				--dot-to: #b9c0c8;
 				--dot-glow: #3a434d;
@@ -1626,6 +1628,7 @@
 				display: grid;
 				gap: 0.625rem;
 				justify-items: end;
+				max-width: 100%;
 			}
 
 			.chart-panel.is-collapsed .chart-wrap {
@@ -1640,6 +1643,7 @@
 				display: grid;
 				gap: 0.375rem;
 				justify-items: end;
+				max-width: 100%;
 			}
 
 			.chart-control-label {
@@ -1652,6 +1656,7 @@
 				gap: 1px;
 				flex-wrap: wrap;
 				justify-content: flex-end;
+				max-width: 100%;
 				padding: 1px;
 				border-radius: 0.9rem;
 				background: linear-gradient(180deg, rgba(241, 245, 249, 0.96), rgba(248, 250, 252, 0.94));
@@ -3052,13 +3057,103 @@
 				font-size: 0.875rem;
 			}
 
-			@media (max-width: 1180px) {
+			@media (max-width: 1366px) {
 				html {
-					font-size: 17px;
+					font-size: 15px;
 				}
 
 				.main {
-					padding-top: 4.5rem;
+					gap: 1rem;
+					padding: 4.375rem 1rem 1.25rem;
+				}
+
+				.hero-panel,
+				.chart-panel,
+				.metric-table,
+				.store-panel {
+					padding: 0.9rem;
+				}
+
+				.hero-grid {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+
+				.hero-group-grid--period,
+				.hero-group-grid--year {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+
+				.chart-mode-head {
+					display: grid;
+					grid-template-columns: minmax(0, 1fr);
+					align-items: stretch;
+				}
+
+				.chart-control-stack,
+				.chart-control-group {
+					width: 100%;
+					justify-items: start;
+				}
+
+				.chart-mode-tabs {
+					justify-content: flex-start;
+					flex-wrap: nowrap;
+					overflow-x: auto;
+					overflow-y: hidden;
+					-webkit-overflow-scrolling: touch;
+					scrollbar-width: thin;
+				}
+
+				.chart-mode-tabs .chart-mode-button {
+					flex: 0 0 auto;
+				}
+
+				.table-toolbar-actions {
+					gap: 0.625rem;
+				}
+
+				.table-toolbar-group {
+					min-width: 0;
+				}
+
+				.metric-table-scroll {
+					overflow-x: auto;
+					-webkit-overflow-scrolling: touch;
+					overscroll-behavior-x: contain;
+					touch-action: pan-x;
+				}
+
+				.metric-table-scroll table {
+					width: max-content;
+					min-width: 100%;
+				}
+
+				.metric-table-scroll th,
+				.metric-table-scroll td {
+					padding: 0.56rem 0.5rem;
+				}
+
+				.metric-table-scroll th:not(:first-child),
+				.metric-table-scroll td:not(:first-child) {
+					min-width: 6.5rem;
+				}
+
+				.metric-table-scroll th:first-child,
+				.metric-table-scroll td:first-child,
+				.store-name-cell {
+					min-width: var(--sticky-col-laptop);
+					width: var(--sticky-col-laptop);
+				}
+			}
+
+			@media (max-width: 1180px) {
+				html {
+					font-size: 14.5px;
+				}
+
+				.main {
+					gap: 0.85rem;
+					padding-top: 4.25rem;
 				}
 
 				.hero-panel,
@@ -3066,8 +3161,46 @@
 					grid-template-columns: 1fr;
 				}
 
+				.hero-panel {
+					gap: 0.8rem;
+				}
+
 				.hero-grid {
 					grid-template-columns: 1fr;
+					gap: 0.6rem;
+				}
+
+				.hero-copy h2 {
+					font-size: clamp(2rem, 3.9vw, 2.55rem);
+				}
+
+				.hero-copy p {
+					font-size: 0.94rem;
+					line-height: 1.32;
+				}
+
+				.hero-group {
+					gap: 0.45rem;
+					padding: 0.65rem 0.7rem;
+					border-radius: 1rem;
+				}
+
+				.hero-group-head {
+					gap: 0.35rem;
+				}
+
+				.hero-group-title {
+					font-size: 0.92rem;
+				}
+
+				.hero-group-caption {
+					font-size: 0.84rem;
+					line-height: 1.26;
+				}
+
+				.hero-group-chip {
+					padding: 0.36em 0.62em;
+					font-size: 0.74rem;
 				}
 
 				.hero-group-grid--period {
@@ -3078,8 +3211,30 @@
 					grid-template-columns: repeat(2, minmax(0, 1fr));
 				}
 
-				.hero-group-grid--year {
-					grid-template-columns: repeat(2, minmax(0, 1fr));
+				.mini-stat {
+					padding: 0.42rem 0.5rem;
+					gap: 0.12rem;
+					min-height: 3rem;
+					border-radius: 0.92rem;
+				}
+
+				.mini-stat-title {
+					font-size: 0.72rem;
+				}
+
+				.mini-stat-value {
+					font-size: clamp(1.08rem, 2vw, 1.34rem);
+				}
+
+				.mini-stat-meta {
+					font-size: 0.72rem;
+				}
+
+				.table-toolbar {
+					gap: 0.8rem;
+					margin-bottom: 0.8rem;
+					padding: 0.85rem 0.9rem;
+					border-radius: 1.05rem;
 				}
 
 				.chart-mode-head {
@@ -3101,10 +3256,49 @@
 
 				.table-toolbar-actions {
 					justify-content: stretch;
+					gap: 0.5rem;
 				}
 
 				.table-toolbar-group {
 					flex: 1 1 100%;
+					padding: 0.68rem 0.72rem 0.72rem;
+					gap: 0.35rem;
+					border-radius: 0.92rem;
+				}
+
+				.sidebar {
+					width: min(19.5rem, calc(100vw - 1rem));
+					padding: 0.8rem 0.72rem 0.95rem;
+					border-radius: 0 1.3rem 1.3rem 0;
+				}
+
+				.sidebar-topline {
+					gap: 0.6rem;
+				}
+
+				.sidebar-content {
+					gap: 0.48rem;
+				}
+
+				.sidebar .side-card {
+					padding: 0.78rem;
+				}
+
+				.sidebar-backdrop {
+					background: rgba(15, 23, 42, 0.46);
+					backdrop-filter: blur(5px);
+				}
+
+				.shell-menu-button {
+					top: 0.8rem;
+					left: 0.8rem;
+					padding: 0.58em 0.78em;
+					gap: 0.5rem;
+				}
+
+				body.sidebar-open .main {
+					filter: blur(1.6px);
+					pointer-events: none;
 				}
 
 			}
@@ -3284,6 +3478,86 @@
 
 				.save-fab {
 					bottom: 4.25rem;
+				}
+			}
+
+			@media (max-width: 1024px) {
+				.main {
+					padding-inline: 0.875rem;
+				}
+
+				.hero-grid,
+				.hero-group-grid--period,
+				.hero-group-grid--year {
+					grid-template-columns: 1fr;
+				}
+
+				.chart-wrap--xl {
+					height: clamp(19rem, 46vw, 24rem);
+				}
+
+				.table-toolbar {
+					gap: 0.68rem;
+					padding: 0.75rem 0.8rem;
+				}
+
+				.table-toolbar-copy {
+					gap: 0.2rem;
+					min-width: min(100%, 15rem);
+				}
+
+				.table-toolbar-copy .support-text {
+					font-size: 0.8rem;
+				}
+
+				.table-toolbar-actions {
+					gap: 0.45rem;
+				}
+
+				.table-toolbar-group {
+					padding: 0.58rem 0.62rem 0.62rem;
+					gap: 0.3rem;
+				}
+
+				.table-toolbar-group-label,
+					.table-toolbar-kicker {
+					font-size: 0.6rem;
+				}
+
+				.metric-table-scroll th,
+				.metric-table-scroll td {
+					font-size: 0.74rem;
+					padding: 0.46rem 0.36rem;
+					line-height: 1.2;
+				}
+
+				.metric-table-scroll th:not(:first-child),
+				.metric-table-scroll td:not(:first-child) {
+					min-width: 5.2rem;
+				}
+
+				.metric-table-scroll th:first-child,
+				.metric-table-scroll td:first-child,
+				.store-name-cell {
+					min-width: 7.6rem;
+					width: 7.6rem;
+				}
+
+				.metric-table-scroll tbody td[data-editable='true'] {
+					font-size: 0.72rem;
+				}
+
+				.metric-value-primary {
+					font-size: 0.92rem;
+				}
+
+				.metric-value-secondary,
+				.metric-cell-note {
+					font-size: 0.66rem;
+				}
+
+				.sidebar {
+					width: min(18.5rem, calc(100vw - 0.85rem));
 				}
 			}
 
@@ -7998,6 +8272,26 @@
 				structureHoursRow.total = roundPreviewValue(sumArray(structureHoursRow.values), 'decimal');
 			}
 
+			function hasPendingGrossDependencyChanges() {
+				const dependencyMetrics = [
+					'Štruktúra filiálky 100%',
+					'Štruktúra filiálky 90%',
+					'Štruktúra filiálky 77%',
+					'Štruktúra filiálky 65%',
+					'Štruktúra filiálky 52%',
+					'Štruktúra filiálky 39%',
+					'Struktúra filiálky (plné úväzky)',
+					'Štruktúra filiálky (plné úväzky)',
+					'Štruktúra hodín',
+					'Dlhodobá neprítomnosť (33+ dní) (b)',
+					'Hodiny Brutto GJ2026'
+				];
+
+				return dependencyMetrics.some(function(metric) {
+					return state.pendingAdjustments[metric] && Object.keys(state.pendingAdjustments[metric]).length > 0;
+				});
+			}
+
 			function recomputeGrossPreview(previewPayload) {
 				const grossSection = findSectionByMetric(previewPayload, 'Hodiny Brutto GJ2026');
 				const workforceSection = findSectionByMetric(previewPayload, 'Štruktúra filiálky (plné úväzky)');
@@ -8008,15 +8302,56 @@
 
 				const structureHoursRow = workforceSection.rows.find(function(row) { return row.type === 'structure-hours-derived'; });
 				const longPlanRow = longAbsenceSection.rows.find(function(row) { return row.type === 'plan'; });
+				const longRealRow = longAbsenceSection.rows.find(function(row) { return row.type === 'real'; });
+				const longForecastRow = longAbsenceSection.rows.find(function(row) { return row.type === 'forecast'; }) || longPlanRow;
 				const planRow = grossSection.rows.find(function(row) { return row.type === 'plan'; });
-				if (!structureHoursRow || !longPlanRow || !planRow) {
+				const realRow = grossSection.rows.find(function(row) { return row.type === 'real'; });
+				const adjustmentRow = grossSection.rows.find(function(row) { return row.type === 'adjustment'; });
+				const forecastRow = grossSection.rows.find(function(row) { return row.type === 'forecast'; });
+				const deltaRow = grossSection.rows.find(function(row) { return row.type === 'delta'; });
+				if (!structureHoursRow || !longPlanRow || !planRow || !adjustmentRow || !forecastRow) {
 					return;
 				}
 
-				planRow.values = previewPayload.months.map(function(month, index) {
-					return roundPreviewValue(Number(structureHoursRow.values[index] || 0) - Number(longPlanRow.values[index] || 0), 'integer');
+				if (!hasPendingGrossDependencyChanges()) {
+					return;
+				}
+
+				forecastRow.values = previewPayload.months.map(function(month, index) {
+					const hasActual = hasActualRealValue(realRow, index);
+					if (hasActual) {
+						return Number(getActualRealValue(realRow, index) || 0);
+					}
+
+					const pendingValue = getPendingAdjustmentValue(grossSection.metric, month);
+					if (pendingValue != null) {
+						return Number(pendingValue);
+					}
+
+					const longTermValue = hasActualRealValue(longRealRow, index)
+						? Number(getActualRealValue(longRealRow, index) || 0)
+						: Number(longForecastRow.values[index] || 0);
+
+					return roundPreviewValue(Number(structureHoursRow.values[index] || 0) - longTermValue, 'integer');
 				});
-				planRow.total = roundPreviewValue(sumArray(planRow.values), 'integer');
+				forecastRow.total = roundPreviewValue(sumArray(forecastRow.values), 'integer');
+
+				adjustmentRow.values = previewPayload.months.map(function(month, index) {
+					const hasActual = hasActualRealValue(realRow, index);
+					if (hasActual) {
+						return 0;
+					}
+
+					return roundPreviewValue(Number(forecastRow.values[index] || 0) - Number(planRow.values[index] || 0), 'integer');
+				});
+				adjustmentRow.total = roundPreviewValue(sumArray(adjustmentRow.values), 'integer');
+
+				if (deltaRow) {
+					deltaRow.values = getMetricDeltaValues(grossSection, planRow, realRow, forecastRow).map(function(value) {
+						return roundPreviewValue(value, 'integer');
+					});
+					deltaRow.total = roundPreviewValue(sumArray(deltaRow.values), 'integer');
+				}
 			}
 
 			function recomputeNetPreview(previewPayload, basePayload) {

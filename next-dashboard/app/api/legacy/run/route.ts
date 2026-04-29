@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import {
   getDashboardDataFromSql,
+  getSummaryDataFromSql,
   getScopeNotesFromSql,
   getWeeklyVodOverridesFromSql,
   saveDashboardChangesToSql,
@@ -17,6 +18,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true, result: request.headers.get('origin') || new URL(request.url).origin + '/' });
       case 'getDashboardData':
         return NextResponse.json({ ok: true, result: await getDashboardDataFromSql(String(params[0] || ''), String(params[1] || 'ALL')) });
+      case 'getSummaryData':
+        return NextResponse.json({ ok: true, result: await getSummaryDataFromSql(String(params[0] || '')) });
       case 'getWeeklyVodOverrides':
         return NextResponse.json({ ok: true, result: await getWeeklyVodOverridesFromSql(String(params[0] || ''), String(params[1] || 'ALL'), String(params[2] || '')) });
       case 'getScopeNotes':

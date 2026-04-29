@@ -101,9 +101,21 @@ async function readLegacyAsset(fileName: string) {
     : new Error(`Legacy asset not found: ${fileName}`);
 }
 
-async function buildLegacyIndexHtml() {
+function resolveLegacyAssetFileName(asset: string) {
+  switch (asset) {
+    case 'sumar':
+      return 'sumar.html';
+    case 'test':
+      return 'test.html';
+    default:
+      return 'Index.html';
+  }
+}
+
+async function buildLegacyHtml(asset: string) {
+  const fileName = resolveLegacyAssetFileName(asset);
   const [indexHtml, sharedHelpers, sharedStyles] = await Promise.all([
-    readLegacyAsset('Index.html'),
+    readLegacyAsset(fileName),
     readLegacyAsset('dashboardSharedHelpers.html'),
     readLegacyAsset('sharedStyles.html'),
   ]);
@@ -115,8 +127,10 @@ async function buildLegacyIndexHtml() {
     .replace('</head>', `${APPS_SCRIPT_SHIM}\n</head>`);
 }
 
-export async function GET() {
-  const html = await buildLegacyIndexHtml();
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const asset = String(url.searchParams.get('asset') || 'index').toLowerCase();
+  const html = await buildLegacyHtml(asset);
 
   return new Response(html, {
     headers: {

@@ -1,11 +1,24 @@
 import { PrismaClient } from '@prisma/client';
+import path from 'node:path';
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
+const datasourceUrl = getDatasourceUrl();
+
+if (datasourceUrl && process.env.DATABASE_URL !== datasourceUrl) {
+  process.env.DATABASE_URL = datasourceUrl;
+}
+
 function getDatasourceUrl() {
   const databaseUrl = process.env.DATABASE_URL;
+  const isVercelRuntime = process.env.VERCEL === '1' || Boolean(process.env.VERCEL_ENV);
+
+  if (!isVercelRuntime && (!databaseUrl || !databaseUrl.startsWith('file:'))) {
+    const sqlitePath = path.join(process.cwd(), 'prisma', 'dev.db').replace(/\\/g, '/');
+    return `file:${sqlitePath}`;
+  }
 
   if (!databaseUrl) {
     return undefined;
@@ -37,7 +50,7 @@ function getDatasourceUrl() {
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({
   datasources: {
     db: {
-      url: getDatasourceUrl(),
+      url: datasourceUrl,
     },
   },
 });

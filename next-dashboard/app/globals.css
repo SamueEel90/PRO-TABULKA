@@ -61,6 +61,14 @@ a {
   min-height: 100vh;
 }
 
+body.legacy-dashboard-page > .app-background {
+  display: none;
+}
+
+body.legacy-dashboard-page::before {
+  display: none;
+}
+
 .app-background {
   position: fixed;
   inset: 0;

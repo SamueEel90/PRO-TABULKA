@@ -9,7 +9,10 @@ import type {
   MetricFormat,
   MetricRow,
   MetricSection,
+  SummaryMetric,
+  SummaryNode,
   WeeklyOverridesPayload,
+  SummaryPayload,
 } from '@/lib/legacy/contracts';
 
 const GLOBAL_SCOPE_NOTE_METRIC = '__GLOBAL_SCOPE_NOTES__';
@@ -1372,6 +1375,201 @@ async function buildStoresSummary(scope: DashboardScope, months: MonthSummary[])
   }
 
   return items.sort((left, right) => right.turnover - left.turnover);
+}
+
+function isSummaryCompatibleRow(row: MetricRow) {
+  return Array.isArray(row.values)
+    && row.values.every((value) => typeof value === 'number' || value == null);
+}
+
+function toSummaryMetric(section: MetricSection): SummaryMetric {
+  return {
+    metric: section.metric,
+    format: section.format,
+    rows: section.rows
+      .filter(isSummaryCompatibleRow)
+      .map((row) => ({
+        type: row.type,
+        label: row.label,
+        values: row.values.map((value) => Number(value || 0)),
+        total: typeof row.total === 'number' ? row.total : Number(row.total || 0),
+        actualValues: Array.isArray(row.actualValues) ? row.actualValues.map((value) => Number(value || 0)) : undefined,
+        actualTotal: typeof row.actualTotal === 'number' ? row.actualTotal : Number(row.actualTotal || 0),
+        hasRealFlags: Array.isArray(row.hasRealFlags) ? row.hasRealFlags.map((flag) => Boolean(flag)) : undefined,
+      })),
+  };
+}
+
+function getSummaryCompatibleTable(table: MetricSection[]) {
+  return table.filter((section) => section.rows.every(isSummaryCompatibleRow));
+}
+
+function buildSummaryDefaultNodeId(user: AuthenticatedUser, fallbackRootId: string) {
+  if (user.role === 'VOD' && user.primaryStoreId) {
+    return `STORE:${user.primaryStoreId}`;
+  }
+  if (user.role === 'VKL' && user.vklName) {
+    return `VKL:${user.vklName}`;
+  }
+  if (user.role === 'GF' && user.gfName) {
+    return `GF:${user.gfName}`;
+  }
+  return fallbackRootId;
+}
+
+async function buildSummaryNodeFromDataset(
+  nodeId: string,
+  type: SummaryNode['type'],
+  label: string,
+  parentId: string | undefined,
+  childIds: string[],
+  storeIds: string[],
+  months: MonthSummary[],
+  dataset: Awaited<ReturnType<typeof loadMonthlyDataset>>,
+): Promise<SummaryNode> {
+  const table = getSummaryCompatibleTable(buildTable(dataset.aggregated, months, dataset.metricMeta, dataset.storeAggregatedByStoreId));
+  const monthLabels = months.map((month) => month.label);
+
+  return {
+    id: nodeId,
+    type,
+    label,
+    parentId,
+    childIds,
+    storeCount: storeIds.length,
+    metrics: table.map(toSummaryMetric),
+    charts: buildCharts(table, monthLabels),
+  };
+}
+
+export async function getSummaryDataFromSql(loginValue: string): Promise<SummaryPayload> {
+  const [structure, storeNames] = await Promise.all([getStructureData(), getStoreNames()]);
+  const user = await authenticateUser(loginValue, 'summary');
+  const visibleStores = await prisma.store.findMany({
+    where: { id: { in: user.accessibleStoreIds } },
+    orderBy: { id: 'asc' },
+  });
+
+  if (!visibleStores.length) {
+    throw new Error('Pre zvoleného používateľa nie sú dostupné žiadne filiálky.');
+  }
+
+  const rootId = 'GLOBAL:ALL';
+  const rootDataset = await loadMonthlyDataset(visibleStores.map((store) => store.id));
+  if (!rootDataset.months.length) {
+    throw new Error('Pre sumár zatiaľ nie sú v SQL naimportované mesačné dáta.');
+  }
+
+  const months = rootDataset.months;
+  const gfGroups = new Map<string, typeof visibleStores>();
+  const vklGroups = new Map<string, typeof visibleStores>();
+
+  visibleStores.forEach((store) => {
+    const gfName = String(store.gfName || '').trim() || 'Bez GF';
+    const vklName = String(store.vklName || '').trim() || 'Bez VKL';
+
+    if (!gfGroups.has(gfName)) {
+      gfGroups.set(gfName, []);
+    }
+    if (!vklGroups.has(vklName)) {
+      vklGroups.set(vklName, []);
+    }
+
+    gfGroups.get(gfName)?.push(store);
+    vklGroups.get(vklName)?.push(store);
+  });
+
+  const nodes: Record<string, SummaryNode> = {};
+  const gfIds = Array.from(gfGroups.keys()).sort().map((gfName) => `GF:${gfName}`);
+  nodes[rootId] = await buildSummaryNodeFromDataset(
+    rootId,
+    'GLOBAL',
+    'Slovensko',
+    undefined,
+    gfIds,
+    visibleStores.map((store) => store.id),
+    months,
+    rootDataset,
+  );
+
+  for (const gfName of Array.from(gfGroups.keys()).sort()) {
+    const gfStores = gfGroups.get(gfName) || [];
+    const gfNodeId = `GF:${gfName}`;
+    const vklIds = Array.from(new Set(gfStores.map((store) => String(store.vklName || '').trim() || 'Bez VKL')))
+      .sort()
+      .map((vklName) => `VKL:${vklName}`);
+    const gfDataset = await loadMonthlyDataset(gfStores.map((store) => store.id));
+    nodes[gfNodeId] = await buildSummaryNodeFromDataset(
+      gfNodeId,
+      'GF',
+      gfName,
+      rootId,
+      vklIds,
+      gfStores.map((store) => store.id),
+      months,
+      gfDataset,
+    );
+  }
+
+  for (const vklName of Array.from(vklGroups.keys()).sort()) {
+    const vklStores = vklGroups.get(vklName) || [];
+    const fallbackStore = vklStores[0];
+    const gfName = fallbackStore ? (String(fallbackStore.gfName || '').trim() || 'Bez GF') : 'Bez GF';
+    const vklNodeId = `VKL:${vklName}`;
+    const storeIds = vklStores.map((store) => `STORE:${store.id}`);
+    const vklDataset = await loadMonthlyDataset(vklStores.map((store) => store.id));
+    nodes[vklNodeId] = await buildSummaryNodeFromDataset(
+      vklNodeId,
+      'VKL',
+      vklName,
+      `GF:${gfName}`,
+      storeIds,
+      vklStores.map((store) => store.id),
+      months,
+      vklDataset,
+    );
+  }
+
+  for (const store of visibleStores) {
+    const storeNodeId = `STORE:${store.id}`;
+    const vklName = String(store.vklName || '').trim() || 'Bez VKL';
+    const storeDataset = await loadMonthlyDataset([store.id]);
+    nodes[storeNodeId] = await buildSummaryNodeFromDataset(
+      storeNodeId,
+      'STORE',
+      buildStoreDisplayLabel(store.id, storeNames[store.id] || store.name),
+      `VKL:${vklName}`,
+      [],
+      [store.id],
+      months,
+      storeDataset,
+    );
+  }
+
+  const metrics = nodes[rootId].metrics.map((metric) => metric.metric);
+  const defaultNodeId = Object.prototype.hasOwnProperty.call(nodes, buildSummaryDefaultNodeId(user, rootId))
+    ? buildSummaryDefaultNodeId(user, rootId)
+    : rootId;
+
+  return {
+    generatedAt: new Intl.DateTimeFormat('sk-SK', { dateStyle: 'short', timeStyle: 'short' }).format(new Date()),
+    user: {
+      role: user.role,
+      displayName: user.displayName,
+      email: user.email,
+    },
+    gfCount: gfGroups.size,
+    vklCount: vklGroups.size,
+    storeCount: visibleStores.length,
+    months: months.map((month) => month.label),
+    metrics,
+    hierarchy: {
+      rootId,
+      nodes,
+    },
+    defaultNodeId,
+    defaultMonth: months[months.length - 1]?.label,
+  };
 }
 
 function buildNoteScope(user: AuthenticatedUser, scope: DashboardScope): NoteScope {
