@@ -2608,6 +2608,7 @@
 			}
 
 			.metric-table-scroll thead th:first-child {
+				
 				z-index: 3;
 			}
 
@@ -4182,6 +4183,21 @@
 				var cursorRadius = 500;
 				var cursorForce = 0.1;
 				var glowRadius = 160;
+				var media = window.matchMedia ? {
+					coarsePointer: window.matchMedia('(pointer: coarse)'),
+					reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)')
+				} : null;
+				var useStaticMode = Boolean(
+					media && (
+						(media.coarsePointer && media.coarsePointer.matches) ||
+						(media.reducedMotion && media.reducedMotion.matches)
+					)
+				);
+				var dynamicSpacing = useStaticMode ? 18 : spacing;
+				var dynamicCursorForce = useStaticMode ? 0 : cursorForce;
+				var dynamicGlowRadius = useStaticMode ? glowRadius * 0.72 : glowRadius;
+				var latestPointerEvent = null;
+				var pointerUpdateFrame = 0;
 				var palette = readDotFieldPalette();
 				var colorFrom = palette.colorFrom;
 				var colorTo = palette.colorTo;
@@ -4213,24 +4229,24 @@
 						0,
 						pointer.active ? pointer.x : width * 0.3,
 						pointer.active ? pointer.y : height * 0.18,
-						pointer.active ? glowRadius : glowRadius * 1.4
+						pointer.active ? dynamicGlowRadius : dynamicGlowRadius * 1.4
 					);
 					glowGradient.addColorStop(0, rgbaString(glowColor, pointer.active ? 0.14 : 0.08));
 					glowGradient.addColorStop(1, rgbaString(glowColor, 0));
 					context.fillStyle = glowGradient;
 					context.fillRect(0, 0, width, height);
 
-					var columns = Math.ceil(width / spacing) + 2;
-					var rows = Math.ceil(height / spacing) + 2;
+					var columns = Math.ceil(width / dynamicSpacing) + 2;
+					var rows = Math.ceil(height / dynamicSpacing) + 2;
 					for (var row = -1; row < rows; row += 1) {
 						for (var col = -1; col < columns; col += 1) {
-							var baseX = col * spacing;
-							var baseY = row * spacing;
+							var baseX = col * dynamicSpacing;
+							var baseY = row * dynamicSpacing;
 							var dx = baseX - pointer.x;
 							var dy = baseY - pointer.y;
 							var distance = Math.sqrt(dx * dx + dy * dy);
 							var proximity = pointer.active ? Math.max(0, 1 - distance / cursorRadius) : 0;
-							var bulge = proximity * bulgeStrength * cursorForce;
+							var bulge = proximity * bulgeStrength * dynamicCursorForce;
 							var safeDistance = distance || 1;
 							var x = baseX + (pointer.active ? (dx / safeDistance) * bulge : 0);
 							var y = baseY + (pointer.active ? (dy / safeDistance) * bulge : 0);
@@ -4249,17 +4265,45 @@
 					frame = window.requestAnimationFrame(renderFrame);
 				}
 
-				window.addEventListener('resize', resizeCanvas);
-				window.addEventListener('pointermove', function(event) {
+				function applyPointerPosition(event) {
 					pointer.x = event.clientX;
 					pointer.y = event.clientY;
-					pointer.active = true;
-				});
-				window.addEventListener('pointerleave', function() {
+					pointer.active = !useStaticMode;
+				}
+
+				function queuePointerPosition(event) {
+					if (useStaticMode || (event.pointerType && event.pointerType !== 'mouse' && event.pointerType !== 'pen')) {
+						return;
+					}
+
+					latestPointerEvent = event;
+					if (pointerUpdateFrame) {
+						return;
+					}
+
+					pointerUpdateFrame = window.requestAnimationFrame(function() {
+						pointerUpdateFrame = 0;
+						if (latestPointerEvent) {
+							applyPointerPosition(latestPointerEvent);
+						}
+					});
+				}
+
+				function resetPointer() {
 					pointer.x = -9999;
 					pointer.y = -9999;
 					pointer.active = false;
-				});
+					latestPointerEvent = null;
+					if (pointerUpdateFrame) {
+						window.cancelAnimationFrame(pointerUpdateFrame);
+						pointerUpdateFrame = 0;
+					}
+				}
+
+				window.addEventListener('resize', resizeCanvas);
+				window.addEventListener('pointermove', queuePointerPosition, { passive: true });
+				window.addEventListener('pointerleave', resetPointer);
+				window.addEventListener('pointercancel', resetPointer);
 
 				resizeCanvas();
 				renderFrame();

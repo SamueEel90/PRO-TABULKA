@@ -84,9 +84,17 @@ export default function DotField({
     }
 
     let animationFrame = 0;
+    let pointerFrame = 0;
     let width = 0;
     let height = 0;
     let devicePixelRatio = window.devicePixelRatio || 1;
+    const coarsePointerQuery = window.matchMedia('(pointer: coarse)');
+    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const useStaticMode = coarsePointerQuery.matches || reducedMotionQuery.matches;
+    const renderSpacing = useStaticMode ? Math.max(dotSpacing, 18) : dotSpacing;
+    const renderCursorForce = useStaticMode ? 0 : cursorForce;
+    const renderGlowRadius = useStaticMode ? glowRadius * 0.72 : glowRadius;
+    let latestPointerEvent: PointerEvent | null = null;
 
     const resize = () => {
       const bounds = canvas.getBoundingClientRect();
@@ -109,26 +117,26 @@ export default function DotField({
         0,
         pointer.active ? pointer.x : width * 0.32,
         pointer.active ? pointer.y : height * 0.18,
-        pointer.active ? glowRadius : glowRadius * 1.35,
+        pointer.active ? renderGlowRadius : renderGlowRadius * 1.35,
       );
       glowGradient.addColorStop(0, rgbaString(glow, pointer.active ? 0.14 : 0.08));
       glowGradient.addColorStop(1, rgbaString(glow, 0));
       context.fillStyle = glowGradient;
       context.fillRect(0, 0, width, height);
 
-      const cols = Math.ceil(width / dotSpacing) + 2;
-      const rows = Math.ceil(height / dotSpacing) + 2;
+      const cols = Math.ceil(width / renderSpacing) + 2;
+      const rows = Math.ceil(height / renderSpacing) + 2;
       const waveOffset = waveAmplitude ? Math.sin(time / 1000) * waveAmplitude : 0;
 
       for (let row = -1; row < rows; row += 1) {
         for (let col = -1; col < cols; col += 1) {
-          const baseX = col * dotSpacing;
-          const baseY = row * dotSpacing;
+          const baseX = col * renderSpacing;
+          const baseY = row * renderSpacing;
           const dx = baseX - pointer.x;
           const dy = baseY - pointer.y;
           const distance = Math.hypot(dx, dy);
           const proximity = pointer.active ? Math.max(0, 1 - distance / cursorRadius) : 0;
-          const bulge = proximity * bulgeStrength * cursorForce;
+          const bulge = proximity * bulgeStrength * renderCursorForce;
           const safeDistance = distance || 1;
           const offsetX = pointer.active ? (dx / safeDistance) * bulge : 0;
           const offsetY = pointer.active ? (dy / safeDistance) * bulge : 0;
@@ -157,29 +165,67 @@ export default function DotField({
     };
 
     const updatePointer = (event: PointerEvent) => {
-      const bounds = canvas.getBoundingClientRect();
-      pointerRef.current = {
-        x: event.clientX - bounds.left,
-        y: event.clientY - bounds.top,
-        active: true,
-      };
+      if (useStaticMode || (event.pointerType && event.pointerType !== 'mouse' && event.pointerType !== 'pen')) {
+        return;
+      }
+
+      latestPointerEvent = event;
+      if (pointerFrame) {
+        return;
+      }
+
+      pointerFrame = window.requestAnimationFrame(() => {
+        pointerFrame = 0;
+        if (!latestPointerEvent) {
+          return;
+        }
+
+        const bounds = canvas.getBoundingClientRect();
+        pointerRef.current = {
+          x: latestPointerEvent.clientX - bounds.left,
+          y: latestPointerEvent.clientY - bounds.top,
+          active: true,
+        };
+      });
     };
 
     const resetPointer = () => {
+      latestPointerEvent = null;
+      if (pointerFrame) {
+        window.cancelAnimationFrame(pointerFrame);
+        pointerFrame = 0;
+      }
+
       pointerRef.current = { x: -9999, y: -9999, active: false };
     };
 
+    const resetStaticPointer = () => {
+      if (useStaticMode) {
+        resetPointer();
+      }
+    };
+
     resize();
+    resetStaticPointer();
     animationFrame = window.requestAnimationFrame(render);
     window.addEventListener('resize', resize);
-    window.addEventListener('pointermove', updatePointer);
+    window.addEventListener('pointermove', updatePointer, { passive: true });
     window.addEventListener('pointerleave', resetPointer);
+    window.addEventListener('pointercancel', resetPointer);
+    coarsePointerQuery.addEventListener?.('change', resetStaticPointer);
+    reducedMotionQuery.addEventListener?.('change', resetStaticPointer);
 
     return () => {
       window.cancelAnimationFrame(animationFrame);
+      if (pointerFrame) {
+        window.cancelAnimationFrame(pointerFrame);
+      }
       window.removeEventListener('resize', resize);
       window.removeEventListener('pointermove', updatePointer);
       window.removeEventListener('pointerleave', resetPointer);
+      window.removeEventListener('pointercancel', resetPointer);
+      coarsePointerQuery.removeEventListener?.('change', resetStaticPointer);
+      reducedMotionQuery.removeEventListener?.('change', resetStaticPointer);
     };
   }, [bulgeOnly, bulgeStrength, cursorForce, cursorRadius, dotRadius, dotSpacing, glowColor, glowRadius, gradientFrom, gradientTo, sparkle, waveAmplitude]);
 
