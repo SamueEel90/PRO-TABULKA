@@ -94,6 +94,8 @@ const WORKFORCE_STRUCTURE_BANDS = [
   { key: 'Štruktúra filiálky 39%', label: '39%', fteWeight: 0.39, hoursWeight: 3 },
 ];
 
+const WORKFORCE_STRUCTURE_BAND_METRICS = new Set(WORKFORCE_STRUCTURE_BANDS.map((band) => band.key));
+
 const EXCLUDED_METRICS = new Set([
   INVENTORY_METRIC,
   NET_HOURS_PLAN_VT_METRIC,
@@ -243,6 +245,11 @@ function metricCodeFromName(metricName: string) {
   return normalizeMetricName(metricName)
     .replace(/[^a-z0-9+ ]/g, '')
     .replace(/\s+/g, '-');
+}
+
+function isWorkforceStructureSaveMetric(metric: string) {
+  const canonicalMetric = canonicalizeMetric(metric);
+  return canonicalMetric === WORKFORCE_STRUCTURE_METRIC || WORKFORCE_STRUCTURE_BAND_METRICS.has(canonicalMetric);
 }
 
 function getMetricFormat(metric: string, explicitUnit?: string | null): MetricFormat {
@@ -1160,6 +1167,27 @@ function buildMetricMonthCell(
     };
   }
 
+  if (normalizeMetricName(metric) === normalizeMetricName(STRUCTURE_HOURS_METRIC)) {
+    const plan = calculateStructureHoursPlanValue(sourceData, month.id);
+    const real = getAggregatedValue(sourceData, 'IST', STRUCTURE_HOURS_METRIC, month.id);
+    const hasRealData = hasMeaningfulIstMonthData && hasAggregatedValue(sourceData, 'IST', STRUCTURE_HOURS_METRIC, month.id);
+    const derivedForecast = calculateStructureHoursForecastValue(sourceData, month.id, storeAggregatedByStoreId);
+    const forecastBase = closedMonth && hasRealData ? real : derivedForecast;
+    const adjustment = closedMonth && hasRealData ? 0 : derivedForecast - plan;
+    const variance = forecastBase - (hasRealData ? real : plan);
+
+    return {
+      plan: roundMetric(plan, format),
+      real: roundMetric(real, format),
+      adjustment: roundMetric(adjustment, format),
+      forecast: roundMetric(forecastBase, format),
+      variance: roundMetric(variance, format),
+      variancePct: plan ? variance / plan : 0,
+      closedMonth,
+      hasRealData,
+    };
+  }
+
   if (normalizeMetricName(metric) === normalizeMetricName(GROSS_HOURS_METRIC)) {
     const structureHoursCell = buildMetricMonthCell(sourceData, STRUCTURE_HOURS_METRIC, month, 'hours', storeAggregatedByStoreId);
     const longAbsenceCell = buildMetricMonthCell(sourceData, LONG_ABSENCE_METRIC, month, 'hours', storeAggregatedByStoreId);
@@ -1795,8 +1823,15 @@ export async function saveDashboardChangesToSql(
       throw new Error('Úpravy VOD môže zapisovať iba VOD používateľ pre svoju filiálku.');
     }
 
+    const touchedStructureMonths = new Set<string>();
     for (const update of adjustmentUpdates) {
       const canonicalMetric = canonicalizeMetric(update.metric);
+      if (canonicalMetric === STRUCTURE_HOURS_METRIC) {
+        continue;
+      }
+      if (isWorkforceStructureSaveMetric(canonicalMetric)) {
+        touchedStructureMonths.add(resolveDashboardMonth(update.month).id);
+      }
       if (canonicalMetric === GROSS_HOURS_METRIC) {
         continue;
       }
@@ -1831,6 +1866,20 @@ export async function saveDashboardChangesToSql(
         },
       });
       result.savedAdjustments += 1;
+    }
+
+    if (touchedStructureMonths.size) {
+      const structureHoursMetricCode = metricCodeFromName(STRUCTURE_HOURS_METRIC);
+      for (const monthId of touchedStructureMonths) {
+        await prisma.monthlyValue.deleteMany({
+          where: {
+            source: 'VOD',
+            storeId: scope.storeIds[0],
+            metricCode: structureHoursMetricCode,
+            monthId,
+          },
+        });
+      }
     }
   }
 

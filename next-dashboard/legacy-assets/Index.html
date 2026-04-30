@@ -5014,6 +5014,48 @@
 				};
 			}
 
+			function buildAggregateRequiredNetHoursSnapshot(payload, periodContext, isYearScope) {
+				const turnoverSection = findSectionByMetric(payload, 'Obrat GJ2026');
+				const hoursSection = findSectionByMetric(payload, 'Hodiny netto');
+				const turnoverBreakdown = turnoverSection && Array.isArray(turnoverSection.breakdown) ? turnoverSection.breakdown : [];
+				const hoursBreakdown = hoursSection && Array.isArray(hoursSection.breakdown) ? hoursSection.breakdown : [];
+				const itemIds = {};
+
+				turnoverBreakdown.forEach(function(item) { itemIds[String(item.storeId || '').trim()] = true; });
+				hoursBreakdown.forEach(function(item) { itemIds[String(item.storeId || '').trim()] = true; });
+
+				const totals = Object.keys(itemIds).reduce(function(result, itemId) {
+					const turnoverItem = turnoverBreakdown.find(function(item) { return String(item.storeId || '').trim() === itemId; }) || null;
+					const hoursItem = hoursBreakdown.find(function(item) { return String(item.storeId || '').trim() === itemId; }) || null;
+					const turnoverItemSection = turnoverItem ? { metric: 'Obrat GJ2026', format: turnoverSection ? turnoverSection.format : 'currency', rows: turnoverItem.rows } : null;
+					const hoursItemSection = hoursItem ? { metric: 'Hodiny netto', format: hoursSection ? hoursSection.format : 'hours', rows: hoursItem.rows } : null;
+					const performanceSnapshot = buildCleanPerformanceSnapshotFromSections(turnoverItemSection, hoursItemSection, payload, isYearScope ? null : periodContext);
+					const turnoverSnapshot = buildSnapshotFromSection(turnoverItemSection, payload, isYearScope ? null : periodContext);
+					const hoursSnapshot = buildSnapshotFromSection(hoursItemSection, payload, isYearScope ? null : periodContext);
+					const requiredSnapshot = buildRequiredNetHoursSnapshotFromResolved(turnoverSnapshot, hoursSnapshot, performanceSnapshot, isYearScope);
+
+					result.requiredHours += Number(requiredSnapshot.detailItems[0] && requiredSnapshot.detailItems[0].value || 0);
+					result.currentHoursBase += Number(requiredSnapshot.detailItems[1] && requiredSnapshot.detailItems[1].value || 0);
+					result.deltaHours += Number(requiredSnapshot.value || 0);
+					return result;
+				}, { requiredHours: 0, currentHoursBase: 0, deltaHours: 0 });
+
+				return {
+					metric: isYearScope ? 'Potrebné netto do ročného plánu ČV' : 'Potrebné netto do plánu ČV',
+					format: 'hours',
+					value: normalizeStoredMetricValue(totals.deltaHours, 'hours'),
+					valueSigned: true,
+					variance: normalizeStoredMetricValue(totals.deltaHours, 'hours'),
+					variancePct: 0,
+					showVariance: false,
+					detailItems: [
+						{ label: totals.deltaHours < 0 ? 'Ušetriť hodiny' : 'Doplniť hodiny', value: normalizeStoredMetricValue(totals.requiredHours, 'hours'), format: 'hours' },
+						{ label: isYearScope ? 'IST minulosť + aktuálna predikcia' : 'Aktuálna predikcia netto', value: normalizeStoredMetricValue(totals.currentHoursBase, 'hours'), format: 'hours' },
+					],
+					flag: isYearScope ? 'Minulosť + zvyšok roka' : '',
+				};
+			}
+
 			function buildHeroStoreBreakdownItems(payload, periodContext, breakdownKey) {
 				if (!payload || !payload.scope || payload.scope.type !== 'AGGREGATE') {
 					return [];
@@ -5421,16 +5463,22 @@
 
 			function buildRequiredNetHoursSnapshot(payload, periodContext, options) {
 				const config = options || {};
+				const isYearScope = Boolean(config.isYearScope);
+				if (payload && payload.scope && payload.scope.type === 'AGGREGATE') {
+					return buildAggregateRequiredNetHoursSnapshot(payload, periodContext, isYearScope);
+				}
+				const turnoverSection = findSectionByMetric(payload, 'Obrat GJ2026');
+				const hoursSection = findSectionByMetric(payload, 'Hodiny netto');
 				const turnover = periodContext
 					? resolveHeroSnapshot(payload, 'Obrat GJ2026', periodContext)
 					: getMetricSnapshot(payload, 'Obrat GJ2026', '__YEAR__');
 				const hours = periodContext
 					? resolveHeroSnapshot(payload, 'Hodiny netto', periodContext)
 					: getMetricSnapshot(payload, 'Hodiny netto', '__YEAR__');
-				const performance = periodContext
-					? resolveHeroSnapshot(payload, 'Čistý výkon', periodContext)
-					: getMetricSnapshot(payload, 'Čistý výkon', '__YEAR__');
-				const isYearScope = Boolean(config.isYearScope);
+				const performance = buildCleanPerformanceSnapshotFromSections(turnoverSection, hoursSection, payload, periodContext)
+					|| (periodContext
+						? resolveHeroSnapshot(payload, 'Čistý výkon', periodContext)
+						: getMetricSnapshot(payload, 'Čistý výkon', '__YEAR__'));
 
 				return buildRequiredNetHoursSnapshotFromResolved(turnover, hours, performance, isYearScope);
 			}
@@ -8024,12 +8072,7 @@
 				if (!state.pendingAdjustments['Štruktúra filiálky (plné úväzky)']) {
 					state.pendingAdjustments['Štruktúra filiálky (plné úväzky)'] = {};
 				}
-				if (!state.pendingAdjustments['Štruktúra hodín']) {
-					state.pendingAdjustments['Štruktúra hodín'] = {};
-				}
-
 				state.pendingAdjustments['Štruktúra filiálky (plné úväzky)'][month] = Math.round(fteDelta * 100) / 100;
-				state.pendingAdjustments['Štruktúra hodín'][month] = Math.round(hoursDelta * 10) / 10;
 			}
 
 			function buildStructureMixComparisonMarkup(currentCount, band) {
@@ -8749,6 +8792,9 @@
 				const updates = [];
 				if (config.includeAdjustments !== false) {
 					Object.keys(state.pendingAdjustments).forEach(function(metric) {
+						if (normalizeMetricName(metric) === normalizeMetricName('Štruktúra hodín')) {
+							return;
+						}
 						Object.keys(state.pendingAdjustments[metric]).forEach(function(month) {
 							const uiValue = Number(state.pendingAdjustments[metric][month] || 0);
 							updates.push({

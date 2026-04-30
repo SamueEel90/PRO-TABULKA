@@ -164,12 +164,7 @@ function patchIndexInlineScript(scriptContent: string) {
       if (!state.pendingAdjustments['Štruktúra filiálky (plné úväzky)']) {
         state.pendingAdjustments['Štruktúra filiálky (plné úväzky)'] = {};
       }
-      if (!state.pendingAdjustments['Štruktúra hodín']) {
-        state.pendingAdjustments['Štruktúra hodín'] = {};
-      }
-
       state.pendingAdjustments['Štruktúra filiálky (plné úväzky)'][month] = Math.round((currentFte - Number(baselineTotalAdjustment || 0)) * 100) / 100;
-      state.pendingAdjustments['Štruktúra hodín'][month] = Math.round(((currentDailyHours - Number(baselineDailyHours || 0)) * Number(workingDays || 0)) * 10) / 10;
       refreshLocalPreview();
     };
   }

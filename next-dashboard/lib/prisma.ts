@@ -15,7 +15,7 @@ function getDatasourceUrl() {
   const databaseUrl = process.env.DATABASE_URL;
   const isVercelRuntime = process.env.VERCEL === '1' || Boolean(process.env.VERCEL_ENV);
 
-  if (!isVercelRuntime && (!databaseUrl || !databaseUrl.startsWith('file:'))) {
+  if (!isVercelRuntime && !databaseUrl) {
     const sqlitePath = path.join(process.cwd(), 'prisma', 'dev.db').replace(/\\/g, '/');
     return `file:${sqlitePath}`;
   }
