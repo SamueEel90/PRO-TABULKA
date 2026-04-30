@@ -7241,7 +7241,7 @@
 				}
 
 				var firstColumnLabel = section.breakdown.some(function(item) { return Array.isArray(item.breakdown) && item.breakdown.length; }) ? 'VKL' : 'Filiálka';
-				return '<details class="breakdown-panel"><summary class="breakdown-toggle"></summary><div class="breakdown-content">'
+				return '<details class="breakdown-panel"><summary class="breakdown-toggle">Rozbaliť po filiálkach (' + Number(section.breakdown.length || 0) + ')</summary><div class="breakdown-content">'
 					+ renderBreakdownTable(section.breakdown, firstColumnLabel, 10) + '</div></details>';
 			}
 

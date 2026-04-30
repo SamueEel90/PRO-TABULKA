@@ -1,9 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
-import { LegacyDashboardHost } from '@/components/legacy-dashboard-host';
-import { LegacyIndexShell } from '@/components/legacy-index-shell';
-
 export const metadata: Metadata = {
   title: 'Kaufland PRO Dashboard',
 };
@@ -24,12 +21,25 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     redirect('/test-lab');
   }
 
-  const loginParam = Array.isArray(params.login) ? params.login[0] : params.login;
+  const redirectParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, rawValue]) => {
+    if (Array.isArray(rawValue)) {
+      rawValue.forEach((value) => {
+        if (value != null && value !== '') {
+          redirectParams.append(key, value);
+        }
+      });
+      return;
+    }
 
-  return (
-    <>
-      <LegacyIndexShell initialLogin={loginParam || ''} />
-      <LegacyDashboardHost asset="index" bodyMode="scripts-only" />
-    </>
-  );
+    if (rawValue != null && rawValue !== '') {
+      redirectParams.set(key, rawValue);
+    }
+  });
+
+  const redirectTarget = redirectParams.size
+    ? `/legacy-index?${redirectParams.toString()}`
+    : '/legacy-index';
+
+  redirect(redirectTarget);
 }
