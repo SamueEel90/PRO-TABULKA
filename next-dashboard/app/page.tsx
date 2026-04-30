@@ -41,5 +41,5 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     ? `/legacy-index?${redirectParams.toString()}`
     : '/legacy-index';
 
-  redirect(redirectTarget);
+  redirect(redirectTarget as Parameters<typeof redirect>[0]);
 }

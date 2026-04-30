@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { BarChart, Sparkline } from '@/components/plan-charts';
 import { formatCompactMetricValue, formatMetricValue, getPlanDashboardSnapshot } from '@/lib/plan-dashboard';
 
+export const dynamic = 'force-dynamic';
+
 export default async function SummaryPage() {
   const snapshot = await getPlanDashboardSnapshot();
   const [turnoverMetric, hoursMetric, performanceMetric, structureMetric] = snapshot.featuredMetrics;
