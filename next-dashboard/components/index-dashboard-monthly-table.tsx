@@ -26,6 +26,7 @@ type MonthlyTableSectionModel = {
   realRow?: MetricRow | null;
   adjustmentClosed: boolean[];
   workingDaysByMonth: Array<number | null>;
+  breakdownHtml?: string;
 };
 
 type MonthlyTableRenderDetail = {
@@ -522,6 +523,11 @@ export function IndexDashboardMonthlyTable() {
                   </table>
                 </div>
               </div>
+              {section.breakdownHtml ? (
+                // Pre-rendered breakdown HTML from the legacy renderer (already HTML-escaped internaly)
+                // eslint-disable-next-line react/no-danger
+                <div dangerouslySetInnerHTML={{ __html: section.breakdownHtml }} />
+              ) : null}
             </section>
           );
         }) : null}

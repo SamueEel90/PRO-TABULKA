@@ -3,20 +3,21 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Store {
-  id            String            @id
-  name          String
-  gfName        String?
-  vklName       String?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  dashboardNotes DashboardNote[]
-  monthlyValues MonthlyValue[]
-  users         User[]
+  id              String              @id
+  name            String
+  gfName          String?
+  vklName         String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  dashboardNotes  DashboardNote[]
+  monthlyValues   MonthlyValue[]
+  users           User[]
   weeklyOverrides WeeklyVodOverride[]
 }
 
@@ -70,21 +71,21 @@ model ImportBatch {
 }
 
 model MonthlyValue {
-  id            String      @id @default(cuid())
+  id            String       @id @default(cuid())
   source        String
   storeId       String
   metricCode    String
   monthId       String
   value         Float
-  present       Boolean     @default(true)
-  importedAt    DateTime    @default(now())
+  present       Boolean      @default(true)
+  importedAt    DateTime     @default(now())
   importBatchId String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
   importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
-  metric        Metric      @relation(fields: [metricCode], references: [code])
-  month         Month       @relation(fields: [monthId], references: [id])
-  store         Store       @relation(fields: [storeId], references: [id])
+  metric        Metric       @relation(fields: [metricCode], references: [code])
+  month         Month        @relation(fields: [monthId], references: [id])
+  store         Store        @relation(fields: [storeId], references: [id])
 
   @@unique([source, storeId, metricCode, monthId])
   @@index([storeId, monthId])
@@ -92,7 +93,7 @@ model MonthlyValue {
 }
 
 model DashboardNote {
-  id        String   @id @default(cuid())
+  id         String   @id @default(cuid())
   scopeKey   String
   scopeType  String
   scopeId    String

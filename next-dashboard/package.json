@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/build.mjs",
-    "build:vercel": "npm run legacy:sync && npm run prisma:generate:postgres && next build",
+    "build:vercel": "npm run legacy:sync && npm run prisma:generate && next build",
     "start": "next start",
     "lint": "next lint",
     "legacy:sync": "node scripts/sync-legacy-assets.mjs",
@@ -13,9 +13,7 @@
     "import:plan": "node scripts/import-plan.mjs",
     "import:structure-login": "node scripts/import-structure-login.mjs",
     "prisma:generate": "prisma generate",
-    "prisma:generate:sqlite": "prisma generate --schema prisma/schema.prisma",
-    "prisma:generate:postgres": "prisma generate --schema prisma/schema.postgres.prisma",
-    "prisma:dbpush:postgres": "prisma db push --schema prisma/schema.postgres.prisma",
+    "prisma:dbpush": "prisma db push",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
   },

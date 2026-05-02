@@ -38,8 +38,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   });
 
   const redirectTarget = redirectParams.size
-    ? `/legacy-index?${redirectParams.toString()}`
-    : '/legacy-index';
+    ? `/dashboard?${redirectParams.toString()}`
+    : '/dashboard';
 
   redirect(redirectTarget as Parameters<typeof redirect>[0]);
 }

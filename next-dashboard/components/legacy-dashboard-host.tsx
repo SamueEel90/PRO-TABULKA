@@ -112,6 +112,7 @@ function patchIndexInlineScript(scriptContent: string) {
           realRow: sectionRealRow,
           adjustmentClosed: Array.isArray(sectionAdjustmentRow.closed) ? sectionAdjustmentRow.closed.slice() : [],
           workingDaysByMonth: workingDaysByMonth,
+          breakdownHtml: typeof renderBreakdownBlock === 'function' ? renderBreakdownBlock(section, payload.months, visibleMonthEntries, workingDaysByMonth) : '',
         };
       }),
     };
@@ -334,6 +335,10 @@ export function LegacyDashboardHost({ asset, bodyMode = 'full' }: { asset: Legac
     };
   }, [asset, bodyMode]);
 
+  if (bodyMode === 'scripts-only') {
+    return <div ref={hostRef} style={{ display: 'none' }} aria-hidden="true" />;
+  }
+
   if (loadState.status === 'error') {
     return (
       <main className={styles.loading}>
@@ -348,7 +353,7 @@ export function LegacyDashboardHost({ asset, bodyMode = 'full' }: { asset: Legac
 
   return (
     <main className={styles.shell}>
-      {loadState.status === 'loading' && bodyMode === 'full' ? (
+      {loadState.status === 'loading' ? (
         <section className={styles.loading}>
           <div className={styles.loadingCard}>
             <span className={styles.loadingKicker}>Legacy TSX host</span>
@@ -359,7 +364,7 @@ export function LegacyDashboardHost({ asset, bodyMode = 'full' }: { asset: Legac
           </div>
         </section>
       ) : null}
-      <div className={styles.host} hidden={loadState.status !== 'ready' && bodyMode === 'full'} ref={hostRef} />
+      <div className={styles.host} hidden={loadState.status !== 'ready'} ref={hostRef} />
     </main>
   );
 }

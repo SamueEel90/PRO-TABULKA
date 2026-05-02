@@ -953,6 +953,19 @@ function buildWorkforceStructureDisplayModel(
   months: MonthSummary[],
   storeAggregatedByStoreId?: StoreAggregatedSourceData,
 ) {
+  // Calendar-based metrics (working days, holidays) must not be summed across stores —
+  // they represent the same calendar period for every store. Use a single store's values.
+  const firstStoreId = storeAggregatedByStoreId ? Object.keys(storeAggregatedByStoreId)[0] : undefined;
+  const firstStoreData = firstStoreId ? storeAggregatedByStoreId![firstStoreId] : undefined;
+  const calNormSourceData: AggregatedSourceData = firstStoreData ? {
+    ...sourceData,
+    PLAN: {
+      ...sourceData.PLAN,
+      [WORKING_DAYS_METRIC]: firstStoreData.PLAN?.[WORKING_DAYS_METRIC] ?? sourceData.PLAN[WORKING_DAYS_METRIC],
+      [CLOSED_HOLIDAY_METRIC]: firstStoreData.PLAN?.[CLOSED_HOLIDAY_METRIC] ?? sourceData.PLAN[CLOSED_HOLIDAY_METRIC],
+    },
+  } : sourceData;
+
   const mixValues = months.map((month) => {
     const effectiveMix = buildEffectiveWorkforceStructureMix(sourceData, month.id, storeAggregatedByStoreId);
     const planMix = buildWorkforceStructureMix(sourceData, 'PLAN', month.id);
@@ -961,16 +974,16 @@ function buildWorkforceStructureDisplayModel(
       : buildEmptyWorkforceStructureMix();
     return mergeWorkforceStructureMixReferences(effectiveMix, planMix, realMix);
   });
-  const structureHoursPlanValues = months.map((month) => roundMetric(calculateStructureHoursPlanValue(sourceData, month.id), 'hours'));
+  const structureHoursPlanValues = months.map((month) => roundMetric(calculateStructureHoursPlanValue(calNormSourceData, month.id), 'hours'));
   const structureHoursRealValues = months.map((month) => (hasAggregatedValue(sourceData, 'IST', STRUCTURE_HOURS_METRIC, month.id)
     ? roundMetric(getAggregatedValue(sourceData, 'IST', STRUCTURE_HOURS_METRIC, month.id), 'hours')
     : null));
-  const workforceValues = months.map((month) => roundMetric(calculateWorkforceStructureForecastFte(sourceData, month.id, storeAggregatedByStoreId), 'fte'));
-  const structureHoursValues = months.map((month) => roundMetric(calculateStructureHoursForecastValue(sourceData, month.id, storeAggregatedByStoreId), 'hours'));
+  const workforceValues = months.map((month) => roundMetric(calculateWorkforceStructureForecastFte(calNormSourceData, month.id, storeAggregatedByStoreId), 'fte'));
+  const structureHoursValues = months.map((month) => roundMetric(calculateStructureHoursForecastValue(calNormSourceData, month.id, storeAggregatedByStoreId), 'hours'));
 
   return {
-    workingDaysValues: months.map((month) => getAggregatedValue(sourceData, 'PLAN', WORKING_DAYS_METRIC, month.id)),
-    holidayValues: months.map((month) => getAggregatedValue(sourceData, 'PLAN', CLOSED_HOLIDAY_METRIC, month.id)),
+    workingDaysValues: months.map((month) => getAggregatedValue(calNormSourceData, 'PLAN', WORKING_DAYS_METRIC, month.id)),
+    holidayValues: months.map((month) => getAggregatedValue(calNormSourceData, 'PLAN', CLOSED_HOLIDAY_METRIC, month.id)),
     mixValues,
     structureHoursPlanValues,
     structureHoursRealValues,
@@ -1083,7 +1096,12 @@ function buildAggregateMetricMonthCellFromStores(
   }
 
   const normalizedMetric = normalizeMetricName(metric);
-  if (normalizedMetric !== normalizeMetricName(NET_HOURS_METRIC) && normalizedMetric !== normalizeMetricName(TURNOVER_METRIC)) {
+  if (
+    normalizedMetric !== normalizeMetricName(NET_HOURS_METRIC) &&
+    normalizedMetric !== normalizeMetricName(TURNOVER_METRIC) &&
+    normalizedMetric !== normalizeMetricName(STRUCTURE_HOURS_METRIC) &&
+    normalizedMetric !== normalizeMetricName(GROSS_HOURS_METRIC)
+  ) {
     return null;
   }
 
