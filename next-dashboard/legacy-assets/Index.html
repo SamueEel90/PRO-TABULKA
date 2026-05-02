@@ -3165,7 +3165,7 @@
 
 			@media (max-width: 1180px) {
 				html {
-					font-size: 14.5px;
+					font-size: 15px;
 				}
 
 				.main {
@@ -3649,6 +3649,139 @@
 			::-webkit-scrollbar-track { background: rgba(22, 54, 95, 0.04); border-radius: var(--radius-pill); }
 			::-webkit-scrollbar-thumb { background: rgba(22, 54, 95, 0.18); border-radius: var(--radius-pill); }
 			::-webkit-scrollbar-thumb:hover { background: rgba(22, 54, 95, 0.30); }
+
+			/* ────────────────────────────────────────────────────────
+			   iPad landscape  —  1024 px … 1194 px, landscape
+			   Covers: iPad mini 6, iPad 10th gen, iPad Air 5, iPad Pro 11"
+			──────────────────────────────────────────────────────── */
+			@media screen and (min-width: 1024px) and (max-width: 1200px) and (orientation: landscape) {
+				html {
+					font-size: 15px;
+				}
+
+				/* ── Login: tighten vertical spacing so card fits the shorter viewport ── */
+				.login-shell {
+					padding: var(--space-4) var(--space-6);
+					align-content: center;
+				}
+				.login-card {
+					width: min(100%, 34rem);
+					padding: var(--space-6) var(--space-7);
+				}
+				.login-card h1 {
+					font-size: clamp(1.9rem, 3.8vw, 2.6rem);
+					margin-top: 0.75rem;
+				}
+				.login-form {
+					margin-top: 1rem;
+				}
+				.demo-hints {
+					margin-top: 0.875rem;
+					padding: 0.875rem;
+				}
+
+				/* ── Main layout: restore comfortable gutters ── */
+				.main {
+					gap: 0.9rem;
+					padding: 3.75rem 1.25rem 1.5rem;
+				}
+				.hero-panel,
+				.chart-panel,
+				.metric-table,
+				.store-panel {
+					padding: 0.875rem;
+				}
+
+				/* ── Hero section: 2-column grid restored ── */
+				.hero-grid {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+					gap: 0.625rem;
+				}
+				.hero-group-grid--period,
+				.hero-group-grid--year {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+				.hero-copy h2 {
+					font-size: clamp(1.85rem, 3.5vw, 2.4rem);
+				}
+
+				/* ── Chart: limit height so it doesn't crowd the short landscape viewport ── */
+				.chart-wrap--xl {
+					height: clamp(14.5rem, 34vh, 19rem);
+				}
+
+				/* ── Metric table: wider sticky column, better cell sizing ── */
+				.metric-table-scroll th:first-child,
+				.metric-table-scroll td:first-child,
+				.store-name-cell {
+					min-width: var(--sticky-col-tablet);
+					width: var(--sticky-col-tablet);
+				}
+				.metric-table-scroll th:not(:first-child),
+				.metric-table-scroll td:not(:first-child) {
+					min-width: 5.75rem;
+				}
+				.metric-table-scroll th,
+				.metric-table-scroll td {
+					font-size: 0.77rem;
+					padding: 0.52rem 0.42rem;
+				}
+
+				/* ── Table toolbar: better touch targets ── */
+				.table-toolbar {
+					padding: 0.8rem 0.875rem;
+				}
+				.table-toolbar-group {
+					padding: 0.62rem 0.68rem 0.68rem;
+				}
+
+				/* ── Shell controls: touch-safe positions ── */
+				.shell-menu-button {
+					top: 0.625rem;
+					left: 0.75rem;
+					padding: 0.7em 0.95em;
+				}
+				.shell-utility-bar {
+					top: 0.625rem;
+					right: 0.75rem;
+				}
+				.shell-utility-button {
+					width: 2.9rem;
+					height: 2.9rem;
+				}
+				.recalc-fab {
+					left: 0.75rem;
+					bottom: 0.75rem;
+				}
+				.save-fab {
+					bottom: 4rem;
+				}
+
+				/* ── Note modal: use more screen width ── */
+				.note-modal {
+					width: min(94vw, 68rem);
+					max-height: 88vh;
+				}
+				.note-modal-grid {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+			}
+
+			/* ────────────────────────────────────────────────────────
+			   iPad Pro 12.9" landscape  —  ~1366 px, landscape
+			   Fine-tune chart height for this larger tablet
+			──────────────────────────────────────────────────────── */
+			@media screen and (min-width: 1200px) and (max-width: 1400px) and (orientation: landscape) {
+				.chart-wrap--xl {
+					height: clamp(17rem, 38vh, 23rem);
+				}
+				.main {
+					padding-inline: 1.375rem;
+				}
+				.note-modal-grid {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+			}
 		</style>
 	</head>
 	<body>
@@ -4899,7 +5032,6 @@
 				return '<section class="hero-group">'
 					+ '<div class="hero-group-head">'
 					+ '<div><h3 class="hero-group-title">' + escapeHtml(title) + '</h3><p class="hero-group-caption">' + escapeHtml(caption) + '</p></div>'
-					+ '<span class="hero-group-chip">' + escapeHtml(chipLabel) + '</span>'
 					+ '</div>'
 					+ '<div class="hero-group-grid ' + escapeHtml(gridClass) + '">'
 					+ cards.map(function(card) {
@@ -4999,7 +5131,7 @@
 				const deltaHours = normalizeStoredMetricValue(requiredHours - currentHoursBase, 'hours');
 
 				return {
-					metric: isYearScope ? 'Potrebné netto do ročného plánu ČV' : 'Potrebné netto do plánu ČV',
+					metric: 'Hodiny na cieľ HV',
 					format: 'hours',
 					value: deltaHours,
 					valueSigned: true,
@@ -5328,7 +5460,7 @@
 					{
 						breakdownKey: 'period-performance',
 						scopeType: 'period',
-						metric: useRealPerformanceAsPrimary ? 'IST ČV' : 'Úprava VOD ČV',
+						metric: useRealPerformanceAsPrimary ? 'IST ČV' : 'Hodinový výkon - úprava VOD',
 						format: performance.format,
 						value: useRealPerformanceAsPrimary ? performance.real : performance.forecast,
 						variance: (useRealPerformanceAsPrimary ? performance.real : performance.forecast) - performance.plan,
@@ -5336,11 +5468,11 @@
 						showVariance: false,
 						detailItems: useRealPerformanceAsPrimary
 							? [
-								{ label: getDisplayPlanLabel(), value: performance.plan, format: performance.format },
+								{ label: 'Mesačný Plán', value: performance.plan, format: performance.format },
 							]
 							: [
 								{ label: performance.isRealFallback ? 'IST z ročného plánu' : 'IST', value: performance.real, format: performance.format },
-								{ label: getDisplayPlanLabel(), value: performance.plan, format: performance.format },
+								{ label: 'Mesačný Plán', value: performance.plan, format: performance.format },
 							],
 					},
 					Object.assign({
@@ -5358,11 +5490,11 @@
 						showVariance: false,
 						detailItems: useRealHoursAsPrimary
 							? [
-								{ label: getDisplayPlanLabel(), value: hours.plan, format: hours.format },
+								{ label: 'Mesačný Plán', value: hours.plan, format: hours.format },
 							]
 							: [
 								{ label: hours.isRealFallback ? 'IST z ročného plánu' : 'IST', value: hours.real, format: hours.format },
-								{ label: getDisplayPlanLabel(), value: hours.plan, format: hours.format },
+								{ label: 'Mesačný Plán', value: hours.plan, format: hours.format },
 							],
 						cardClass: hours.isRealFallback ? 'is-ist-fallback' : '',
 						flag: hours.isRealFallback ? 'IST doplnené z plánu' : '',
@@ -5370,7 +5502,7 @@
 					{
 						breakdownKey: 'year-performance',
 						scopeType: 'year',
-						metric: 'Úprava VOD ČV rok',
+						metric: 'Hodinový výkon - úprava VOD',
 						format: yearPerformance.format,
 						value: yearPerformance.forecast,
 						variance: yearPerformance.forecast - yearPerformance.plan,
@@ -8048,7 +8180,7 @@
 						+ '</label>';
 				}).join('');
 
-				return '<td class="structure-mix-cell" data-month="' + escapeHtml(month) + '" data-working-days="' + Number(workingDays || 0) + '" data-baseline-total-adjustment="' + Number(mix.totalAdjustment || 0) + '" data-baseline-daily-hours="' + baselineDailyHours + '"><div class="structure-mix-month">' + escapeHtml(formatMonthShort(month)) + '</div><div class="structure-mix-grid">' + inputs + '</div><div class="structure-mix-total">Σ ' + formatMetric(mix.totalAdjustment || 0, 'fte') + '</div></td>';
+				return '<td class="structure-mix-cell" data-month="' + escapeHtml(month) + '" data-working-days="' + Number(workingDays || 0) + '" data-baseline-total-adjustment="' + Number(mix.totalAdjustment || 0) + '" data-baseline-daily-hours="' + baselineDailyHours + '"><div class="structure-mix-month">' + escapeHtml(formatMonthShort(month)) + '</div><div class="structure-mix-grid">' + inputs + '</div></td>'
 			}
 
 			function updateStructureDerivedAdjustments(cell, month) {

@@ -876,3 +876,93 @@ button:hover {
     width: 100%;
   }
 }
+
+/* ──────────────────────────────────────────────────────────
+   iPad landscape  —  1024 px … 1200 px, landscape orientation
+   Restores two-column layouts and tightens spacing for
+   iPad mini 6 / iPad Air 5 / iPad Pro 11" in landscape.
+────────────────────────────────────────────────────────── */
+@media screen and (min-width: 1024px) and (max-width: 1200px) and (orientation: landscape) {
+  html {
+    font-size: 16px;
+  }
+
+  .page {
+    width: min(1380px, calc(100vw - 32px));
+    padding-top: 22px;
+    padding-bottom: 44px;
+  }
+
+  /* Keep two-column dashboard grid on landscape iPads */
+  .dashboard-grid,
+  .summary-shell-grid {
+    grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.9fr);
+    gap: 14px;
+  }
+
+  /* Restore two-column hero surface */
+  .hero-surface,
+  .summary-hero {
+    grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+  }
+
+  .hero-metric-grid,
+  .hero-note-grid,
+  .summary-hero-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Reduce chart height to leave room for tables below */
+  .bar-chart {
+    min-height: 140px;
+  }
+  .bar-chart-track {
+    height: 90px;
+  }
+
+  /* Journey strip: slightly narrower cards */
+  .journey-strip {
+    grid-template-columns: repeat(12, minmax(200px, 200px));
+  }
+  .page--summary .journey-strip {
+    grid-template-columns: repeat(12, minmax(210px, 210px));
+  }
+
+  /* Cards: tighten padding */
+  .card,
+  .panel {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  /* Topbar: keep horizontal */
+  .topbar {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+  .actions {
+    width: auto;
+  }
+  .actions .link-button,
+  .actions button {
+    flex: 0 1 auto;
+  }
+
+  /* Store rows: restore multi-column */
+  .store-row {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+  }
+}
+
+/* iPad Pro 12.9" landscape — ~1366 px, landscape */
+@media screen and (min-width: 1200px) and (max-width: 1400px) and (orientation: landscape) {
+  .dashboard-grid,
+  .summary-shell-grid {
+    grid-template-columns: minmax(0, 1.42fr) minmax(300px, 0.92fr);
+  }
+
+  .hero-surface,
+  .summary-hero {
+    grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.92fr);
+  }
+}

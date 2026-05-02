@@ -83,6 +83,7 @@ function patchIndexInlineScript(scriptContent: string) {
       focusedMonth: focusedMonth,
       canEdit: Boolean(canEdit),
       visibleMonthEntries: visibleMonthEntries,
+      structureCompareMode: typeof getStructureMixCompareMode === 'function' ? getStructureMixCompareMode() : 'none',
       sections: filteredSections.map(function(section) {
         var sectionPlanRow = section.rows.find(function(row) { return row.type === 'plan'; }) || { values: [], total: 0 };
         var sectionRealRow = section.rows.find(function(row) { return row.type === 'real'; }) || null;
@@ -172,6 +173,10 @@ function patchIndexInlineScript(scriptContent: string) {
 
   if (typeof toggleMetricCollapsed === 'function') {
     window.toggleMetricCollapsed = toggleMetricCollapsed;
+  }
+
+  if (typeof setStructureMixCompareMode === 'function') {
+    window.setStructureMixCompareMode = setStructureMixCompareMode;
   }
 })();`;
 }

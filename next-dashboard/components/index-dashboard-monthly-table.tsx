@@ -33,6 +33,7 @@ type MonthlyTableRenderDetail = {
   focusedMonth: string;
   canEdit: boolean;
   visibleMonthEntries: VisibleMonthEntry[];
+  structureCompareMode?: string;
   sections: MonthlyTableSectionModel[];
 };
 
@@ -58,6 +59,7 @@ declare global {
       workingDays: number,
     ) => void;
     toggleMetricCollapsed?: (metric: string) => void;
+    setStructureMixCompareMode?: (mode: string) => void;
   }
 }
 
@@ -66,6 +68,10 @@ const currencyFormatter = new Intl.NumberFormat('sk-SK', { style: 'currency', cu
 
 function normalizeMetricName(value: string) {
   return String(value || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function isWorkforceStructureMetric(metric: string) {
+  return normalizeMetricName(metric) === normalizeMetricName('Štruktúra filiálky (plné úväzky)');
 }
 
 function formatMetric(value: number | string | null | undefined, format: MetricFormat) {
@@ -240,11 +246,13 @@ function StructureMixCell({
   month,
   workingDays,
   editable,
+  compareMode,
 }: {
   mix: WorkforceStructureMixValue;
   month: string;
   workingDays: number;
   editable: boolean;
+  compareMode?: string;
 }) {
   const [bands, setBands] = useState<StructureBandInput[]>(() => mix.bands.map((band) => ({
     key: band.key,
@@ -302,24 +310,27 @@ function StructureMixCell({
                 }}
               />
               <div className="structure-mix-compare">
-                <span className={`structure-compare-chip structure-compare-chip--plan${planDelta > 0 ? ' positive' : planDelta < 0 ? ' negative' : ''}`}>
-                  {`Plán ${formatSignedMetric(planDelta, 'number')}`}
-                </span>
-                {band.hasRealCount ? (
-                  <span className={`structure-compare-chip structure-compare-chip--ist${realDelta > 0 ? ' positive' : realDelta < 0 ? ' negative' : ''}`}>
-                    {`IST ${formatSignedMetric(realDelta, 'number')}`}
+                {(compareMode === 'plan' || compareMode === 'both') ? (
+                  <span className={`structure-compare-chip structure-compare-chip--plan${planDelta > 0 ? ' positive' : planDelta < 0 ? ' negative' : ''}`}>
+                    {`Pl\u00e1n ${formatSignedMetric(planDelta, 'number')}`}
                   </span>
-                ) : (
-                  <span className="structure-compare-chip structure-compare-chip--ist is-empty" title="IST ešte nie je k dispozícii">
-                    IST {formatSignedMetric(0, 'number')}
-                  </span>
-                )}
+                ) : null}
+                {(compareMode === 'ist' || compareMode === 'both') ? (
+                  band.hasRealCount ? (
+                    <span className={`structure-compare-chip structure-compare-chip--ist${realDelta > 0 ? ' positive' : realDelta < 0 ? ' negative' : ''}`}>
+                      {`IST ${formatSignedMetric(realDelta, 'number')}`}
+                    </span>
+                  ) : (
+                    <span className="structure-compare-chip structure-compare-chip--ist is-empty" title="IST e\u0161te nie je k dispoz\u00edcii">
+                      IST {formatSignedMetric(0, 'number')}
+                    </span>
+                  )
+                ) : null}
               </div>
             </label>
           );
         })}
       </div>
-      <div className="structure-mix-total">{`Σ ${formatMetric(currentTotal, 'fte')}`}</div>
     </td>
   );
 }
@@ -366,7 +377,7 @@ function renderYearTotalCell(section: MonthlyTableSectionModel, row: MonthlyTabl
   return <td className="year-total-cell">{formatMetric(row.total, section.format)}</td>;
 }
 
-function renderCell(section: MonthlyTableSectionModel, row: MonthlyTableRowModel, entry: VisibleMonthEntry, canEdit: boolean, focusedMonth: string) {
+function renderCell(section: MonthlyTableSectionModel, row: MonthlyTableRowModel, entry: VisibleMonthEntry, canEdit: boolean, focusedMonth: string, compareMode?: string) {
   const value = row.values[entry.index];
   const month = entry.month;
   const focusedCellClass = month === focusedMonth ? 'metric-month-cell is-focused' : '';
@@ -375,6 +386,7 @@ function renderCell(section: MonthlyTableSectionModel, row: MonthlyTableRowModel
   if (row.type === 'structure-mix' && isStructureMixValue(value)) {
     return (
       <StructureMixCell
+        compareMode={compareMode}
         editable={canEdit}
         mix={value}
         month={month}
@@ -488,6 +500,26 @@ export function IndexDashboardMonthlyTable() {
                     </button>
                   </div>
                 </div>
+                {isWorkforceStructureMetric(section.metric) ? (
+                  <div className="structure-compare-toggle">
+                    <span className="structure-compare-toggle-label">Porovnanie</span>
+                    {([
+                      { key: 'none', label: 'VOD' },
+                      { key: 'plan', label: 'vs PLÁN' },
+                      { key: 'ist', label: 'vs IST' },
+                      { key: 'both', label: 'vs IST a PLÁN' },
+                    ] as const).map((mode) => (
+                      <button
+                        className={`structure-compare-button${(detail.structureCompareMode || 'both') === mode.key ? ' is-active' : ''}`}
+                        key={mode.key}
+                        type="button"
+                        onClick={() => window.setStructureMixCompareMode?.(mode.key)}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
               <div className="metric-section-body">
                 <div className="metric-table-scroll">
@@ -509,7 +541,7 @@ export function IndexDashboardMonthlyTable() {
                           <td>{row.displayLabel}</td>
                           {detail.visibleMonthEntries.map((entry) => (
                             <Fragment key={`${section.metric}-${row.type}-${entry.month}`}>
-                              {renderCell(section, row, entry, detail.canEdit, detail.focusedMonth)}
+                              {renderCell(section, row, entry, detail.canEdit, detail.focusedMonth, detail.structureCompareMode)}
                             </Fragment>
                           ))}
                           {renderYearTotalCell(section, row)}
