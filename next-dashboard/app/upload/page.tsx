@@ -1,10 +1,15 @@
+'use client';
+
 import Link from 'next/link';
+import { useState } from 'react';
 
 import { MonthlyValuesEditor } from '@/components/monthly-values-editor';
 import { StructureUsersEditor } from '@/components/structure-users-editor';
 import { UploadForm } from '@/components/upload-form';
 
 export default function UploadPage() {
+  const [adminSecret, setAdminSecret] = useState('');
+
   return (
     <main className="page">
       <div className="topbar">
@@ -21,14 +26,28 @@ export default function UploadPage() {
       </div>
 
       <section className="panel">
-        <UploadForm />
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 360 }}>
+          <span style={{ fontWeight: 600 }}>Admin heslo</span>
+          <input
+            type="password"
+            value={adminSecret}
+            onChange={(e) => setAdminSecret(e.target.value)}
+            placeholder="Zadaj x-admin-secret"
+            autoComplete="current-password"
+            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 14 }}
+          />
+        </label>
+      </section>
+
+      <section className="panel">
+        <UploadForm adminSecret={adminSecret} />
       </section>
 
       <section className="panel" style={{ marginTop: 16 }}>
         <p className="note">V upload formulári je nová akcia na kompletné vymazanie všetkých IST dát a všetkých úprav VOD. Zmaže mesačné IST/VOD hodnoty aj týždenné VOD override, ale nechá PLAN, štruktúru a loginy bez zmeny.</p>
       </section>
 
-      <StructureUsersEditor />
+      <StructureUsersEditor adminSecret={adminSecret} />
 
       <section className="panel" style={{ marginTop: 16 }}>
         <div className="brand">
@@ -51,7 +70,7 @@ Samuel | samuel@firma.sk | Ivan Bosák | bosak@firma.sk | Barišová Monika | mo
 		<p className="note">Import štruktúry a loginov upsertne GF/VKL väzby na filiálkach a používateľov podľa login sheetu. VOD login sa páruje cez stĺpec `VOD` na kód filiálky.</p>
       </section>
 
-      <MonthlyValuesEditor />
+      <MonthlyValuesEditor adminSecret={adminSecret} />
     </main>
   );
 }

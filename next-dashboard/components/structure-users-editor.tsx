@@ -28,20 +28,26 @@ type EditorPayload = {
 const EMPTY_STORE: StoreRow = { id: '', name: '', gfName: '', vklName: '' };
 const EMPTY_USER: UserRow = { email: '', name: '', role: 'VOD', gfName: '', vklName: '', primaryStoreId: '' };
 
-export function StructureUsersEditor() {
+export function StructureUsersEditor({ adminSecret = '' }: { adminSecret?: string }) {
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [message, setMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     let isMounted = true;
 
-    async function loadData() {
-      setIsLoading(true);
+    async function loadData() {      if (!adminSecret) {
+        setMessage('Zadaj admin heslo pre načítanie štruktúiry.');
+        setIsLoading(false);
+        return;
+      }      setIsLoading(true);
       setMessage('Načítavam aktuálnu štruktúru a loginy...');
-      const response = await fetch('/api/admin/structure-users', { cache: 'no-store' });
+      const response = await fetch('/api/admin/structure-users', {
+        cache: 'no-store',
+        headers: { 'x-admin-secret': adminSecret },
+      });
       const payload = await response.json();
       if (!isMounted) {
         return;
@@ -62,7 +68,7 @@ export function StructureUsersEditor() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [adminSecret]);
 
   const setStoreField = (index: number, field: keyof StoreRow, value: string) => {
     setStores((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row));
@@ -101,7 +107,7 @@ export function StructureUsersEditor() {
               setMessage('Ukladám zmeny...');
               const response = await fetch('/api/admin/structure-users', {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'x-admin-secret': adminSecret },
                 body: JSON.stringify({ stores, users }),
               });
               const payload = await response.json();

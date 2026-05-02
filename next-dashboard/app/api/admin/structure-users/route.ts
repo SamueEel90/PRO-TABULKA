@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { requireAdminSecret } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 type StoreInput = {
@@ -33,7 +34,9 @@ function normalizeNullable(value: unknown) {
   return normalized || null;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = requireAdminSecret(request);
+  if (denied) return denied;
   try {
     const [stores, users] = await Promise.all([
       prisma.store.findMany({ orderBy: [{ gfName: 'asc' }, { vklName: 'asc' }, { id: 'asc' }] }),
@@ -64,6 +67,8 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  const denied = requireAdminSecret(request);
+  if (denied) return denied;
   try {
     const payload = await request.json() as { stores?: StoreInput[]; users?: UserInput[] };
     const stores = Array.isArray(payload.stores) ? payload.stores : [];

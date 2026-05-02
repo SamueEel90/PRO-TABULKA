@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { requireAdminSecret } from '@/lib/auth';
 import { parseWideTableImport, getMetricMetadata } from '@/lib/import-monthly-ist';
 import { resolveMonthLabel } from '@/lib/months';
 import { prisma } from '@/lib/prisma';
@@ -43,6 +44,8 @@ function getCurrentBusinessMonth() {
 }
 
 export async function POST(request: Request) {
+  const denied = requireAdminSecret(request);
+  if (denied) return denied;
   try {
     const formData = await request.formData();
     const file = formData.get('file');

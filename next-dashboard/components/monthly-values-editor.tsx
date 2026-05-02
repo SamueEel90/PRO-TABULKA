@@ -81,21 +81,24 @@ function normalizeMetricCode(metricName: string) {
     .replace(/-+/g, '-');
 }
 
-export function MonthlyValuesEditor() {
+export function MonthlyValuesEditor({ adminSecret = '' }: { adminSecret?: string }) {
   const [source, setSource] = useState<SourceName>('PLAN');
   const [stores, setStores] = useState<StoreOption[]>([]);
   const [months, setMonths] = useState<MonthOption[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const [rows, setRows] = useState<EditorRow[]>([]);
-  const [message, setMessage] = useState('Načítavam editor mesačných dát...');
-  const [isLoading, setIsLoading] = useState(true);
+  const [message, setMessage] = useState('Zadaj admin heslo a načítaj dáta.');
+  const [isLoading, setIsLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     let isMounted = true;
 
-    async function loadData() {
-      setIsLoading(true);
+    async function loadData() {      if (!adminSecret) {
+        setMessage('Zadaj admin heslo pre načítanie dát.');
+        setIsLoading(false);
+        return;
+      }      setIsLoading(true);
       setMessage('Načítavam mesačné dáta...');
 
       const params = new URLSearchParams({ source });
@@ -103,7 +106,10 @@ export function MonthlyValuesEditor() {
         params.set('storeId', selectedStoreId);
       }
 
-      const response = await fetch(`/api/admin/monthly-values?${params.toString()}`, { cache: 'no-store' });
+      const response = await fetch(`/api/admin/monthly-values?${params.toString()}`, {
+        cache: 'no-store',
+        headers: { 'x-admin-secret': adminSecret },
+      });
       const payload = await response.json() as EditorApiPayload;
 
       if (!isMounted) {
@@ -152,7 +158,7 @@ export function MonthlyValuesEditor() {
     return () => {
       isMounted = false;
     };
-  }, [selectedStoreId, source]);
+  }, [selectedStoreId, source, adminSecret]);
 
   const selectedSource = useMemo(
     () => SOURCE_OPTIONS.find((entry) => entry.value === source) || SOURCE_OPTIONS[0],
@@ -242,7 +248,7 @@ export function MonthlyValuesEditor() {
               setMessage('Ukladám mesačné dáta...');
               const response = await fetch('/api/admin/monthly-values', {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'x-admin-secret': adminSecret },
                 body: JSON.stringify({
                   source,
                   storeId: selectedStoreId,

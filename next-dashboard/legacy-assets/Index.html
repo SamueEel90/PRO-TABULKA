@@ -1476,8 +1476,7 @@
 			}
 
 			body.theme-dark .mini-stat .value,
-			body.theme-dark .hero-breakdown-value,
-			body.theme-dark .hero-breakdown-toggle {
+				body.theme-dark .hero-breakdown-value:not(.delta-positive):not(.delta-negative):not(.delta-neutral),
 				color: #f3f7fb;
 			}
 
@@ -1587,11 +1586,9 @@
 				white-space: nowrap;
 			}
 
-			.delta.positive {
-				color: var(--green);
-			}
-
-			.delta.negative {
+				.hero-breakdown-value.delta-positive { color: var(--success); }
+				.hero-breakdown-value.delta-negative { color: var(--brand); }
+				.hero-breakdown-value.delta-neutral { color: var(--muted); }
 				color: var(--brand);
 			}
 
@@ -2902,13 +2899,13 @@
 
 			.structure-mix-cell {
 				min-width: 7.25rem;
-				padding: 0.44rem 0.38rem;
+				padding: 0.28rem 0.38rem;
 				text-align: center;
 				vertical-align: top;
 			}
 
 			.structure-mix-month {
-				margin-bottom: 0.32rem;
+				margin-bottom: 0.2rem;
 				font-size: 0.625rem;
 				font-weight: 800;
 				letter-spacing: 0.08em;
@@ -2920,14 +2917,14 @@
 			.structure-mix-grid {
 				display: grid;
 				grid-template-columns: 1fr;
-				gap: 0.18rem;
+				gap: 0.08rem;
 				justify-items: center;
 			}
 
 			.structure-mix-item {
 				display: grid;
 				grid-template-columns: 1fr;
-				gap: 0.12rem;
+				gap: 0.06rem;
 			}
 
 			.structure-mix-item span {
@@ -4825,13 +4822,50 @@
 					return [];
 				}
 
-				return payload.table.filter(function(section) {
+				const afterStructureMetrics = [
+					normalizeMetricName('Hodiny netto'),
+					normalizeMetricName('Obrat GJ2026'),
+					normalizeMetricName('Čistý výkon'),
+				];
+				const structureMetric = normalizeMetricName('Štruktúra filiálky (plné úväzky)');
+
+				const filtered = payload.table.filter(function(section) {
 					if (normalizeMetricName(section.metric) === normalizeMetricName('Štruktúra hodín')) {
 						return false;
 					}
-
 					return state.selectedMetric === 'ALL' || normalizeMetricName(section.metric) === normalizeMetricName(state.selectedMetric);
 				});
+
+				// Find the index of Štruktúra filiálky in the filtered list
+				const structureIndex = filtered.findIndex(function(s) {
+					return normalizeMetricName(s.metric) === structureMetric;
+				});
+
+				if (structureIndex === -1) {
+					return filtered;
+				}
+
+				// Pull out the three metrics that should follow Štruktúra filiálky
+				const toMove = [];
+				const rest = filtered.filter(function(s) {
+					if (afterStructureMetrics.indexOf(normalizeMetricName(s.metric)) !== -1) {
+						toMove.push(s);
+						return false;
+					}
+					return true;
+				});
+
+				// Sort toMove in the desired order
+				toMove.sort(function(a, b) {
+					return afterStructureMetrics.indexOf(normalizeMetricName(a.metric)) - afterStructureMetrics.indexOf(normalizeMetricName(b.metric));
+				});
+
+				// Insert them right after Štruktúra filiálky in the rest array
+				const newStructureIndex = rest.findIndex(function(s) {
+					return normalizeMetricName(s.metric) === structureMetric;
+				});
+				rest.splice(newStructureIndex + 1, 0, ...toMove);
+				return rest;
 			}
 
 			function getWeeklyCompactMetricSections(payload) {
@@ -5005,7 +5039,7 @@
 				const focusWidgets = buildHeroWidgets(payload, periodContext);
 
 				document.getElementById('heroTitle').textContent = payload.scope.type === 'AGGREGATE'
-					? 'PRO GJ 2026 ' + payload.user.role
+					? 'PRO GJ 2026 ' + (payload.user.displayName || payload.user.role)
 					: 'PRO GJ 2026 ' + payload.scope.label;
 				document.getElementById('heroText').textContent = payload.scope.type === 'AGGREGATE'
 					? ' ' + periodLabel + '.'
@@ -5049,14 +5083,16 @@
 
 				function renderHeroBreakdownItems(items) {
 					return items.map(function(item) {
+						var colorVal = Number(item.value) || 0;
+						var valueClass = 'hero-breakdown-value ' + getDeltaCellClass(colorVal);
 						var hasChildren = Array.isArray(item.children) && item.children.length;
 						if (hasChildren) {
 							return '<div class="hero-breakdown-row hero-breakdown-row--group"><div class="hero-breakdown-group">'
-								+ '<div class="hero-breakdown-row-head"><span class="hero-breakdown-store">' + escapeHtml(item.label) + '</span><span class="hero-breakdown-value">' + formatMetric(item.value, item.format || card.format) + '</span></div>'
+								+ '<div class="hero-breakdown-row-head"><span class="hero-breakdown-store">' + escapeHtml(item.label) + '</span><span class="' + valueClass + '">' + formatMetric(item.value, item.format || card.format) + '</span></div>'
 								+ '<div class="hero-breakdown-list hero-breakdown-list--nested">' + renderHeroBreakdownItems(item.children) + '</div>'
 								+ '</div></div>';
 						}
-						return '<div class="hero-breakdown-row"><span class="hero-breakdown-store">' + escapeHtml(item.label) + '</span><span class="hero-breakdown-value">' + formatMetric(item.value, item.format || card.format) + '</span></div>';
+						return '<div class="hero-breakdown-row"><span class="hero-breakdown-store">' + escapeHtml(item.label) + '</span><span class="' + valueClass + '">' + formatMetric(item.value, item.format || card.format) + '</span></div>';
 					}).join('');
 				}
 
@@ -5221,8 +5257,8 @@
 					}
 
 					const requiredSnapshot = buildRequiredNetHoursSnapshotFromResolved(turnoverSnapshot, hoursSnapshot, performanceSnapshot, isYearScope);
-					return { value: requiredSnapshot.value, format: 'hours' };
-				}
+						return { value: requiredSnapshot.value, format: 'hours', colorInverted: true };
+					}
 
 				function buildBreakdownItems(turnoverItems, hoursItems) {
 					const itemIds = {};
@@ -5250,9 +5286,10 @@
 							label: resolvedLabel,
 							value: valueConfig.value,
 							format: valueConfig.format,
+							colorInverted: !!valueConfig.colorInverted,
 							children: children && children.length ? children : undefined,
 						};
-					}).filter(Boolean);
+					}).filter(Boolean).sort(function(a, b) { return (Number(a.value) || 0) - (Number(b.value) || 0); });
 				}
 
 				return buildBreakdownItems(turnoverBreakdown, hoursBreakdown);
@@ -6535,7 +6572,6 @@
 
 				ensureWeeklyOverridesForView(payload, {
 					month: getWeeklyFocusMonth(payload),
-					rerenderOnReady: false,
 				});
 			}
 
@@ -6832,7 +6868,14 @@
 						}).join('')
 						+ '<th><div class="weekly-header-stack"><span class="weekly-header-main">Sumár</span><span class="weekly-header-sub">Mesiac</span></div></th></tr></thead><tbody>';
 
-					const breakdownRows = items.map(function(item) {
+					const sortedItems = items.slice().sort(function(a, b) {
+						var aSection = { metric: section.metric, format: section.format, rows: Array.isArray(a.rows) ? a.rows : [] };
+						var bSection = { metric: section.metric, format: section.format, rows: Array.isArray(b.rows) ? b.rows : [] };
+						var aSnap = buildSectionMetricSnapshot(aSection, focusMonth, safeMonths);
+						var bSnap = buildSectionMetricSnapshot(bSection, focusMonth, safeMonths);
+						return (Number(aSnap.forecast) || 0) - (Number(bSnap.forecast) || 0);
+					});
+					const breakdownRows = sortedItems.map(function(item) {
 						const itemSection = {
 							metric: section.metric,
 							format: section.format,
@@ -7339,6 +7382,11 @@
 				}
 
 				function renderBreakdownTable(items, firstColumnLabel, collapseAfter) {
+					items = items.slice().sort(function(a, b) {
+						var aRow = (a.rows || []).find(function(r) { return r.type === 'forecast'; }) || (a.rows || []).find(function(r) { return r.type === 'plan'; }) || null;
+						var bRow = (b.rows || []).find(function(r) { return r.type === 'forecast'; }) || (b.rows || []).find(function(r) { return r.type === 'plan'; }) || null;
+						return (aRow ? (Number(aRow.total) || 0) : 0) - (bRow ? (Number(bRow.total) || 0) : 0);
+					});
 					var pageSize = typeof collapseAfter === 'number' ? collapseAfter : 10;
 					var totalItems = items.length;
 					var hasMore = totalItems > pageSize;

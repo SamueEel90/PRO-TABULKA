@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 
+import { requireAdminSecret } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
+  const denied = requireAdminSecret(request);
+  if (denied) return denied;
   try {
     const formData = await request.formData();
     const uploadedBy = String(formData.get('uploadedBy') || '').trim() || null;

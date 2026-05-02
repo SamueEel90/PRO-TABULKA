@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 
+import { requireAdminSecret } from '@/lib/auth';
 import { parseStructureUsersWorkbook } from '@/lib/import-structure-users';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
+  const denied = requireAdminSecret(request);
+  if (denied) return denied;
   try {
     const formData = await request.formData();
     const file = formData.get('file');

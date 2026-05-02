@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { requireAdminSecret } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 const ALLOWED_SOURCES = new Set(['PLAN', 'IST', 'VOD']);
@@ -62,6 +63,8 @@ function getValidatedSource(value: string | null) {
 }
 
 export async function GET(request: Request) {
+  const denied = requireAdminSecret(request);
+  if (denied) return denied;
   try {
     const { searchParams } = new URL(request.url);
     const source = getValidatedSource(searchParams.get('source'));
@@ -122,6 +125,8 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const denied = requireAdminSecret(request);
+  if (denied) return denied;
   try {
     const payload = await request.json() as {
       source?: string;

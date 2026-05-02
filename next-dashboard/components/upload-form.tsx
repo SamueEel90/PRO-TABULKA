@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 
-export function UploadForm() {
+export function UploadForm({ adminSecret = '' }: { adminSecret?: string }) {
   const [importMode, setImportMode] = useState<'monthly' | 'structure-login' | 'reset-ist-vod'>('monthly');
   const [message, setMessage] = useState<string>('');
   const [isPending, startTransition] = useTransition();
@@ -33,6 +33,7 @@ export function UploadForm() {
           );
           const response = await fetch(uploadEndpoint, {
             method: 'POST',
+            headers: { 'x-admin-secret': adminSecret },
             body: formData,
           });
           const payload = await response.json();
