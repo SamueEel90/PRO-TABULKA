@@ -1,3 +1,5 @@
+import { MetricLayoutPanel } from './metric-layout-panel';
+
 export function LegacyIndexSidebar() {
   return (
     <>
@@ -78,6 +80,8 @@ export function LegacyIndexSidebar() {
               </div>
             </div>
           </div>
+
+          <MetricLayoutPanel />
 
           <div className="side-card">
             <h3>Dalšie možnosti</h3>
