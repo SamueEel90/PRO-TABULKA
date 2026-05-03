@@ -1,8 +1,9 @@
 'use client';
 
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import type { MetricFormat, MetricRow, WorkforceStructureMixValue } from '@/lib/legacy/contracts';
+import { applyLayout, loadLayout, subscribeLayout, type MetricLayout } from '@/lib/metric-layout';
 
 type VisibleMonthEntry = {
   month: string;
@@ -27,6 +28,7 @@ type MonthlyTableSectionModel = {
   adjustmentClosed: boolean[];
   workingDaysByMonth: Array<number | null>;
   breakdownHtml?: string;
+  vodNote?: { text: string; author?: string; updatedAt?: string } | null;
 };
 
 type MonthlyTableRenderDetail = {
@@ -34,6 +36,8 @@ type MonthlyTableRenderDetail = {
   canEdit: boolean;
   visibleMonthEntries: VisibleMonthEntry[];
   structureCompareMode?: string;
+  scopeId?: string;
+  role?: string;
   sections: MonthlyTableSectionModel[];
 };
 
@@ -450,6 +454,7 @@ function renderCell(section: MonthlyTableSectionModel, row: MonthlyTableRowModel
 
 export function IndexDashboardMonthlyTable() {
   const [detail, setDetail] = useState<MonthlyTableRenderDetail | null>(null);
+  const [layout, setLayout] = useState<MetricLayout>({ order: [], hidden: [] });
 
   useEffect(() => {
     const handleRender = (event: Event) => {
@@ -469,10 +474,32 @@ export function IndexDashboardMonthlyTable() {
     };
   }, []);
 
+  const scopeId = String(detail?.scopeId || '');
+  const role = String(detail?.role || '');
+
+  useEffect(() => {
+    if (!scopeId || !role) {
+      setLayout({ order: [], hidden: [] });
+      return;
+    }
+    setLayout(loadLayout(scopeId, role));
+    const unsubscribe = subscribeLayout(scopeId, role, () => {
+      setLayout(loadLayout(scopeId, role));
+    });
+    return unsubscribe;
+  }, [scopeId, role]);
+
+  const orderedSections = useMemo(() => {
+    if (!detail) {
+      return [];
+    }
+    return applyLayout(detail.sections, layout);
+  }, [detail, layout]);
+
   return (
     <>
       <div id="metricTableReactRoot" hidden={!detail}>
-        {detail ? detail.sections.map((section) => {
+        {detail ? orderedSections.map((section) => {
           const toggleLabel = section.collapsed ? 'Rozbaliť' : 'Zbaliť';
 
           return (
@@ -482,6 +509,14 @@ export function IndexDashboardMonthlyTable() {
                   <div className="metric-title-stack">
                     <div className="metric-title-group">
                       <span>{section.title}</span>
+                      {section.vodNote ? (
+                        <span
+                          className="metric-vod-note"
+                          title={section.vodNote.author ? `Poznámka VOD (${section.vodNote.author})` : 'Poznámka VOD'}
+                        >
+                          {section.vodNote.text}
+                        </span>
+                      ) : null}
                     </div>
                     {section.headerMeta ? <span className="tiny">{section.headerMeta}</span> : null}
                   </div>

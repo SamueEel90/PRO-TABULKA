@@ -84,6 +84,8 @@ function patchIndexInlineScript(scriptContent: string) {
       canEdit: Boolean(canEdit),
       visibleMonthEntries: visibleMonthEntries,
       structureCompareMode: typeof getStructureMixCompareMode === 'function' ? getStructureMixCompareMode() : 'none',
+      scopeId: payload && payload.scope ? String(payload.scope.id || '') : '',
+      role: payload && payload.user ? String(payload.user.role || '') : '',
       sections: filteredSections.map(function(section) {
         var sectionPlanRow = section.rows.find(function(row) { return row.type === 'plan'; }) || { values: [], total: 0 };
         var sectionRealRow = section.rows.find(function(row) { return row.type === 'real'; }) || null;
@@ -97,6 +99,15 @@ function patchIndexInlineScript(scriptContent: string) {
           ? 'Zobrazené mesiace: ' + visibleMonthEntries.map(function(entry) { return formatMonthShort(entry.month); }).join(' • ')
           : '';
         var headerMeta = [compactMonthsLabel, section.breakdown && section.breakdown.length ? 'VKL/GF drill-down po filiálkach' : ''].filter(Boolean).join(' • ');
+
+        if (typeof ensureMetricNotesLoaded === 'function') {
+          ensureMetricNotesLoaded(section.metric);
+        }
+        var cachedNotes = typeof getCachedMetricNotes === 'function' ? getCachedMetricNotes(section.metric) : null;
+        var vodNoteRaw = cachedNotes && cachedNotes.VOD ? cachedNotes.VOD : null;
+        var vodNote = vodNoteRaw && String(vodNoteRaw.text || '').trim()
+          ? { text: String(vodNoteRaw.text || '').trim(), author: vodNoteRaw.author || '', updatedAt: vodNoteRaw.updatedAt || '' }
+          : null;
 
         return {
           metric: section.metric,
@@ -114,6 +125,7 @@ function patchIndexInlineScript(scriptContent: string) {
           adjustmentClosed: Array.isArray(sectionAdjustmentRow.closed) ? sectionAdjustmentRow.closed.slice() : [],
           workingDaysByMonth: workingDaysByMonth,
           breakdownHtml: typeof renderBreakdownBlock === 'function' ? renderBreakdownBlock(section, payload.months, visibleMonthEntries, workingDaysByMonth) : '',
+          vodNote: vodNote,
         };
       }),
     };
@@ -178,6 +190,12 @@ function patchIndexInlineScript(scriptContent: string) {
   if (typeof setStructureMixCompareMode === 'function') {
     window.setStructureMixCompareMode = setStructureMixCompareMode;
   }
+
+  window.addEventListener('pro-dashboard:metric-notes-loaded', function() {
+    if (state && state.dashboard && typeof renderMetricTable === 'function' && (typeof getActiveTableView !== 'function' || getActiveTableView() !== 'weekly')) {
+      renderMetricTable(state.dashboard);
+    }
+  });
 })();`;
 }
 

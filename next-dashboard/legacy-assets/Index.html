@@ -7282,6 +7282,9 @@
 						if (!document.getElementById('noteModalBackdrop').classList.contains('hidden')) {
 							renderNoteModal();
 						}
+						try {
+							window.dispatchEvent(new CustomEvent('pro-dashboard:metric-notes-loaded', { detail: { metric: metric } }));
+						} catch (e) { /* noop */ }
 					})
 					.withFailureHandler(function() {
 						delete state.metricNotesLoading[cacheKey];
