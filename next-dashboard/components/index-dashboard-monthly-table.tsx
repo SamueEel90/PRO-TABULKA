@@ -237,8 +237,7 @@ function isStructureMixValue(value: MetricRow['values'][number]): value is Workf
 
 function formatStructureBandLabel(band: StructureBandInput) {
   const weight = Number(band.hoursWeight || 0);
-  const normalizedWeight = Number.isInteger(weight) ? String(weight) : String(weight.toFixed(2)).replace(/0+$/, '').replace(/\.$/, '');
-  return `${normalizedWeight} | ${band.label}`;
+  return weight.toFixed(2);
 }
 
 function StructureMixCell({

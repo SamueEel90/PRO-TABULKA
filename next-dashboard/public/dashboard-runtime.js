@@ -948,7 +948,7 @@
 					payload.user.vklName ? 'VKL: ' + payload.user.vklName : '',
 				].filter(Boolean).join(' â€˘ ');
 				document.getElementById('generatedAt').textContent = 'AktualizovanĂ© ' + payload.generatedAt;
-				document.getElementById('statusScope').textContent = payload.scope.label;
+				// statusScope hidden
 				document.getElementById('saveHint').textContent = payload.user.role === 'VOD'
 					? ''
 					: payload.user.role === 'VKL'
@@ -1079,7 +1079,6 @@
 				}
 
 				return '<div class="mini-stat' + (card.cardClass ? ' ' + escapeHtml(card.cardClass) : '') + '">'
-					+ '<span class="mini-stat-period mini-stat-period--' + periodClass + '">' + escapeHtml(periodLabel) + '</span>'
 					+ '<span class="label">' + escapeHtml(card.metric) + '</span>'
 					+ '<span class="value">' + formatHeroCardValue(card) + '</span>'
 					+ (card.showVariance === false
@@ -4252,8 +4251,7 @@
 
 			function formatStructureBandLabel(band) {
 				const weight = Number(band && (band.hoursWeight !== undefined ? band.hoursWeight : band.weight));
-				const normalizedWeight = Number.isInteger(weight) ? String(weight) : String(weight.toFixed(2)).replace(/0+$/, '').replace(/\.$/, '');
-				return normalizedWeight + ' | ' + String((band && band.label) || '');
+				return weight.toFixed(2);
 			}
 
 			function renderMetricYearTotalCell(row, format, planTotal, sectionOrMetric) {
