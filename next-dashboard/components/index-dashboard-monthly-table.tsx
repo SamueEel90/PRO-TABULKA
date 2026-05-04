@@ -4,6 +4,9 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import type { MetricFormat, MetricRow, WorkforceStructureMixValue } from '@/lib/legacy/contracts';
 import { applyLayout, loadLayout, subscribeLayout, type MetricLayout } from '@/lib/metric-layout';
+import { NoteThread } from './note-thread';
+import { ActivityFeed } from './activity-feed';
+import { TaskCounter } from './task-counter';
 
 type VisibleMonthEntry = {
   month: string;
@@ -37,7 +40,11 @@ type MonthlyTableRenderDetail = {
   visibleMonthEntries: VisibleMonthEntry[];
   structureCompareMode?: string;
   scopeId?: string;
+  scopeType?: string;
+  noteScopeKey?: string;
+  vklName?: string;
   role?: string;
+  userName?: string;
   sections: MonthlyTableSectionModel[];
 };
 
@@ -475,7 +482,14 @@ export function IndexDashboardMonthlyTable() {
   }, []);
 
   const scopeId = String(detail?.scopeId || '');
+  const scopeType = String(detail?.scopeType || '');
+  const noteScopeKey = String(detail?.noteScopeKey || '');
+  const vklName = String(detail?.vklName || '');
   const role = String(detail?.role || '');
+  const userName = String(detail?.userName || role);
+
+  // For STORE scope, also fetch broadcast comments from VKL level
+  const broadcastScopeKey = scopeType === 'STORE' && vklName ? `AGGREGATE|VKL|${vklName}` : '';
 
   useEffect(() => {
     if (!scopeId || !role) {
@@ -498,6 +512,17 @@ export function IndexDashboardMonthlyTable() {
 
   return (
     <>
+      {detail && noteScopeKey ? (
+        <div className="activity-feed-bar">
+          <TaskCounter
+            scopeKey={noteScopeKey}
+            broadcastScopeKey={broadcastScopeKey}
+            currentRole={role}
+            currentAuthor={userName}
+          />
+          <ActivityFeed scopeKey={noteScopeKey} userId={`${scopeId}:${role}`} />
+        </div>
+      ) : null}
       <div id="metricTableReactRoot" hidden={!detail}>
         {detail ? orderedSections.map((section) => {
           const toggleLabel = section.collapsed ? 'Rozbaliť' : 'Zbaliť';
@@ -509,14 +534,15 @@ export function IndexDashboardMonthlyTable() {
                   <div className="metric-title-stack">
                     <div className="metric-title-group">
                       <span>{section.title}</span>
-                      {section.vodNote ? (
-                        <span
-                          className="metric-vod-note"
-                          title={section.vodNote.author ? `Poznámka VOD (${section.vodNote.author})` : 'Poznámka VOD'}
-                        >
-                          {section.vodNote.text}
-                        </span>
-                      ) : null}
+                      <NoteThread
+                        scopeKey={noteScopeKey}
+                        broadcastScopeKey={broadcastScopeKey}
+                        metricKey={section.metric}
+                        metricTitle={section.title}
+                        currentRole={role}
+                        currentAuthor={userName}
+                        legacyNote={section.vodNote}
+                      />
                     </div>
                     {section.headerMeta ? <span className="tiny">{section.headerMeta}</span> : null}
                   </div>

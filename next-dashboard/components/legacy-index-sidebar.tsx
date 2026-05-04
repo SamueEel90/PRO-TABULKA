@@ -1,4 +1,5 @@
 import { MetricLayoutPanel } from './metric-layout-panel';
+import { SessionIndicator } from './session-indicator';
 
 export function LegacyIndexSidebar() {
   return (
@@ -32,8 +33,10 @@ export function LegacyIndexSidebar() {
         <div className="sidebar-content" id="topbarContent">
           <div className="side-card">
             <h3>Prihlásený používateľ</h3>
-            <div className="identity-name" id="identityName" />
-            <div className="identity-meta" id="identityMeta" />
+            <SessionIndicator />
+            {/* Legacy slots — still populated by inline scripts for compatibility */}
+            <div className="identity-name" id="identityName" hidden />
+            <div className="identity-meta" id="identityMeta" hidden />
           </div>
 
           <div className="side-card">
