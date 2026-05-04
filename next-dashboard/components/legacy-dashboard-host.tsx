@@ -85,7 +85,11 @@ function patchIndexInlineScript(scriptContent: string) {
       visibleMonthEntries: visibleMonthEntries,
       structureCompareMode: typeof getStructureMixCompareMode === 'function' ? getStructureMixCompareMode() : 'none',
       scopeId: payload && payload.scope ? String(payload.scope.id || '') : '',
+      scopeType: payload && payload.scope ? String(payload.scope.type || '') : '',
+      noteScopeKey: payload && payload.scope ? String(payload.scope.noteScopeKey || '') : '',
+      vklName: payload && payload.user ? String(payload.user.vklName || '') : '',
       role: payload && payload.user ? String(payload.user.role || '') : '',
+      userName: payload && payload.user ? String(payload.user.displayName || payload.user.name || '') : '',
       sections: filteredSections.map(function(section) {
         var sectionPlanRow = section.rows.find(function(row) { return row.type === 'plan'; }) || { values: [], total: 0 };
         var sectionRealRow = section.rows.find(function(row) { return row.type === 'real'; }) || null;
@@ -196,6 +200,27 @@ function patchIndexInlineScript(scriptContent: string) {
       renderMetricTable(state.dashboard);
     }
   });
+
+  // Wrap saveDashboardChanges_ so we dispatch refresh events after every save
+  if (typeof saveDashboardChanges_ === 'function') {
+    var originalSaveDashboardChanges = saveDashboardChanges_;
+    saveDashboardChanges_ = function(options) {
+      var safeOptions = options || {};
+      var originalOnSuccess = safeOptions.onSuccess;
+      var wrappedOptions = Object.assign({}, safeOptions, {
+        onSuccess: function(result) {
+          try {
+            window.dispatchEvent(new CustomEvent('pro-dashboard:activity-changed'));
+            window.dispatchEvent(new CustomEvent('pro-dashboard:tasks-changed'));
+          } catch (e) { /* noop */ }
+          if (typeof originalOnSuccess === 'function') {
+            originalOnSuccess(result);
+          }
+        }
+      });
+      return originalSaveDashboardChanges(wrappedOptions);
+    };
+  }
 })();`;
 }
 

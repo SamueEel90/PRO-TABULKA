@@ -274,6 +274,21 @@ function roundMetric(value: number, format: MetricFormat) {
   return Math.round(numeric);
 }
 
+function formatMetricForActivity(value: number, metric: string) {
+  const format = getMetricFormat(metric);
+  const rounded = roundMetric(value, format);
+  if (format === 'currency') {
+    return new Intl.NumberFormat('sk-SK', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(rounded);
+  }
+  if (format === 'hours') {
+    return `${new Intl.NumberFormat('sk-SK', { maximumFractionDigits: 1 }).format(rounded)} h`;
+  }
+  if (format === 'fte') {
+    return `${new Intl.NumberFormat('sk-SK', { maximumFractionDigits: 1 }).format(rounded)} FTE`;
+  }
+  return new Intl.NumberFormat('sk-SK', { maximumFractionDigits: 1 }).format(rounded);
+}
+
 function normalizeMonthLabel(label: string) {
   const text = String(label || '').trim();
   if (!text) {
@@ -1860,6 +1875,21 @@ export async function saveDashboardChangesToSql(
         update: { displayName: canonicalMetric, unit: getMetricFormat(canonicalMetric), aggregation: 'sum' },
         create: { code: metricCode, displayName: canonicalMetric, unit: getMetricFormat(canonicalMetric), aggregation: 'sum' },
       });
+
+      // Read previous value for delta logging
+      const previousValueRow = await prisma.monthlyValue.findUnique({
+        where: {
+          source_storeId_metricCode_monthId: {
+            source: 'VOD',
+            storeId: scope.storeIds[0],
+            metricCode,
+            monthId: month.id,
+          },
+        },
+      });
+      const previousValue = previousValueRow ? Number(previousValueRow.value || 0) : 0;
+      const newValue = Number(update.value || 0);
+
       await prisma.monthlyValue.upsert({
         where: {
           source_storeId_metricCode_monthId: {
@@ -1870,7 +1900,7 @@ export async function saveDashboardChangesToSql(
           },
         },
         update: {
-          value: Number(update.value || 0),
+          value: newValue,
           present: true,
           importedAt: new Date(),
         },
@@ -1879,11 +1909,32 @@ export async function saveDashboardChangesToSql(
           storeId: scope.storeIds[0],
           metricCode,
           monthId: month.id,
-          value: Number(update.value || 0),
+          value: newValue,
           present: true,
         },
       });
       result.savedAdjustments += 1;
+
+      // Log per-adjustment activity (only when value actually changed)
+      if (Math.abs(newValue - previousValue) > 0.0001) {
+        const activityScope = buildNoteScope(user, scope);
+        const delta = newValue - previousValue;
+        const sign = delta > 0 ? '+' : '';
+        const detailText = previousValueRow
+          ? `${formatMetricForActivity(previousValue, canonicalMetric)} → ${formatMetricForActivity(newValue, canonicalMetric)} (${sign}${formatMetricForActivity(delta, canonicalMetric)})`
+          : `Nastavené na ${formatMetricForActivity(newValue, canonicalMetric)}`;
+        await prisma.activityEntry.create({
+          data: {
+            scopeKey: activityScope.key,
+            actorRole: user.role,
+            actorName: user.displayName,
+            action: 'adjustment',
+            metricKey: canonicalMetric,
+            monthLabel: month.label,
+            detail: detailText,
+          },
+        }).catch(() => { /* best effort */ });
+      }
     }
 
     if (touchedStructureMonths.size) {
@@ -1959,9 +2010,22 @@ export async function saveDashboardChangesToSql(
     for (const update of noteUpdates) {
       const metricKey = update.metric === GLOBAL_SCOPE_NOTE_METRIC ? GLOBAL_SCOPE_NOTE_METRIC : canonicalizeMetric(update.metric);
       const noteText = String(update.text == null ? '' : update.text).trim();
+
+      // If text is empty, delete the existing note (clearing the textarea = remove note)
       if (!noteText) {
+        const deleted = await prisma.dashboardNote.deleteMany({
+          where: {
+            scopeKey: noteScope.key,
+            role: user.role,
+            metricKey,
+          },
+        });
+        if (deleted.count > 0) {
+          result.savedNotes += 1;
+        }
         continue;
       }
+
       await prisma.dashboardNote.upsert({
         where: {
           scopeKey_role_metricKey: {
@@ -1993,6 +2057,22 @@ export async function saveDashboardChangesToSql(
       });
       result.savedNotes += 1;
     }
+  }
+
+  // Per-adjustment activity is logged inline above. Here we only log a summary
+  // for weekly adjustments (which don't have per-row logging) when they happened
+  // without monthly adjustments.
+  if (result.savedWeeklyAdjustments > 0 && result.savedAdjustments === 0) {
+    const activityScope = buildNoteScope(user, scope);
+    await prisma.activityEntry.create({
+      data: {
+        scopeKey: activityScope.key,
+        actorRole: user.role,
+        actorName: user.displayName,
+        action: 'save',
+        detail: `Uložené týždenné úpravy: ${result.savedWeeklyAdjustments}`,
+      },
+    }).catch(() => { /* best effort */ });
   }
 
   return result;

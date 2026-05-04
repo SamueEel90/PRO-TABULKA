@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 
 import DotField from '@/components/dot-field';
+import { Providers } from '@/components/providers';
 
 import './globals.css';
 
@@ -41,7 +42,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             glowColor="#12212e"
           />
         </div>
-        <div className="shell">{children}</div>
+        <Providers>
+          <div className="shell">{children}</div>
+        </Providers>
       </body>
     </html>
   );

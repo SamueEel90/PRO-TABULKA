@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp \"C:\\\\Users\\\\stofi\\\\Desktop\\\\PRO TABULKA\\\\.claude\\\\worktrees\\\\unruffled-lichterman-01ebc0\\\\next-dashboard\\\\legacy-assets\\\\Index.html\" \"C:\\\\Users\\\\stofi\\\\Desktop\\\\PRO TABULKA\\\\next-dashboard\\\\legacy-assets\\\\Index.html\")",
+      "Bash(cp \"C:\\\\Users\\\\stofi\\\\Desktop\\\\PRO TABULKA\\\\.claude\\\\worktrees\\\\unruffled-lichterman-01ebc0\\\\next-dashboard\\\\components\\\\legacy-dashboard-host.tsx\" \"C:\\\\Users\\\\stofi\\\\Desktop\\\\PRO TABULKA\\\\next-dashboard\\\\components\\\\legacy-dashboard-host.tsx\")",
+      "Bash(cp \"C:\\\\Users\\\\stofi\\\\Desktop\\\\PRO TABULKA\\\\.claude\\\\worktrees\\\\unruffled-lichterman-01ebc0\\\\next-dashboard\\\\components\\\\index-dashboard-monthly-table.tsx\" \"C:\\\\Users\\\\stofi\\\\Desktop\\\\PRO TABULKA\\\\next-dashboard\\\\components\\\\index-dashboard-monthly-table.tsx\")",
+      "Bash(cp \"C:\\\\Users\\\\stofi\\\\Desktop\\\\PRO TABULKA\\\\.claude\\\\worktrees\\\\unruffled-lichterman-01ebc0\\\\next-dashboard\\\\app\\\\dashboard.css\" \"C:\\\\Users\\\\stofi\\\\Desktop\\\\PRO TABULKA\\\\next-dashboard\\\\app\\\\dashboard.css\")",
+      "Read(//c/Users/stofi/Desktop/PRO TABULKA/**)",
+      "Bash(gh pr create --title 'VOD notes inline, metric layout drag-toggle, mobile responsivity' --body ' *)",
+      "PowerShell(Get-Command gh -ErrorAction SilentlyContinue)",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\('Path','Machine'\\) + ';' + [System.Environment]::GetEnvironmentVariable\\('Path','User'\\); gh --version)",
+      "Bash(npx prisma *)",
+      "Bash(mkdir -p \"C:/Users/stofi/Desktop/PRO TABULKA/next-dashboard/app/api/notes\")",
+      "Bash(mkdir -p \"C:/Users/stofi/Desktop/PRO TABULKA/next-dashboard/app/api/activity\")",
+      "Bash(python3 -c ' *)",
+      "Bash(npx tsc *)",
+      "Bash(npx next *)",
+      "PowerShell(Get-Process | Where-Object { $_.ProcessName -eq \"node\" } | Select-Object Id, ProcessName, StartTime | Format-Table -AutoSize)"
+    ]
+  }
+}

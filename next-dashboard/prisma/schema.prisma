@@ -22,16 +22,61 @@ model Store {
 }
 
 model User {
-  id             String   @id @default(cuid())
-  email          String   @unique
+  id             String    @id @default(cuid())
+  email          String    @unique
+  emailVerified  DateTime?
   name           String?
+  image          String?
   role           String
   gfName         String?
   vklName        String?
   primaryStoreId String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  primaryStore   Store?   @relation(fields: [primaryStoreId], references: [id])
+  active         Boolean   @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  primaryStore   Store?    @relation(fields: [primaryStoreId], references: [id])
+  accounts       Account[]
+  sessions       Session[]
+
+  @@index([role])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
 model Metric {
@@ -109,6 +154,62 @@ model DashboardNote {
 
   @@unique([scopeKey, role, metricKey])
   @@index([scopeKey, metricKey])
+}
+
+model NoteComment {
+  id        String   @id @default(cuid())
+  scopeKey  String
+  metricKey String
+  role      String
+  author    String
+  text      String
+  createdAt DateTime @default(now())
+  task      TaskItem?
+
+  @@index([scopeKey, metricKey, createdAt])
+}
+
+model TaskItem {
+  id              String       @id @default(cuid())
+  scopeKey        String
+  metricKey       String?
+  monthLabel      String?
+  text            String
+  status          String       @default("open")
+  createdByRole   String
+  createdByName   String
+  createdAt       DateTime     @default(now())
+  completedByName String?
+  completedAt     DateTime?
+  sourceCommentId String?      @unique
+  sourceComment   NoteComment? @relation(fields: [sourceCommentId], references: [id], onDelete: SetNull)
+
+  @@index([scopeKey, status])
+  @@index([scopeKey, metricKey])
+}
+
+model ActivityEntry {
+  id        String   @id @default(cuid())
+  scopeKey  String
+  actorRole String
+  actorName String
+  action    String
+  metricKey String?
+  monthLabel String?
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([scopeKey, createdAt])
+}
+
+model UserLastSeen {
+  id         String   @id @default(cuid())
+  userId     String
+  scopeKey   String
+  lastSeenAt DateTime @default(now())
+
+  @@unique([userId, scopeKey])
+  @@index([userId])
 }
 
 model WeeklyVodOverride {

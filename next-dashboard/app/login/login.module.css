@@ -1,0 +1,169 @@
+.shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  background: linear-gradient(135deg, rgba(21, 76, 121, 0.06), rgba(32, 126, 119, 0.06));
+}
+
+.card {
+  width: 100%;
+  max-width: 400px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(19, 32, 51, 0.08);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 12px 32px rgba(19, 32, 51, 0.08);
+}
+
+.header {
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.kicker {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #d71920;
+  margin-bottom: 0.4rem;
+}
+
+.title {
+  margin: 0 0 0.4rem;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #16324a;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #5b6470;
+  line-height: 1.4;
+}
+
+.formStack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.error {
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  background: rgba(215, 25, 32, 0.08);
+  color: #b71c1c;
+  font-size: 0.85rem;
+  border: 1px solid rgba(215, 25, 32, 0.2);
+}
+
+.googleButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(19, 32, 51, 0.15);
+  border-radius: 8px;
+  background: #fff;
+  color: #16324a;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.googleButton:hover:not(:disabled) {
+  background: rgba(19, 32, 51, 0.03);
+  border-color: rgba(19, 32, 51, 0.25);
+  box-shadow: 0 2px 8px rgba(19, 32, 51, 0.08);
+}
+
+.googleButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #5b6470;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(19, 32, 51, 0.1);
+}
+
+.devForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.fieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #5b6470;
+}
+
+.input {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid rgba(19, 32, 51, 0.15);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 0.9rem;
+  color: #16324a;
+  font-family: inherit;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #d71920;
+  box-shadow: 0 0 0 2px rgba(215, 25, 32, 0.1);
+}
+
+.devButton {
+  padding: 0.7rem 1rem;
+  border: none;
+  border-radius: 8px;
+  background: #d71920;
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.devButton:hover:not(:disabled) {
+  background: #a1141a;
+  box-shadow: 0 2px 8px rgba(215, 25, 32, 0.18);
+}
+
+.devButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.devHint {
+  margin: 0;
+  font-size: 0.7rem;
+  color: #5b6470;
+  line-height: 1.4;
+  font-style: italic;
+}
