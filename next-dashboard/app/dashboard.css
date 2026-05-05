@@ -4886,6 +4886,41 @@ body.theme-dark .activity-entry-metric {
   margin-left: 0.5rem;
 }
 
+.note-task-button--delete {
+  font-size: 0.68rem;
+  padding: 0.15rem 0.5rem;
+  color: var(--danger, #e04040);
+  border-color: rgba(200, 60, 60, 0.25);
+  background: rgba(200, 60, 60, 0.06);
+}
+
+.note-task-button--delete:hover {
+  background: rgba(200, 60, 60, 0.14);
+  border-color: rgba(200, 60, 60, 0.4);
+}
+
+.note-comment-delete {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0.15rem 0.3rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+  line-height: 1;
+}
+
+.note-comment:hover .note-comment-delete {
+  opacity: 1;
+}
+
+.note-comment-delete:hover {
+  color: #e04040;
+  opacity: 1;
+}
+
 .note-task-completed {
   margin-top: 0.4rem;
   padding-top: 0.35rem;

@@ -7526,6 +7526,12 @@
 											return value == null ? '<td class="' + focusedCellClass + ' ist-zero-fill" title="IST ešte nie je k dispozícii">' + formatMetric(0, row.displayFormat || 'hours') + '</td>' : '<td class="' + focusedCellClass + '">' + formatMetric(value, row.displayFormat || 'hours') + '</td>';
 										case 'delta':
 											return '<td class="' + focusedCellClass + ' ' + getDeltaCellClass(value) + '"><span class="delta-value">' + formatSignedMetric(value, section.format) + '</span></td>';
+										case 'plan-delta': {
+											var planVal = itemPlanRow.values[entry.index];
+											var pct = planVal ? Math.round(Math.abs(value / planVal) * 1000) / 10 : null;
+											var pctStr = pct !== null ? '<span class="delta-pct">' + (value >= 0 ? '+' : '') + pct + '%</span>' : '';
+											return '<td class="' + focusedCellClass + ' ' + getDeltaCellClass(value) + '"><span class="delta-value">' + formatSignedMetric(value, section.format) + pctStr + '</span></td>';
+										}
 										case 'forecast':
 											return appendCellClass(renderForecastTableCell(value, itemPlanRow.values[entry.index], section.format), focusedCellClass);
 										case 'real':
@@ -8441,7 +8447,10 @@
 					return '<td class="year-total-cell">' + formatMetric(row.total, format) + '</td>';
 				}
 
-				return '<td class="year-total-cell ' + (row.type === 'delta' ? getDeltaCellClass(row.total) : '') + '">' + (row.type === 'delta' ? formatSignedMetric(row.total, format) : formatMetric(row.total, format)) + '</td>';
+				if (row.type === 'delta' || row.type === 'plan-delta') {
+					return '<td class="year-total-cell ' + getDeltaCellClass(row.total) + '"><span class="delta-value">' + formatSignedMetric(row.total, format) + '</span></td>';
+				}
+				return '<td class="year-total-cell">' + formatMetric(row.total, format) + '</td>';
 			}
 
 			function renderForecastTableCell(value, planValue, format) {

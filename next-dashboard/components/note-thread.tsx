@@ -78,6 +78,12 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
   const openTaskCount = comments.filter((c) => c.task && c.task.status === 'open').length;
   const canCreateTasks = currentRole === 'VKL' || currentRole === 'GF';
   const canCompleteTasks = currentRole === 'VOD';
+  const canDeleteTasks = currentRole === 'VKL' || currentRole === 'GF';
+  const canDeleteComment = (comment: NoteComment) => {
+    if (currentRole === 'VKL' || currentRole === 'GF') return true;
+    if (currentRole === 'VOD') return comment.role === 'VOD' && comment.author === currentAuthor;
+    return false;
+  };
 
   const fetchComments = useCallback(async () => {
     if (!scopeKey || !metricKey) return;
@@ -155,6 +161,30 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
       setError('Nepodarilo sa odoslať komentár.');
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!confirm('Zmazať tento komentár?')) return;
+    try {
+      await fetch(`/api/notes/${commentId}`, { method: 'DELETE' });
+      await fetchComments();
+      window.dispatchEvent(new CustomEvent('pro-dashboard:activity-changed'));
+      window.dispatchEvent(new CustomEvent('pro-dashboard:tasks-changed'));
+    } catch {
+      setError('Nepodarilo sa zmazať komentár.');
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm('Zmazať túto úlohu?')) return;
+    try {
+      await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
+      await fetchComments();
+      window.dispatchEvent(new CustomEvent('pro-dashboard:activity-changed'));
+      window.dispatchEvent(new CustomEvent('pro-dashboard:tasks-changed'));
+    } catch {
+      setError('Nepodarilo sa zmazať úlohu.');
     }
   };
 
@@ -304,6 +334,19 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
                   </span>
                 ) : null}
                 <span className="note-comment-date">{formatCommentDate(comment.createdAt)}</span>
+                {canDeleteComment(comment) ? (
+                  <button
+                    type="button"
+                    className="note-comment-delete"
+                    onClick={() => handleDeleteComment(comment.id)}
+                    aria-label="Zmazať komentár"
+                    title="Zmazať komentár"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                    </svg>
+                  </button>
+                ) : null}
               </div>
               <div className="note-comment-text">{comment.text}</div>
               {task && isTaskOpen && canCompleteTasks ? (
@@ -318,6 +361,18 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
                     </svg>
                     Označiť ako splnené
                   </button>
+                  {canDeleteTasks ? (
+                    <button
+                      type="button"
+                      className="note-task-button note-task-button--delete"
+                      onClick={() => handleDeleteTask(task.id)}
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      </svg>
+                      Zmazať úlohu
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
               {task && isTaskDone ? (
