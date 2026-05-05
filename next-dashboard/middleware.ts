@@ -80,6 +80,18 @@ export default auth((request) => {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
+  // 4. VOD (filialka) can only access their own store's dashboard
+  if (session.user.role === 'VOD' && pathname.startsWith('/dashboard')) {
+    const storeId = session.user.primaryStoreId;
+    if (!storeId) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+    const ownPath = `/dashboard/${storeId}`;
+    if (pathname !== ownPath && !pathname.startsWith(`${ownPath}/`)) {
+      return NextResponse.redirect(new URL(ownPath, request.url));
+    }
+  }
+
   // Pass user info downstream so handlers don't re-verify the JWT.
   // HTTP headers must be ASCII (Latin-1) — encode any non-ASCII values
   // (Slovak diacritics in vklName/gfName) so they survive transport.

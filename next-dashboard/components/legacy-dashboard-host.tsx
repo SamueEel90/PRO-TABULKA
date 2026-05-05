@@ -365,6 +365,7 @@ export function LegacyDashboardHost({ asset, bodyMode = 'full' }: { asset: Legac
         };
 
         setLoadState({ status: 'ready' });
+        window.dispatchEvent(new CustomEvent('pro-dashboard:scripts-ready'));
       } catch (error) {
         document.body.classList.remove('legacy-dashboard-page');
         setLoadState({

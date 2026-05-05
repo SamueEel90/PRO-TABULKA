@@ -64,8 +64,6 @@ if (secrets.optional('GOOGLE_CLIENT_ID') && secrets.optional('GOOGLE_CLIENT_SECR
       clientSecret: secrets.required('GOOGLE_CLIENT_SECRET'),
       authorization: {
         params: {
-          // Only show kaufland.sk Google Workspace accounts in the picker
-          hd: 'kaufland.sk',
           prompt: 'select_account',
         },
       },

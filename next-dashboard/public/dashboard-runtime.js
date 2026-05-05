@@ -500,8 +500,12 @@
 			document.getElementById('refreshButton').addEventListener('click', function() {
 				loadDashboard(document.getElementById('scopeSelect').value || 'ALL');
 			});
-			document.getElementById('logoutButton').addEventListener('click', handleLogout);
+			document.getElementById('logoutButton')?.addEventListener('click', handleLogout);
 			document.getElementById('saveFabButton').addEventListener('click', saveAdjustments);
+			document.getElementById('fabCollapseToggle')?.addEventListener('click', function() {
+				var tray = document.getElementById('fabTray');
+				if (tray) tray.classList.toggle('fab-tray--collapsed');
+			});
 			document.getElementById('collapseAllMetricsButton').addEventListener('click', function() {
 				setAllFilteredMetricsCollapsed(true);
 			});
@@ -2074,13 +2078,13 @@
 				const normalizedMetric = normalizeMetricName(rawMetric);
 				const replacements = [
 					{ match: 'pn kratkodobe', label: 'PN krĂˇtkodobĂ©' },
-					{ match: 'dlhodoba nepritomnost (33+ dni) (b)', label: 'DlhodobĂˇ neprĂ­t.' },
+					{ match: 'dlhodoba nepritomnost (33+ dni) (b)', label: 'PN Dlhodobé' },
 					{ match: 'externa pracovna agentura (+) reinigung', label: 'AgentĂşra Reinigung' },
 					{ match: 'externa pracovna agentura (+) wareneinraumung', label: 'AgentĂşra Waren' },
-					{ match: 'odmena za pr.pracu ziak (+) 50%', label: 'Ĺ˝iak 50%' },
-					{ match: 'odmena za dohodu', label: 'Odmena za dohodu' },
-					{ match: 'odmena za dohodu (-)', label: 'Odmena za dohodu' },
-					{ match: 'odmena za dohodu (+)', label: 'Odmena za dohodu' },
+					{ match: 'odmena za pr.pracu ziak (+) 50%', label: 'Dualisti' },
+					{ match: 'odmena za dohodu', label: 'Brigádnici(DBPŠ)' },
+					{ match: 'odmena za dohodu (-)', label: 'Brigádnici(DBPŠ)' },
+					{ match: 'odmena za dohodu (+)', label: 'Brigádnici(DBPŠ)' },
 					{ match: 'dovolenka (-)', label: 'Dovolenka' },
 					{ match: 'hodiny brutto gj2026', label: 'Hodiny brutto' },
 					{ match: 'hodiny netto', label: 'Hodiny netto' },
@@ -2729,10 +2733,10 @@
 					}
 					const monthMeta = monthMetaParts.join(' â€˘ ');
 					const collapsedMetricLabel = getCollapsedWeeklyMetricLabel(section.metric);
-					const labelCell = '<td class="weekly-metric-label-cell"><div class="weekly-metric-label-head"><div class="weekly-metric-name">' + escapeHtml(getMetricDisplayLabel(section.metric)) + '</div><div class="weekly-metric-actions"><button class="metric-toggle weekly-toggle" type="button" data-toggle-metric="' + escapeHtml(section.metric) + '" aria-expanded="' + (isCollapsed ? 'false' : 'true') + '">' + escapeHtml(toggleLabel) + '</button></div></div><div class="weekly-metric-sub">' + escapeHtml(monthMeta) + '</div></td>';
+					const labelCell = '<td class="weekly-metric-label-cell"><div class="weekly-metric-label-head" data-toggle-metric="' + escapeHtml(section.metric) + '" aria-expanded="' + (isCollapsed ? 'false' : 'true') + '"><div class="weekly-metric-name">' + escapeHtml(getMetricDisplayLabel(section.metric)) + '</div></div><div class="weekly-metric-sub">' + escapeHtml(monthMeta) + '</div></td>';
 
 					if (isCollapsed) {
-						return '<tr class="weekly-collapsed-row"><td class="weekly-metric-label-cell weekly-metric-label-cell--collapsed" colspan="' + (buckets.length + 2) + '"><div class="weekly-metric-label-head"><div class="weekly-metric-name weekly-metric-name--collapsed" title="' + escapeHtml(section.metric) + '">' + escapeHtml(collapsedMetricLabel) + '</div><div class="weekly-metric-actions"><button class="metric-toggle weekly-toggle" type="button" data-toggle-metric="' + escapeHtml(section.metric) + '" aria-expanded="false">RozbaliĹĄ</button></div></div></td></tr>';
+						return '<tr class="weekly-collapsed-row"><td class="weekly-metric-label-cell weekly-metric-label-cell--collapsed" colspan="' + (buckets.length + 2) + '"><div class="weekly-metric-label-head" data-toggle-metric="' + escapeHtml(section.metric) + '" aria-expanded="false"><div class="weekly-metric-name weekly-metric-name--collapsed" title="' + escapeHtml(section.metric) + '">' + escapeHtml(collapsedMetricLabel) + '</div></div></td></tr>';
 					}
 
 					const mainRow = '<tr>' + labelCell
@@ -3544,9 +3548,10 @@
 				const rawMetric = String(metric || '').trim();
 				const normalizedMetric = normalizeMetricName(rawMetric);
 				const replacements = {
-					'dlhodoba nepritomnost (33+ dni) (b)': 'DlhodobĂˇ neprĂ­tomnosĹĄ',
+					'dlhodoba nepritomnost (33+ dni) (b)': 'PN Dlhodobé',
 					'externa pracovna agentura (+) reinigung': 'ExternĂˇ agentĂşra',
-					'odmena za pr.pracu ziak (+) 50%': 'Odmena za pr.prĂˇcu Ĺľiak',
+					'odmena za dohodu': 'Brigádnici(DBPŠ)',
+					'odmena za pr.pracu ziak (+) 50%': 'Dualisti',
 					'fima/prestavba/dodatocne prace/neo': 'FiMa/Prestavba/OstatnĂ©'
 				};
 
@@ -5375,7 +5380,7 @@
 				refreshButton.disabled = isLoading;
 				saveButton.disabled = isLoading;
 				saveFabButton.disabled = isLoading;
-				logoutButton.disabled = isLoading;
+				if (logoutButton) logoutButton.disabled = isLoading;
 				if (isLoading) {
 					collapseAllMetricsButton.disabled = true;
 					expandAllMetricsButton.disabled = true;

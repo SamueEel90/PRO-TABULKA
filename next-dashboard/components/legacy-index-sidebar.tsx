@@ -91,7 +91,6 @@ export function LegacyIndexSidebar() {
             <div className="action-row">
               <button className="secondary-btn" id="refreshButton" type="button">Obnoviť dáta</button>
               <button className="primary-btn" id="saveButton" type="button">Uložiť zmeny</button>
-              <button className="secondary-btn" id="logoutButton" type="button">Odhlásiť</button>
             </div>
             <div className="tiny" id="saveHint">Editácia je povolená len pre VOD a len pre otvorené mesiace.</div>
           </div>

@@ -111,7 +111,7 @@ const FEATURED_METRICS: FeaturedMetricConfig[] = [
   },
   {
     code: ABSENCE_CODE,
-    label: 'Dlhodobá neprítomnosť',
+    label: 'PN Dlhodobé',
     unit: 'hours',
     description: 'Dlhodobé absencie ako samostatný plánovací tlak.',
   },
