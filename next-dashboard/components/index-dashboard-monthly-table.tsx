@@ -380,7 +380,19 @@ function renderYearTotalCell(section: MonthlyTableSectionModel, row: MonthlyTabl
     return <td className={`year-total-cell${highlight}`} title={highlight ? 'IST sumár obsahuje mesiace doplnené z plánu' : undefined}>{formatMetric(displayedTotal, section.format)}</td>;
   }
 
-  if (row.type === 'recommendation' || row.type === 'delta' || row.type === 'plan-delta') {
+  if (row.type === 'plan-delta') {
+    const total = row.total as number;
+    const pct = section.planTotal ? (total / section.planTotal) * 100 : null;
+    return <td className={`year-total-cell ${getDeltaCellClass(total)}`}><span className="delta-value">{formatSignedMetric(total, section.format)}{pct !== null ? <span className="delta-pct">{pct >= 0 ? '+' : ''}{Math.round(Math.abs(pct) * 10) / 10}%</span> : null}</span></td>;
+  }
+
+  if (row.type === 'delta') {
+    const total = row.total as number;
+    const pct = section.planTotal ? (total / section.planTotal) * 100 : null;
+    return <td className={`year-total-cell ${getDeltaCellClass(total)}`}><span className="delta-value">{formatSignedMetric(total, section.format)}{pct !== null ? <span className="delta-pct">{pct >= 0 ? '+' : ''}{Math.round(Math.abs(pct) * 10) / 10}%</span> : null}</span></td>;
+  }
+
+  if (row.type === 'recommendation') {
     return <td className={`year-total-cell ${getDeltaCellClass(row.total)}`}><span className="delta-value">{formatSignedMetric(row.total, section.format)}</span></td>;
   }
 
@@ -420,7 +432,21 @@ function renderCell(section: MonthlyTableSectionModel, row: MonthlyTableRowModel
     return <td className={focusedCellClass}>{formatMetric(typeof value === 'number' ? value : 0, row.displayFormat || 'hours')}</td>;
   }
 
-  if (row.type === 'delta' || row.type === 'plan-delta' || row.type === 'recommendation') {
+  if (row.type === 'plan-delta') {
+    const v = value as number;
+    const planVal = section.planValues[entry.index];
+    const pct = planVal ? (v / planVal) * 100 : null;
+    return <td className={`${focusedCellClass} ${getDeltaCellClass(v)}`}><span className="delta-value">{formatSignedMetric(v, section.format)}{pct !== null ? <span className="delta-pct">{pct >= 0 ? '+' : ''}{Math.round(Math.abs(pct) * 10) / 10}%</span> : null}</span></td>;
+  }
+
+  if (row.type === 'delta') {
+    const v = value as number;
+    const planVal = section.planValues[entry.index];
+    const pct = planVal ? (v / planVal) * 100 : null;
+    return <td className={`${focusedCellClass} ${getDeltaCellClass(v)}`}><span className="delta-value">{formatSignedMetric(v, section.format)}{pct !== null ? <span className="delta-pct">{pct >= 0 ? '+' : ''}{Math.round(Math.abs(pct) * 10) / 10}%</span> : null}</span></td>;
+  }
+
+  if (row.type === 'recommendation') {
     return <td className={`${focusedCellClass} ${getDeltaCellClass(value as number)}`}><span className="delta-value">{formatSignedMetric(value as number, section.format)}</span></td>;
   }
 
@@ -521,6 +547,13 @@ export function IndexDashboardMonthlyTable() {
             currentAuthor={userName}
           />
           <ActivityFeed scopeKey={noteScopeKey} userId={`${scopeId}:${role}`} />
+        </div>
+      ) : null}
+      {!detail ? (
+        <div className="metric-skeleton" aria-hidden="true">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className="metric-skeleton-section" />
+          ))}
         </div>
       ) : null}
       <div id="metricTableReactRoot" hidden={!detail}>

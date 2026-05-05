@@ -2377,11 +2377,42 @@ summary {
 				border: 1px solid rgba(19, 32, 51, 0.08);
 				border-radius: 1.25rem;
 				overflow: hidden;
-				margin-top: 0.875rem;
+				clip-path: inset(0 round 1.25rem);
+				margin-top: 0;
 				background: rgba(255, 255, 255, 0.72);
 			}
 
-			body.theme-dark .metric-section,
+			.metric-section:not(:first-child) {
+				margin-top: 3px;
+			}
+
+			.metric-skeleton {
+				display: flex;
+				flex-direction: column;
+				gap: 3px;
+			}
+
+			.metric-skeleton-section {
+				height: 7rem;
+				border-radius: 1.25rem;
+				background: linear-gradient(90deg,
+					var(--surface-muted) 0%,
+					var(--surface-soft) 40%,
+					var(--surface-muted) 80%);
+				background-size: 200% 100%;
+				animation: skeleton-shimmer 1.6s ease-in-out infinite;
+			}
+
+			@keyframes skeleton-shimmer {
+				0%   { background-position: 200% 0; }
+				100% { background-position: -200% 0; }
+			}
+
+			body.theme-dark .metric-section {
+				background: var(--surface-muted);
+				border-color: rgba(255, 255, 255, 0.06);
+			}
+
 			body.theme-dark .note-modal {
 				background: rgba(10, 23, 37, 0.84);
 			}
@@ -2846,6 +2877,12 @@ summary {
 				overflow: hidden;
 			}
 
+			.metric-table-scroll th,
+			.metric-table-scroll td {
+				padding-top: 0.4rem;
+				padding-bottom: 0.4rem;
+			}
+
 			.metric-table-scroll thead th {
 				position: sticky;
 				top: 0;
@@ -2881,7 +2918,7 @@ summary {
 
 			th,
 			td {
-				padding: 0.5rem 0.68rem;
+				padding: 0.3rem 0.68rem;
 				border-top: 1px solid rgba(110, 74, 74, 0.08);
 				text-align: right;
 				font-size: 0.82rem;
@@ -2931,6 +2968,17 @@ summary {
 			.year-total-cell {
 				font-weight: 800;
 				background: rgba(137, 37, 42, 0.06);
+				border-left: 2px solid rgba(137, 37, 42, 0.14);
+			}
+
+			.metric-table-scroll thead th:last-child {
+				border-left: 2px solid rgba(137, 37, 42, 0.14);
+				background: rgba(137, 37, 42, 0.04);
+			}
+
+			body.theme-dark .year-total-cell,
+			body.theme-dark .metric-table-scroll thead th:last-child {
+				border-left-color: rgba(255, 120, 120, 0.18);
 			}
 
 			td.ist-plan-fill,
@@ -2968,8 +3016,48 @@ summary {
 				background: linear-gradient(90deg, rgba(49, 91, 138, 0.08), rgba(49, 91, 138, 0.03));
 			}
 
+			tr[data-row-type="forecast"] input {
+				width: 100%;
+				text-align: right;
+				font: inherit;
+				font-size: 0.82rem;
+				font-weight: 600;
+				color: #315b8a;
+				background: rgba(255, 255, 255, 0.72);
+				border: 1.5px solid rgba(49, 91, 138, 0.22);
+				border-radius: 0.45rem;
+				padding: 0.2rem 0.4rem;
+				box-shadow: inset 0 1px 3px rgba(49, 91, 138, 0.08);
+				transition: border-color 0.15s ease, box-shadow 0.15s ease;
+			}
+
+			tr[data-row-type="forecast"] input:focus {
+				outline: none;
+				border-color: rgba(49, 91, 138, 0.5);
+				box-shadow: inset 0 1px 3px rgba(49, 91, 138, 0.12), 0 0 0 2px rgba(49, 91, 138, 0.1);
+			}
+
+			tr[data-row-type="forecast"] input:disabled {
+				opacity: 0.45;
+				cursor: not-allowed;
+				border-color: rgba(49, 91, 138, 0.1);
+				box-shadow: none;
+			}
+
 			body.theme-dark tr[data-row-type="forecast"] {
 				background: rgba(240, 136, 114, 0.08);
+			}
+
+			body.theme-dark tr[data-row-type="forecast"] input {
+				color: #7aadda;
+				background: rgba(20, 40, 62, 0.6);
+				border-color: rgba(100, 160, 210, 0.28);
+				box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+			}
+
+			body.theme-dark tr[data-row-type="forecast"] input:focus {
+				border-color: rgba(100, 160, 210, 0.55);
+				box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 0 2px rgba(100, 160, 210, 0.12);
 			}
 
 			td.forecast-positive,
@@ -3080,6 +3168,36 @@ summary {
 
 			.delta-value {
 				font-weight: 800;
+				display: inline-flex;
+				align-items: center;
+				gap: 0.25em;
+			}
+
+			.delta-pct {
+				font-size: 0.72em;
+				font-weight: 600;
+				opacity: 0.65;
+			}
+
+			tr[data-row-type="delta"] td,
+			tr[data-row-type="plan-delta"] td {
+				font-size: 0.74rem;
+			}
+
+			.delta-value::before {
+				font-size: 0.7em;
+				opacity: 0.75;
+				line-height: 1;
+			}
+
+			td.delta-positive .delta-value::before,
+			.year-total-cell.delta-positive .delta-value::before {
+				content: '▲';
+			}
+
+			td.delta-negative .delta-value::before,
+			.year-total-cell.delta-negative .delta-value::before {
+				content: '▼';
 			}
 
 			td.delta-positive,
@@ -3382,7 +3500,7 @@ summary {
 
 				.metric-table-scroll th,
 				.metric-table-scroll td {
-					padding: 0.56rem 0.5rem;
+					padding: 0.3rem 0.5rem;
 				}
 
 				.metric-table-scroll th:not(:first-child),
@@ -3570,7 +3688,7 @@ summary {
 
 				.metric-table-scroll th,
 				.metric-table-scroll td {
-					padding: 0.625rem 0.5rem;
+					padding: 0.3rem 0.5rem;
 				}
 
 				.metric-table-scroll th:not(:first-child),
@@ -3778,7 +3896,7 @@ summary {
 				.metric-table-scroll th,
 				.metric-table-scroll td {
 					font-size: 0.74rem;
-					padding: 0.46rem 0.36rem;
+					padding: 0.3rem 0.36rem;
 					line-height: 1.2;
 				}
 
@@ -4012,7 +4130,7 @@ summary {
 
 				.metric-table-scroll th,
 				.metric-table-scroll td {
-					padding: 0.5rem 0.4rem;
+					padding: 0.3rem 0.4rem;
 					font-size: 0.78rem;
 				}
 
@@ -4766,6 +4884,41 @@ body.theme-dark .activity-entry-metric {
   font-size: 0.68rem;
   padding: 0.15rem 0.5rem;
   margin-left: 0.5rem;
+}
+
+.note-task-button--delete {
+  font-size: 0.68rem;
+  padding: 0.15rem 0.5rem;
+  color: var(--danger, #e04040);
+  border-color: rgba(200, 60, 60, 0.25);
+  background: rgba(200, 60, 60, 0.06);
+}
+
+.note-task-button--delete:hover {
+  background: rgba(200, 60, 60, 0.14);
+  border-color: rgba(200, 60, 60, 0.4);
+}
+
+.note-comment-delete {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0.15rem 0.3rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+  line-height: 1;
+}
+
+.note-comment:hover .note-comment-delete {
+  opacity: 1;
+}
+
+.note-comment-delete:hover {
+  color: #e04040;
+  opacity: 1;
 }
 
 .note-task-completed {
