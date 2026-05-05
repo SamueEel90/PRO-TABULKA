@@ -1152,7 +1152,7 @@
 				const deltaHours = normalizeStoredMetricValue(requiredHours - currentHoursBase, 'hours');
 
 				return {
-					metric: isYearScope ? 'PotrebnĂ© netto do roÄŤnĂ©ho plĂˇnu ÄŚV' : 'PotrebnĂ© netto do plĂˇnu ÄŚV',
+					metric: 'Hodiny na cieľ HV',
 					format: 'hours',
 					value: deltaHours,
 					valueSigned: true,
@@ -1194,7 +1194,7 @@
 				}, { requiredHours: 0, currentHoursBase: 0, deltaHours: 0 });
 
 				return {
-					metric: isYearScope ? 'PotrebnĂ© netto do roÄŤnĂ©ho plĂˇnu ÄŚV' : 'PotrebnĂ© netto do plĂˇnu ÄŚV',
+					metric: 'Hodiny na cieľ HV',
 					format: 'hours',
 					value: normalizeStoredMetricValue(totals.deltaHours, 'hours'),
 					valueSigned: true,
@@ -1982,6 +1982,7 @@
 					case 'structure-hours-derived':
 						return 'forecast';
 					case 'delta':
+					case 'plan-delta':
 						return 'delta';
 					case 'recommendation':
 					case 'recommendation-result':
@@ -3572,7 +3573,10 @@
 					return getDisplayForecastLabel();
 				}
 				if (row && row.type === 'delta') {
-					return 'Î” Delta vs IST';
+					return 'Δ Úprava VOD';
+				}
+				if (row && row.type === 'plan-delta') {
+					return 'Δ Plán vs IST';
 				}
 				if (row && row.type === 'recommendation') {
 					return 'Doporucenie Vzorca';
@@ -3675,6 +3679,12 @@
 
 				deltaRow.values = getMetricDeltaValues(section, planRow, realRow, forecastRow);
 				deltaRow.total = summarizeDeltaRowTotal(section, deltaRow.values, rows);
+
+				const planDeltaRow = rows.find(function(row) { return row.type === 'plan-delta'; }) || null;
+				if (planDeltaRow && planRow && realRow) {
+					planDeltaRow.values = getMetricDeltaValues(section, planRow, realRow, planRow);
+					planDeltaRow.total = planDeltaRow.values.reduce(function(sum, v) { return sum + Number(v || 0); }, 0);
+				}
 			}
 
 			function buildDisplayRowsForSection(section, months, workingDaysByMonth, context) {
@@ -3827,10 +3837,14 @@
 					return rows;
 				}
 
+				const planDeltaIndex = rows.findIndex(function(row) {
+					return row.type === 'plan-delta';
+				});
 				const deltaIndex = rows.findIndex(function(row) {
 					return row.type === 'delta';
 				});
-				const insertIndex = deltaIndex > -1 ? deltaIndex + 1 : rows.length;
+				const anchorIndex = planDeltaIndex > -1 ? planDeltaIndex : deltaIndex;
+				const insertIndex = anchorIndex > -1 ? anchorIndex + 1 : rows.length;
 				rows.splice(insertIndex, 0, recommendationRow);
 				return rows;
 			}

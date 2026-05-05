@@ -1327,6 +1327,7 @@ function buildMetricSection(
   const realValues = cells.map((cell) => getDisplayedRealValue(metric, cell));
   const forecastValues = cells.map((cell) => cell.forecast);
   const deltaValues = cells.map((cell) => roundMetric(cell.forecast - (cell.hasRealData ? cell.real : cell.plan), format));
+  const planDeltaValues = cells.map((cell) => cell.hasRealData ? roundMetric(cell.plan - cell.real, format) : 0);
   const adjustmentValues = cells.map((cell) => cell.adjustment);
 
   return {
@@ -1345,7 +1346,8 @@ function buildMetricSection(
       },
       { type: 'adjustment', label: 'Úprava VOD', values: adjustmentValues, total: roundMetric(sumValues(adjustmentValues), format), closed: cells.map((cell) => cell.closedMonth) },
       { type: 'forecast', label: 'Úprava VOD', values: forecastValues, total: summary.forecast },
-      { type: 'delta', label: 'Δ Delta vs IST', values: deltaValues, total: roundMetric(sumValues(deltaValues), format) },
+      { type: 'delta', label: 'Δ Úprava VOD', values: deltaValues, total: roundMetric(sumValues(deltaValues), format) },
+      { type: 'plan-delta', label: 'Δ Plán vs IST', values: planDeltaValues, total: roundMetric(sumValues(planDeltaValues), format) },
     ],
     breakdown: [],
   };

@@ -53,28 +53,28 @@ export function LegacyIndexSidebar() {
               <div className="field-label">Ukazovateľ</div>
               <select className="scope-select" id="metricSelect" />
             </label>
-            <div className="side-list" id="scopeSummary" />
+            <div className="side-list" id="scopeSummary" hidden />
+          </div>
+
+          <div hidden aria-hidden="true">
+            <div id="metricTableTitle" />
+            <div id="metricTableModeMeta" />
           </div>
 
           <div className="side-card">
-            <h3>Riadenie zobrazenia</h3>
+
             <div className="table-toolbar">
-              <div className="table-toolbar-copy">
-                <div className="table-toolbar-kicker">Navigácia tabuľky</div>
-                <div className="panel-title" id="metricTableTitle">Ukazovatele po Mesiacoch</div>
-                <div className="support-text" id="metricTableModeMeta" />
-              </div>
-              <div className="table-toolbar-actions">
+<div className="table-toolbar-actions">
                 <div className="table-toolbar-group table-toolbar-group--primary">
-                  <div className="table-toolbar-group-label">Zobrazenie</div>
+                  <div className="table-toolbar-group-label">Typ zobrazenia</div>
                   <div className="chart-mode-tabs table-view-tabs" id="tableViewControls" />
                 </div>
                 <div className="table-toolbar-group table-toolbar-group--filters">
-                  <div className="table-toolbar-group-label">Vrstvy údajov</div>
+                  <div className="table-toolbar-group-label">Výber riadkov</div>
                   <div className="chart-mode-tabs table-row-visibility-tabs" id="rowVisibilityControls" />
                 </div>
                 <div className="table-toolbar-group table-toolbar-group--actions">
-                  <div className="table-toolbar-group-label">Práca s riadkami</div>
+                  
                   <div className="table-toolbar-bulk-actions">
                     <button className="secondary-btn" id="collapseAllMetricsButton" type="button">Zbaliť všetko</button>
                     <button className="secondary-btn" id="expandAllMetricsButton" type="button">Rozbaliť všetko</button>
@@ -86,13 +86,10 @@ export function LegacyIndexSidebar() {
 
           <MetricLayoutPanel />
 
-          <div className="side-card">
-            <h3>Dalšie možnosti</h3>
-            <div className="action-row">
-              <button className="secondary-btn" id="refreshButton" type="button">Obnoviť dáta</button>
-              <button className="primary-btn" id="saveButton" type="button">Uložiť zmeny</button>
-            </div>
-            <div className="tiny" id="saveHint">Editácia je povolená len pre VOD a len pre otvorené mesiace.</div>
+          <div hidden aria-hidden="true">
+            <button id="refreshButton" type="button" />
+            <button id="saveButton" type="button" />
+            <div id="saveHint" />
           </div>
         </div>
       </aside>

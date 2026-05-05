@@ -1140,11 +1140,61 @@
 				color: var(--brand);
 			}
 
-			.recalc-fab {
+			.fab-tray {
 				position: fixed;
 				left: 1.125rem;
 				bottom: 1.125rem;
 				z-index: 165;
+				display: flex;
+				flex-direction: column;
+				gap: 0.5rem;
+				align-items: flex-start;
+			}
+
+			.fab-bottom-row {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				gap: 0.4rem;
+			}
+
+			.fab-tray--collapsed .recalc-fab {
+				opacity: 0;
+				pointer-events: none;
+				transform: translateY(0.375rem);
+			}
+
+			.fab-collapse-toggle {
+				width: 2.25rem;
+				height: 1.375rem;
+				border-radius: 0.55rem;
+				background: var(--surface-muted);
+				border: 1px solid var(--line-strong);
+				cursor: pointer;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+				transition: background 0.16s ease;
+			}
+
+			.fab-collapse-toggle::after {
+				content: '';
+				display: block;
+				width: 0.4rem;
+				height: 0.4rem;
+				border-right: 1.5px solid var(--text);
+				border-bottom: 1.5px solid var(--text);
+				opacity: 0.6;
+				transform: rotate(45deg) translateY(-0.05rem);
+				transition: transform 0.16s ease;
+			}
+
+			.fab-tray--collapsed .fab-collapse-toggle::after {
+				transform: rotate(-135deg) translateY(0.05rem);
+			}
+
+			.recalc-fab {
 				border: 1px solid rgba(100, 116, 139, 0.26);
 				border-radius: 0.9rem;
 				padding: 0.78em 1.05em;
@@ -1158,8 +1208,7 @@
 			}
 
 			body.sidebar-open .shell-menu-button,
-			body.sidebar-open .recalc-fab,
-			body.sidebar-open .save-fab {
+			body.sidebar-open .fab-tray {
 				opacity: 0;
 				pointer-events: none;
 			}
@@ -1178,7 +1227,6 @@
 			}
 
 			.save-fab {
-				bottom: 4.625rem;
 				background: linear-gradient(135deg, var(--brand), var(--brand-deep));
 				box-shadow: 0 16px 30px rgba(200, 79, 64, 0.28);
 			}
@@ -3503,14 +3551,13 @@
 					border-radius: 0.95rem;
 				}
 
-				.recalc-fab {
+				.fab-tray {
 					left: 0.75rem;
 					bottom: 0.75rem;
-					padding: 0.8em 1em;
 				}
 
-				.save-fab {
-					bottom: 4.25rem;
+				.recalc-fab {
+					padding: 0.8em 1em;
 				}
 			}
 
@@ -3765,12 +3812,9 @@
 					width: 2.9rem;
 					height: 2.9rem;
 				}
-				.recalc-fab {
+				.fab-tray {
 					left: 0.75rem;
 					bottom: 0.75rem;
-				}
-				.save-fab {
-					bottom: 4rem;
 				}
 
 				/* ── Note modal: use more screen width ── */
@@ -3811,8 +3855,13 @@
 			</div>
 		</div>
 		<div class="save-status-toast hidden" id="saveStatusToast" aria-live="polite"></div>
-			<button class="recalc-fab save-fab hidden" id="saveFabButton" type="button">Uložiť zmeny</button>
-		<button class="recalc-fab hidden" id="recalcButton" type="button">Prepočítať</button>
+			<div class="fab-tray" id="fabTray">
+				<button class="recalc-fab save-fab hidden" id="saveFabButton" type="button">Uložiť zmeny</button>
+				<div class="fab-bottom-row">
+					<button class="recalc-fab hidden" id="recalcButton" type="button">Prepočítať</button>
+					<button class="fab-collapse-toggle" id="fabCollapseToggle" type="button" aria-label="Skryť tlačidlá"></button>
+				</div>
+			</div>
 		<section class="login-shell" id="loginShell">
 			<div class="login-shell-utility-bar" aria-label="Rýchle akcie prihlásenia">
 				<button class="shell-utility-button js-theme-mode-toggle" type="button" role="switch" aria-checked="false" aria-label="Prepnúť tmavý mód" title="Prepnúť vzhľad" data-theme-toggle="mode" data-theme-mode="light">
@@ -4065,14 +4114,14 @@
 
 			const TABLE_VIEWS = {
 				monthly: {
-					label: 'Mesačný detail',
-					title: 'Ukazovatele po Mesiacoch',
-					description: 'Detail po mesiacoch s rozbalením vrstiev, úprav VOD a poznámok.',
+					label: 'Mesačný prehľad',
+					title: '',
+					description: '',
 				},
 				weekly: {
-					label: 'Týždenný kompakt',
-					title: 'Týždenný prehľad ukazovateľov',
-					description: 'Vybraný mesiac sa rozloží rovnomerne do kalendárnych týždňov a pravý stĺpec ostáva mesačný.',
+					label: 'Týždenný prehľad',
+					title: '',
+					description: '',
 				},
 			};
 
@@ -5230,7 +5279,7 @@
 				}, { requiredHours: 0, currentHoursBase: 0, deltaHours: 0 });
 
 				return {
-					metric: isYearScope ? 'Potrebné netto do ročného plánu ČV' : 'Potrebné netto do plánu ČV',
+					metric: 'Hodiny na cieľ HV',
 					format: 'hours',
 					value: normalizeStoredMetricValue(totals.deltaHours, 'hours'),
 					valueSigned: true,
@@ -6019,6 +6068,7 @@
 					case 'structure-hours-derived':
 						return 'forecast';
 					case 'delta':
+					case 'plan-delta':
 						return 'delta';
 					case 'recommendation':
 					case 'recommendation-result':
@@ -7623,7 +7673,10 @@
 					return getDisplayForecastLabel();
 				}
 				if (row && row.type === 'delta') {
-					return 'Δ Delta vs IST';
+					return 'Δ Úprava VOD';
+				}
+				if (row && row.type === 'plan-delta') {
+					return 'Δ Plán vs IST';
 				}
 				if (row && row.type === 'recommendation') {
 					return 'Doporucenie Vzorca';
@@ -7726,6 +7779,12 @@
 
 				deltaRow.values = getMetricDeltaValues(section, planRow, realRow, forecastRow);
 				deltaRow.total = summarizeDeltaRowTotal(section, deltaRow.values, rows);
+
+				const planDeltaRow = rows.find(function(row) { return row.type === 'plan-delta'; }) || null;
+				if (planDeltaRow && planRow && realRow) {
+					planDeltaRow.values = getMetricDeltaValues(section, planRow, realRow, planRow);
+					planDeltaRow.total = planDeltaRow.values.reduce(function(sum, v) { return sum + Number(v || 0); }, 0);
+				}
 			}
 
 			function buildDisplayRowsForSection(section, months, workingDaysByMonth, context) {
@@ -7878,10 +7937,14 @@
 					return rows;
 				}
 
+				const planDeltaIndex = rows.findIndex(function(row) {
+					return row.type === 'plan-delta';
+				});
 				const deltaIndex = rows.findIndex(function(row) {
 					return row.type === 'delta';
 				});
-				const insertIndex = deltaIndex > -1 ? deltaIndex + 1 : rows.length;
+				const anchorIndex = planDeltaIndex > -1 ? planDeltaIndex : deltaIndex;
+				const insertIndex = anchorIndex > -1 ? anchorIndex + 1 : rows.length;
 				rows.splice(insertIndex, 0, recommendationRow);
 				return rows;
 			}
