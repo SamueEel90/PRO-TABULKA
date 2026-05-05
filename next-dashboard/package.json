@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/build.mjs",
+    "build:vercel": "node scripts/build.mjs",
     "start": "next start",
     "lint": "next lint",
     "import:ist": "node scripts/import-ist.mjs",
