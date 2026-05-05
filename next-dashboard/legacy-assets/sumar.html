@@ -15,7 +15,50 @@
 			:root {
 				--surface: rgba(255, 255, 255, 0.94);
 				--surface-strong: rgba(255, 255, 255, 0.98);
+				--surface-muted: rgba(250, 251, 252, 0.98);
 				--badge-border: rgba(15, 23, 42, 0.16);
+				--button-surface: linear-gradient(180deg, rgba(255,255,255,0.99), rgba(243,245,247,0.98));
+				--button-surface-hover: linear-gradient(180deg, rgba(255,255,255,1), rgba(238,241,244,0.99));
+				--button-border: rgba(100, 116, 139, 0.18);
+				--button-shadow: 0 10px 22px rgba(34,56,77,0.08);
+				--button-text: #334155;
+				--sidebar-w: min(30rem, calc(100vw - 1.75rem));
+				--focus-ring: 0 0 0 2.5px rgba(200, 79, 64, 0.22);
+			}
+
+			body.theme-dark {
+				--surface: rgba(20, 22, 25, 0.9);
+				--surface-strong: #23272c;
+				--surface-muted: rgba(26, 28, 32, 0.94);
+				--badge-border: rgba(146, 132, 136, 0.22);
+				--button-surface: linear-gradient(180deg, rgba(36,38,42,0.96), rgba(24,26,29,0.96));
+				--button-surface-hover: linear-gradient(180deg, rgba(45,47,52,0.98), rgba(28,30,34,0.98));
+				--button-border: rgba(146, 132, 136, 0.22);
+				--button-shadow: 0 14px 30px rgba(2,9,18,0.34);
+				--button-text: #d8e7f5;
+				--line: rgba(146, 132, 136, 0.16);
+				--line-strong: rgba(146, 132, 136, 0.28);
+				--text: #e3edf8;
+				--muted: #a79da0;
+				--navy: #ff8f93;
+				--brand: #f08872;
+				--brand-deep: #c85c49;
+				--shadow: 0 28px 64px rgba(2, 10, 20, 0.36);
+				--info-soft: rgba(200, 79, 64, 0.12);
+				--chart-plan: #e05358;
+				--chart-plan-soft: rgba(224, 83, 88, 0.2);
+				--chart-forecast: #7ab6ff;
+				--chart-forecast-soft: rgba(122, 182, 255, 0.18);
+				--chart-adjustment: #d3a451;
+				--chart-adjustment-soft: rgba(211, 164, 81, 0.15);
+				--chart-ist: #f8fafc;
+				--chart-ist-soft: rgba(248, 250, 252, 0.16);
+				--badge-bg: rgba(31, 21, 24, 0.96);
+				--badge-text: #eef6ff;
+				--grid: rgba(146, 132, 136, 0.14);
+				--tooltip-bg: rgba(6, 16, 28, 0.96);
+				--focus-ring: 0 0 0 2.5px rgba(200, 79, 64, 0.28);
+				--green: #5fd4a5;
 			}
 
 			html {
@@ -36,6 +79,10 @@
 				min-height: 100vh;
 			}
 
+			body.theme-dark {
+				background: linear-gradient(180deg, #121416 0%, #1a1b1f 44%, #261d20 100%);
+			}
+
 			body::before {
 				content: '';
 				position: fixed;
@@ -44,6 +91,10 @@
 				background-size: 30px 30px;
 				pointer-events: none;
 				mask-image: radial-gradient(circle at center, black 50%, transparent 100%);
+			}
+
+			body.theme-dark::before {
+				background-image: linear-gradient(rgba(200, 79, 64, 0.022) 1px, transparent 1px), linear-gradient(90deg, rgba(200, 79, 64, 0.022) 1px, transparent 1px);
 			}
 
 			button,
@@ -62,19 +113,25 @@
 				box-shadow: var(--shadow);
 			}
 
+			body.theme-dark .surface {
+				border-color: rgba(255, 255, 255, 0.06);
+			}
+
 			.secondary-btn {
-				border: 0;
+				border: 1px solid var(--button-border);
 				border-radius: var(--radius-md);
 				padding: 0.9em 1.2em;
 				font-weight: 800;
 				letter-spacing: 0.01em;
 				cursor: pointer;
-				transition: transform 0.2s ease;
-				background: var(--info-soft);
-				color: var(--navy);
+				transition: transform 0.2s ease, background 0.2s ease;
+				background: var(--button-surface);
+				color: var(--button-text);
+				box-shadow: var(--button-shadow);
 			}
 
 			.secondary-btn:hover {
+				background: var(--button-surface-hover);
 				transform: translateY(-1px);
 			}
 
@@ -153,80 +210,325 @@
 			.app-shell {
 				display: none;
 				min-height: 100vh;
-				padding: 1.125rem 1.5rem 1.75rem;
+				padding: 1.5rem 1.5rem 1.75rem;
 			}
 
 			body.nav-open {
 				overflow: hidden;
 			}
 
-			.summary-header {
-				position: static;
-				display: flex;
-				justify-content: space-between;
-				align-items: flex-start;
-				gap: 1rem;
-				padding: 0.75rem 0 1rem;
-			}
-
-			.summary-header-left {
-				display: grid;
-				gap: 0.45rem;
-				padding: 1rem 1.15rem;
-				border-radius: 1.4rem;
-				background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.72));
-				border: 1px solid rgba(255, 255, 255, 0.82);
-				box-shadow: 0 18px 42px rgba(34, 56, 77, 0.10);
-				max-width: min(100%, 48rem);
-			}
-
-			.summary-header-right {
-				display: flex;
-				align-items: center;
-				gap: 0.625rem;
-				flex-wrap: wrap;
-				justify-content: flex-end;
-			}
-
-			.summary-actions {
-				display: flex;
-				justify-content: flex-end;
-				gap: 0.75rem;
-				flex-wrap: wrap;
-			}
-
-			.summary-badge {
+			/* ── Shell chrome: hamburger + utility bar ─────────────────── */
+			.shell-menu-button {
+				position: fixed;
+				top: 1rem;
+				left: 1rem;
+				z-index: 145;
 				display: inline-flex;
 				align-items: center;
-				gap: 0.5rem;
-				width: fit-content;
-				padding: 0.5rem 0.75rem;
-				border-radius: var(--radius-pill);
-				background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.84));
-				border: 1px solid rgba(200, 79, 64, 0.14);
-				color: var(--brand);
-				font-size: 0.75rem;
+				gap: 0.625rem;
+				padding: 0.62em 0.9em;
+				border: 1px solid var(--button-border);
+				border-radius: var(--radius-md);
+				background: var(--button-surface);
+				color: var(--button-text);
+				box-shadow: var(--button-shadow);
 				font-weight: 800;
+				cursor: pointer;
+				transition: transform 0.2s ease, background 0.2s ease;
+			}
+
+			.shell-menu-button:hover {
+				background: var(--button-surface-hover);
+				transform: translateY(-1px);
+			}
+
+			.shell-menu-icon {
+				display: inline-grid;
+				gap: 0.25rem;
+			}
+
+			.shell-menu-icon span {
+				display: block;
+				width: 1.125rem;
+				height: 2px;
+				border-radius: 999px;
+				background: currentColor;
+			}
+
+			.shell-utility-bar {
+				position: fixed;
+				top: 1rem;
+				right: 1rem;
+				z-index: 145;
+				display: inline-flex;
+				align-items: center;
+				gap: 0.55rem;
+			}
+
+			.shell-utility-button {
+				position: relative;
+				width: 3.15rem;
+				height: 3.15rem;
+				padding: 0;
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				border: 1px solid rgba(255, 255, 255, 0.24);
+				border-radius: 1.05rem;
+				background:
+					linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.08)),
+					linear-gradient(135deg, rgba(103,112,123,0.56), rgba(67,72,79,0.4));
+				box-shadow:
+					0 14px 28px rgba(8,12,18,0.22),
+					inset 0 1px 0 rgba(255,255,255,0.34),
+					inset 0 -1px 0 rgba(255,255,255,0.08);
+				backdrop-filter: blur(18px) saturate(1.08);
+				color: #f7fafc;
+				cursor: pointer;
+				transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+			}
+
+			.shell-utility-button::before {
+				content: '';
+				position: absolute;
+				inset: 0.32rem;
+				border-radius: 0.85rem;
+				background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.02));
+				pointer-events: none;
+			}
+
+			.shell-utility-button:hover {
+				transform: translateY(-1px) scale(1.01);
+				border-color: rgba(255,255,255,0.34);
+				box-shadow:
+					0 18px 34px rgba(8,12,18,0.26),
+					inset 0 1px 0 rgba(255,255,255,0.4),
+					inset 0 -1px 0 rgba(255,255,255,0.08);
+			}
+
+			.shell-utility-button:focus-visible {
+				outline: none;
+				box-shadow: var(--focus-ring), 0 18px 34px rgba(8,12,18,0.28);
+			}
+
+			.shell-utility-button.is-active {
+				background:
+					linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.08)),
+					linear-gradient(135deg, rgba(200,79,64,0.92), rgba(130,44,37,0.88));
+			}
+
+			.shell-utility-button svg {
+				position: relative;
+				z-index: 1;
+				width: 1.32rem;
+				height: 1.32rem;
+				stroke: currentColor;
+				stroke-width: 1.9;
+				fill: none;
+				stroke-linecap: round;
+				stroke-linejoin: round;
+			}
+
+			body.theme-dark .shell-utility-button {
+				border-color: rgba(236, 243, 255, 0.18);
+				background:
+					linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.03)),
+					linear-gradient(135deg, rgba(90,93,98,0.66), rgba(48,42,47,0.58));
+			}
+
+			body.theme-dark .shell-utility-button.is-active {
+				background:
+					linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04)),
+					linear-gradient(135deg, rgba(227,58,64,0.92), rgba(141,28,35,0.92));
+			}
+
+			/* ── Sidebar ────────────────────────────────────────────────── */
+			.sidebar-backdrop {
+				position: fixed;
+				inset: 0;
+				z-index: 130;
+				background: rgba(15, 23, 42, 0.36);
+				backdrop-filter: blur(4px);
+			}
+
+			body.theme-dark .sidebar-backdrop {
+				background: rgba(2, 8, 16, 0.58);
+			}
+
+			.sidebar {
+				position: fixed;
+				top: 0;
+				left: 0;
+				bottom: 0;
+				z-index: 140;
+				width: var(--sidebar-w);
+				padding: 1.1rem 1rem 1.25rem;
+				border-radius: 0 2rem 2rem 0;
+				display: grid;
+				align-content: start;
+				gap: 0.75rem;
+				overflow-y: auto;
+				background: linear-gradient(175deg, rgba(250,251,253,0.99) 0%, rgba(238,244,251,0.97) 100%);
+				border-right: 1px solid rgba(100, 116, 139, 0.1);
+				backdrop-filter: blur(24px) saturate(1.08);
+				transform: translateX(-108%);
+				transition: transform 0.28s cubic-bezier(0.32, 0, 0.12, 1), box-shadow 0.28s ease;
+			}
+
+			.sidebar.is-open {
+				transform: translateX(0);
+				box-shadow: 6px 0 40px rgba(15,30,55,0.14), 2px 0 12px rgba(15,30,55,0.07);
+			}
+
+			body.theme-dark .sidebar {
+				background:
+					linear-gradient(175deg, rgba(20,20,24,0.99) 0%, rgba(30,22,26,0.98) 100%),
+					radial-gradient(circle at top right, rgba(200,79,64,0.12), transparent 40%);
+				border-right-color: rgba(255, 255, 255, 0.06);
+				box-shadow: 6px 0 40px rgba(1,6,14,0.55), 2px 0 12px rgba(1,6,14,0.3);
+			}
+
+			.sidebar-topline {
+				display: grid;
+				grid-template-columns: auto 1fr;
+				align-items: center;
+				gap: 0.875rem;
+				padding-bottom: 0.875rem;
+				border-bottom: 1px solid var(--line);
+				margin-bottom: 0.125rem;
+			}
+
+			.sidebar-content {
+				display: grid;
+				grid-template-columns: 1fr;
+				gap: 0.625rem;
+				align-content: start;
+			}
+
+			.topbar-toggle {
+				width: 2.875rem;
+				height: 2.875rem;
+				padding: 0;
+				border-radius: 0.925rem;
+				font-size: 1.45rem;
+				line-height: 1;
+				white-space: nowrap;
+				box-shadow: var(--button-shadow);
+				flex-shrink: 0;
+			}
+
+			.brand-mark {
+				display: flex;
+				gap: 0.75rem;
+				align-items: center;
+				padding: 0.625rem 0.875rem;
+				border-radius: var(--radius-md);
+				background: var(--surface-muted);
+				border: 1px solid var(--line);
+				box-shadow: var(--shadow);
+				min-width: 0;
+				backdrop-filter: blur(14px);
+			}
+
+			.brand-square {
+				width: 2.125rem;
+				height: 2.125rem;
+				border-radius: 0.625rem;
+				background: #ffffff;
+				display: grid;
+				place-items: center;
+				padding: 0.25rem;
+				box-shadow: 0 14px 24px rgba(200, 79, 64, 0.24);
+				overflow: hidden;
+				flex-shrink: 0;
+			}
+
+			body.theme-dark .brand-square {
+				background: linear-gradient(180deg, rgba(248,250,252,0.98), rgba(227,233,240,0.92));
+				box-shadow: 0 14px 24px rgba(200, 79, 64, 0.18);
+			}
+
+			.brand-square img {
+				width: 100%;
+				height: 100%;
+				object-fit: contain;
+			}
+
+			.brand-title {
+				display: flex;
+				flex-direction: column;
+				gap: 0.125rem;
+				min-width: 0;
+			}
+
+			.brand-title span:first-child {
+				font-size: 0.625rem;
 				letter-spacing: 0.08em;
 				text-transform: uppercase;
+				color: var(--muted);
+				font-weight: 800;
 			}
 
-			.summary-header h1 {
-				margin: 0;
-				font-size: clamp(2rem, 4vw, 3rem);
-				line-height: 0.95;
-				letter-spacing: -0.04em;
-				max-width: 14ch;
-				text-wrap: balance;
-				color: #17344e;
+			.brand-title span:last-child {
+				font-size: 0.9375rem;
+				font-weight: 800;
+				color: var(--text);
+				letter-spacing: -0.01em;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
 			}
 
-			#pageText {
-				max-width: 42rem;
-				font-size: 0.96rem;
-				line-height: 1.55;
-				color: #53677f;
+			.side-card {
+				padding: 0.875rem 1rem;
+				border-radius: 1.25rem;
+				background: var(--surface-muted);
+				border: 1px solid var(--line);
+				backdrop-filter: blur(14px);
 			}
+
+			.side-card h3 {
+				margin: 0 0 0.625rem;
+				font-size: 0.6875rem;
+				font-weight: 800;
+				letter-spacing: 0.07em;
+				text-transform: uppercase;
+				color: var(--muted);
+			}
+
+			.side-card .identity-name {
+				font-size: 0.9375rem;
+				font-weight: 700;
+				color: var(--text);
+				margin-bottom: 0.25rem;
+			}
+
+			.side-card .identity-meta {
+				font-size: 0.8125rem;
+				color: var(--muted);
+				margin-bottom: 0.5rem;
+			}
+
+			.side-card .side-list {
+				display: flex;
+				gap: 0.4rem;
+				flex-wrap: wrap;
+				margin-top: 0.5rem;
+			}
+
+			.side-card--actions {
+				display: grid;
+				gap: 0.5rem;
+			}
+
+			.side-card .scope-select {
+				padding: 0.6rem 0.9rem;
+			}
+
+			.sidebar::-webkit-scrollbar { width: 0.5rem; }
+			.sidebar::-webkit-scrollbar-track { background: rgba(22, 54, 95, 0.04); border-radius: 999px; }
+			.sidebar::-webkit-scrollbar-thumb { background: rgba(22, 54, 95, 0.18); border-radius: 999px; }
+			.sidebar::-webkit-scrollbar-thumb:hover { background: rgba(22, 54, 95, 0.30); border-radius: 999px; }
 
 			.summary-shell {
 				display: grid;
@@ -235,89 +537,9 @@
 				align-items: start;
 			}
 
-			.nav-scrim {
-				position: fixed;
-				inset: 0;
-				background: rgba(15, 23, 42, 0.24);
-				backdrop-filter: blur(6px);
-				opacity: 0;
-				pointer-events: none;
-				transition: opacity 0.24s ease;
-				z-index: 35;
-			}
-
-			.app-shell.nav-open .nav-scrim {
-				opacity: 1;
-				pointer-events: auto;
-			}
-
-			.nav-panel,
 			.chart-panel {
 				border-radius: var(--radius-xl);
 				padding: 1.25rem;
-			}
-
-			.nav-panel {
-				position: fixed;
-				top: 0;
-				left: 0;
-				display: grid;
-				gap: 1rem;
-				width: clamp(19rem, 28vw, 24rem);
-				height: 100vh;
-				max-height: 100vh;
-				overflow-y: auto;
-				overflow-x: hidden;
-				padding: 1.25rem 0.75rem 1.25rem 1.25rem;
-				scrollbar-gutter: stable;
-				z-index: 40;
-				transform: translateX(calc(-100% - 1.5rem));
-				opacity: 0;
-				pointer-events: none;
-				transition: transform 0.28s ease, opacity 0.2s ease;
-			}
-
-			.app-shell.nav-open .nav-panel {
-				transform: translateX(0);
-				opacity: 1;
-				pointer-events: auto;
-			}
-
-			.nav-panel-head {
-				display: flex;
-				justify-content: space-between;
-				align-items: flex-start;
-				gap: 0.75rem;
-			}
-
-			.drawer-btn {
-				display: inline-flex;
-				align-items: center;
-				justify-content: center;
-				gap: 0.6rem;
-				position: fixed;
-				top: 1rem;
-				right: 1rem;
-				z-index: 45;
-				box-shadow: 0 18px 32px rgba(15, 23, 42, 0.16);
-			}
-
-			.drawer-btn-lines {
-				display: inline-grid;
-				gap: 0.2rem;
-			}
-
-			.drawer-btn-lines span {
-				display: block;
-				width: 1rem;
-				height: 2px;
-				border-radius: 999px;
-				background: currentColor;
-			}
-
-			.drawer-close-btn {
-				padding: 0.75rem 0.9rem;
-				min-width: auto;
 			}
 
 			.panel-title {
@@ -329,7 +551,6 @@
 				color: var(--muted);
 			}
 
-			.nav-copy h2,
 			.chart-head-copy h2 {
 				margin: 0;
 				font-size: 1.5rem;
@@ -351,18 +572,18 @@
 				align-items: center;
 				flex-wrap: wrap;
 				gap: 0.375rem;
-				padding: 0.625rem 0.8rem;
+				padding: 0.45rem 0.7rem;
 				border-radius: var(--radius-pill);
-				background: rgba(22, 54, 95, 0.07);
+				background: var(--info-soft);
 				color: var(--navy);
-				font-size: 0.875rem;
+				font-size: 0.8125rem;
 				font-weight: 800;
 				max-width: 100%;
 				overflow-wrap: anywhere;
 			}
 
 			.metric-chip {
-				background: rgba(255, 255, 255, 0.82);
+				background: var(--surface-strong);
 				border: 1px solid var(--line);
 			}
 
@@ -394,6 +615,11 @@
 				min-width: 0;
 			}
 
+			body.theme-dark .tree-row {
+				background: rgba(38, 30, 34, 0.72);
+				border-color: rgba(146, 132, 136, 0.14);
+			}
+
 			.tree-toggle,
 			.tree-spacer {
 				width: 1.75rem;
@@ -407,6 +633,10 @@
 				background: rgba(22, 54, 95, 0.08);
 				color: var(--navy);
 				font-weight: 800;
+			}
+
+			body.theme-dark .tree-toggle {
+				background: rgba(200, 79, 64, 0.14);
 			}
 
 			.tree-button {
@@ -439,6 +669,12 @@
 				box-shadow: 0 14px 26px rgba(215, 25, 32, 0.1);
 			}
 
+			body.theme-dark .tree-row.is-active {
+				background: linear-gradient(135deg, rgba(200, 79, 64, 0.2), rgba(200, 79, 64, 0.08));
+				border-color: rgba(200, 79, 64, 0.28);
+				box-shadow: 0 8px 20px rgba(200, 79, 64, 0.14);
+			}
+
 			.tree-row.is-active .tree-button strong {
 				color: var(--brand-deep);
 			}
@@ -458,27 +694,13 @@
 				flex-shrink: 0;
 			}
 
+			body.theme-dark .tree-type {
+				background: rgba(38, 30, 34, 0.88);
+			}
+
 			.tree-children {
 				display: grid;
 				gap: 0.375rem;
-			}
-
-			.nav-panel::-webkit-scrollbar {
-				width: 0.55rem;
-			}
-
-			.nav-panel::-webkit-scrollbar-track {
-				background: rgba(22, 54, 95, 0.06);
-				border-radius: 999px;
-			}
-
-			.nav-panel::-webkit-scrollbar-thumb {
-				background: rgba(22, 54, 95, 0.22);
-				border-radius: 999px;
-			}
-
-			.nav-panel::-webkit-scrollbar-thumb:hover {
-				background: rgba(22, 54, 95, 0.34);
 			}
 
 			.chart-panel {
@@ -974,6 +1196,13 @@
 				border: 1px solid rgba(15, 23, 42, 0.08);
 			}
 
+			body.theme-dark .story-panel,
+			body.theme-dark .quarter-panel,
+			body.theme-dark .journey-panel {
+				background: rgba(28, 22, 26, 0.72);
+				border-color: rgba(146, 132, 136, 0.12);
+			}
+
 			.story-panel,
 			.quarter-panel {
 				display: grid;
@@ -1243,16 +1472,33 @@
 				min-width: 0;
 			}
 
+			body.theme-dark .month-card {
+				background: rgba(30, 22, 26, 0.88);
+				border-color: rgba(146, 132, 136, 0.12);
+			}
+
 			.month-card.positive {
 				background: linear-gradient(180deg, rgba(27, 143, 90, 0.12), rgba(248, 250, 252, 0.92));
+			}
+
+			body.theme-dark .month-card.positive {
+				background: linear-gradient(180deg, rgba(95, 212, 165, 0.12), rgba(30, 22, 26, 0.88));
 			}
 
 			.month-card.negative {
 				background: linear-gradient(180deg, rgba(215, 25, 32, 0.11), rgba(248, 250, 252, 0.92));
 			}
 
+			body.theme-dark .month-card.negative {
+				background: linear-gradient(180deg, rgba(200, 79, 64, 0.14), rgba(30, 22, 26, 0.88));
+			}
+
 			.month-card.neutral {
 				background: rgba(248, 250, 252, 0.9);
+			}
+
+			body.theme-dark .month-card.neutral {
+				background: rgba(30, 22, 26, 0.88);
 			}
 
 			.month-card-header {
@@ -1339,14 +1585,6 @@
 			}
 
 			@media (max-width: 1180px) {
-				.summary-shell {
-					grid-template-columns: 1fr;
-				}
-
-				.nav-panel {
-					width: clamp(18rem, 42vw, 22rem);
-				}
-
 				.chart-filters {
 					grid-template-columns: 1fr;
 				}
@@ -1362,10 +1600,6 @@
 				.rollup-row-grid {
 					grid-template-columns: repeat(2, minmax(0, 1fr));
 				}
-
-				.summary-actions {
-					justify-content: flex-start;
-				}
 			}
 
 			@media (max-width: 780px) {
@@ -1373,24 +1607,9 @@
 					padding: 0.875rem 0.875rem 1.25rem;
 				}
 
-				.summary-header {
-					position: static;
-					flex-direction: column;
-				}
-
-				.summary-header-left {
-					max-width: 100%;
-				}
-
-				.nav-panel,
 				.chart-panel {
 					padding: 1rem;
 					border-radius: 1.375rem;
-				}
-
-				.nav-panel {
-					width: min(88vw, 22rem);
-					padding: 1rem 0.65rem 1rem 1rem;
 				}
 
 				.scope-overview {
@@ -1436,24 +1655,14 @@
 					justify-self: start;
 				}
 
-				.summary-header-right {
-					width: 100%;
-					justify-content: flex-start;
+				.shell-menu-button {
+					top: 0.75rem;
+					left: 0.75rem;
 				}
 
-				.summary-actions {
-					width: 100%;
-					justify-content: stretch;
-				}
-
-				.summary-actions .secondary-btn {
-					flex: 1 1 12rem;
-				}
-
-				.drawer-btn {
-					top: 0.875rem;
-					right: 0.875rem;
-					padding: 0.82em 1em;
+				.shell-utility-bar {
+					top: 0.75rem;
+					right: 0.75rem;
 				}
 			}
 
@@ -1526,48 +1735,61 @@
 			</div>
 		</div>
 
+		<button class="shell-menu-button" id="menuToggleButton" type="button" aria-controls="topBar" aria-expanded="false">
+			<span class="shell-menu-icon" aria-hidden="true"><span></span><span></span><span></span></span>
+			<span>Menu</span>
+		</button>
+
+		<div class="shell-utility-bar" aria-label="Rýchle akcie sumáru">
+			<button class="shell-utility-button js-theme-mode-toggle" type="button" role="switch" aria-checked="false" aria-label="Prepnúť tmavý mód" title="Prepnúť vzhľad" data-theme-toggle="mode" data-theme-mode="light">
+				<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.2" /><path d="M12 19.3v2.2" /><path d="M21.5 12h-2.2" /><path d="M4.7 12H2.5" /><path d="M18.7 5.3l-1.6 1.6" /><path d="M6.9 17.1l-1.6 1.6" /><path d="M18.7 18.7l-1.6-1.6" /><path d="M6.9 6.9L5.3 5.3" /></svg>
+			</button>
+		</div>
+
+		<div class="sidebar-backdrop hidden" id="sidebarBackdrop"></div>
+
 		<section class="app-shell" id="appShell">
-			<header class="summary-header">
-				<div class="summary-header-left">
-					<div class="summary-badge" id="headerBadge">PRO Sumár GJ2026</div>
-					<h1 id="pageTitle">Sumár PRO GJ 2026</h1>
-					<div class="support-text" id="pageText"></div>
-				</div>
-				<div class="summary-header-right">
-					<div class="error-banner hidden" id="pageError"></div>
-					<button class="secondary-btn drawer-btn" id="navToggleButton" type="button" aria-expanded="false" aria-controls="navPanel">
-						<span class="drawer-btn-lines" aria-hidden="true"><span></span><span></span><span></span></span>
-						<span>Navigácia</span>
-					</button>
-				</div>
-			</header>
-
-			<div class="nav-scrim" id="navScrim"></div>
-
-			<div class="summary-shell">
-				<aside class="nav-panel surface" id="navPanel" aria-label="Navigácia sumáru">
-					<div class="nav-panel-head">
-						<div class="nav-copy">
-							<div class="panel-title">Navigácia</div>
-							<h2>Výber levelu</h2>
-							<div class="support-text">SK/GF/VKL/Filiálka</div>
+			<aside class="sidebar" id="topBar">
+				<div class="sidebar-topline">
+					<button class="secondary-btn topbar-toggle" id="navCloseButton" type="button" aria-label="Zavrieť menu">&times;</button>
+					<div class="brand-mark">
+						<div class="brand-square"><img src="https://upload.wikimedia.org/wikipedia/commons/6/65/Kaufland_Deutschland.png" alt="Kaufland logo"></div>
+						<div class="brand-title">
+							<span>Pro GJ 2026</span>
+							<span>Kaufland Sumár</span>
 						</div>
-						<button class="secondary-btn drawer-close-btn" id="navCloseButton" type="button" aria-label="Zavrieť navigáciu">Zavrieť</button>
 					</div>
-					<div class="count-strip" id="countStrip"></div>
-					<div class="tree-toolbar">
-						<div>
-							<div class="field-label">Metriky</div>
+				</div>
+				<div class="sidebar-content" id="topbarContent">
+					<div class="side-card">
+						<h3 id="pageTitle">Sumár PRO GJ 2026</h3>
+						<div class="identity-meta" id="headerBadge"></div>
+						<div class="identity-meta" id="pageText"></div>
+						<div class="side-list" id="countStrip"></div>
+						<div class="side-list" id="scopeStrip"></div>
+					</div>
+					<div class="side-card">
+						<h3>Metriky</h3>
+						<label>
+							<div class="field-label">Ukazovateľ</div>
 							<select class="scope-select" id="metricSelect"></select>
-						</div>
-						<div class="scope-strip" id="scopeStrip"></div>
+						</label>
 					</div>
-					<div>
-						<div class="panel-title">Hierarchia</div>
+					<div class="side-card">
+						<h3>Hierarchia SK / GF / VKL / Filiálka</h3>
 						<div class="tree-list" id="hierarchyTree"></div>
 					</div>
-				</aside>
+					<div class="side-card side-card--actions">
+						<button class="secondary-btn" id="refreshButton" type="button">Obnoviť dáta</button>
+						<button class="secondary-btn" id="openDashboardButton" type="button">Dashboard</button>
+						<button class="secondary-btn" id="logoutButton" type="button">Odhlásiť</button>
+					</div>
+				</div>
+			</aside>
 
+			<div class="error-banner hidden" id="pageError"></div>
+
+			<div class="summary-shell">
 				<main class="chart-panel surface">
 					<div class="chart-head">
 						<div class="chart-head-top">
@@ -1585,15 +1807,8 @@
 								<div class="scope-select" id="metricEcho"></div>
 							</div>
 							<div>
-								
 								<div class="chart-mode-tabs" id="chartMonthFilterControls"></div>
 							</div>
-						</div>
-
-						<div class="summary-actions">
-							<button class="secondary-btn" id="refreshButton" type="button">Obnoviť dáta</button>
-							<button class="secondary-btn" id="openDashboardButton" type="button">Dashboard</button>
-							<button class="secondary-btn" id="logoutButton" type="button">Odhlásiť</button>
 						</div>
 
 						<div class="scope-overview" id="scopeOverview"></div>
@@ -1628,6 +1843,8 @@
 			const CHART_PRIMARY_FILTER_ORDER = ['all', 'q1', 'q2', 'q3', 'q4'];
 			const CHART_SECONDARY_FILTER_ORDER = ['open', 'closed'];
 
+			const THEME_STORAGE_KEY = 'proDashboardThemeMode';
+
 			const state = {
 				summary: null,
 				loginValue: '',
@@ -1636,8 +1853,46 @@
 				expandedNodes: {},
 				selectedChartMonthFilter: 'all',
 				navOpen: false,
+				themeMode: 'light',
 				charts: {},
 			};
+
+			function resolveInitialThemeMode() {
+				try {
+					return window.localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light';
+				} catch (e) {
+					return 'light';
+				}
+			}
+
+			function updateThemeToggleUi() {
+				var toggles = document.querySelectorAll('[data-theme-toggle="mode"]');
+				var isDark = state.themeMode === 'dark';
+				toggles.forEach(function(toggle) {
+					toggle.setAttribute('aria-checked', isDark ? 'true' : 'false');
+					toggle.setAttribute('data-theme-mode', isDark ? 'dark' : 'light');
+					toggle.classList.toggle('is-active', isDark);
+					toggle.setAttribute('title', isDark ? 'Prepnúť na svetlý režim' : 'Prepnúť na tmavý režim');
+				});
+			}
+
+			function applyThemeMode(mode, options) {
+				var config = options || {};
+				var normalized = mode === 'dark' ? 'dark' : 'light';
+				state.themeMode = normalized;
+				document.body.classList.toggle('theme-dark', normalized === 'dark');
+				updateThemeToggleUi();
+				if (config.persist !== false) {
+					try { window.localStorage.setItem(THEME_STORAGE_KEY, normalized); } catch (e) {}
+				}
+			}
+
+			function toggleThemeMode() {
+				applyThemeMode(state.themeMode === 'dark' ? 'light' : 'dark');
+			}
+
+			state.themeMode = resolveInitialThemeMode();
+			applyThemeMode(state.themeMode, { persist: false });
 
 			const currencyFormatter = new Intl.NumberFormat('sk-SK', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 			const numberFormatter = new Intl.NumberFormat('sk-SK', { maximumFractionDigits: 1 });
@@ -1749,14 +2004,17 @@
 
 			Chart.register(staticValueLabelsPlugin);
 
-			document.getElementById('navToggleButton').addEventListener('click', function() {
+			document.getElementById('menuToggleButton').addEventListener('click', function() {
 				setNavigationOpen(!state.navOpen);
 			});
 			document.getElementById('navCloseButton').addEventListener('click', function() {
 				setNavigationOpen(false);
 			});
-			document.getElementById('navScrim').addEventListener('click', function() {
+			document.getElementById('sidebarBackdrop').addEventListener('click', function() {
 				setNavigationOpen(false);
+			});
+			document.querySelectorAll('.js-theme-mode-toggle').forEach(function(btn) {
+				btn.addEventListener('click', toggleThemeMode);
 			});
 			document.getElementById('refreshButton').addEventListener('click', refreshSummaryCacheAndReload);
 			document.getElementById('openDashboardButton').addEventListener('click', function() { navigateToView(''); });
@@ -1901,25 +2159,21 @@
 
 			function setNavigationOpen(isOpen) {
 				state.navOpen = Boolean(isOpen);
-				document.getElementById('appShell').classList.toggle('nav-open', state.navOpen);
+				var sidebar = document.getElementById('topBar');
+				var backdrop = document.getElementById('sidebarBackdrop');
+				if (sidebar) sidebar.classList.toggle('is-open', state.navOpen);
+				if (backdrop) backdrop.classList.toggle('hidden', !state.navOpen);
 				document.body.classList.toggle('nav-open', state.navOpen);
-				document.getElementById('navToggleButton').setAttribute('aria-expanded', state.navOpen ? 'true' : 'false');
+				var menuBtn = document.getElementById('menuToggleButton');
+				if (menuBtn) menuBtn.setAttribute('aria-expanded', state.navOpen ? 'true' : 'false');
 			}
 
 			function closeNavigationForCompactLayout() {
-				if (window.innerWidth <= 1180) {
-					setNavigationOpen(false);
-				}
+				setNavigationOpen(false);
 			}
 
 			function handleViewportResize() {
-				if (window.innerWidth > 1180 && state.navOpen) {
-					document.body.classList.toggle('nav-open', true);
-					return;
-				}
-				if (window.innerWidth > 1180 && !state.navOpen) {
-					document.body.classList.remove('nav-open');
-				}
+				// sidebar is always overlay-based — no special resize logic needed
 			}
 
 			function scheduleResponsiveRefresh() {

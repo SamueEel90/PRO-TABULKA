@@ -199,7 +199,7 @@ export function TaskCounter({ scopeKey, broadcastScopeKey, currentRole, currentA
                       onClick={() => handleStatusChange(task.id, 'done')}
                       title="Označiť ako splnené"
                     >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                     </button>

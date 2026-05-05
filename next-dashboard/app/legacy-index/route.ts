@@ -70,43 +70,22 @@ const APPS_SCRIPT_SHIM = `<script>
   })();
 </script>`;
 
-function getWorkspaceFilePath(fileName: string) {
-  return path.resolve(process.cwd(), '..', fileName);
-}
-
-function getInternalLegacyAssetPath(fileName: string) {
-  return path.resolve(process.cwd(), 'legacy-assets', fileName);
-}
-
 async function readLegacyAsset(fileName: string) {
-  const candidatePaths = process.env.NODE_ENV === 'production'
-    ? [getInternalLegacyAssetPath(fileName)]
-    : [getWorkspaceFilePath(fileName), getInternalLegacyAssetPath(fileName)];
-
-  let lastError: unknown = null;
-  for (const filePath of candidatePaths) {
-    try {
-      return await readFile(filePath, 'utf8');
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        lastError = error;
-        continue;
-      }
-      throw error;
+  const filePath = path.resolve(process.cwd(), 'legacy-assets', fileName);
+  try {
+    return await readFile(filePath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(`Legacy asset not found: ${fileName}`);
     }
+    throw error;
   }
-
-  throw lastError instanceof Error
-    ? lastError
-    : new Error(`Legacy asset not found: ${fileName}`);
 }
 
 function resolveLegacyAssetFileName(asset: string) {
   switch (asset) {
     case 'sumar':
       return 'sumar.html';
-    case 'test':
-      return 'test.html';
     default:
       return 'Index.html';
   }

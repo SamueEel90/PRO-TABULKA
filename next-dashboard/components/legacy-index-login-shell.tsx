@@ -1,5 +1,3 @@
-import Link from 'next/link';
-
 type LegacyIndexLoginShellProps = {
   initialLogin?: string;
 };
@@ -36,25 +34,6 @@ export function LegacyIndexLoginShell({ initialLogin = '' }: LegacyIndexLoginShe
           <strong>Prihlásenie</strong>
           <div className="support-text">Ak nemáš do systému prístup kontaktuj prosím administrátora.</div>
         </div>
-        <Link
-          href="/test-lab"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '.375rem',
-            marginTop: '.75rem',
-            padding: '.5em .875em',
-            borderRadius: '999px',
-            background: 'rgba(55,120,229,.1)',
-            color: '#24567c',
-            fontSize: '.8125rem',
-            fontWeight: 800,
-            textDecoration: 'none',
-            transition: 'background .15s ease',
-          }}
-        >
-          🧪 Test Lab →
-        </Link>
         <div className="error-banner hidden" id="loginError" />
       </div>
     </section>
