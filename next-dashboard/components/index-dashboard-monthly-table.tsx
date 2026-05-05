@@ -380,7 +380,7 @@ function renderYearTotalCell(section: MonthlyTableSectionModel, row: MonthlyTabl
     return <td className={`year-total-cell${highlight}`} title={highlight ? 'IST sumár obsahuje mesiace doplnené z plánu' : undefined}>{formatMetric(displayedTotal, section.format)}</td>;
   }
 
-  if (row.type === 'recommendation' || row.type === 'delta') {
+  if (row.type === 'recommendation' || row.type === 'delta' || row.type === 'plan-delta') {
     return <td className={`year-total-cell ${getDeltaCellClass(row.total)}`}><span className="delta-value">{formatSignedMetric(row.total, section.format)}</span></td>;
   }
 
@@ -420,7 +420,7 @@ function renderCell(section: MonthlyTableSectionModel, row: MonthlyTableRowModel
     return <td className={focusedCellClass}>{formatMetric(typeof value === 'number' ? value : 0, row.displayFormat || 'hours')}</td>;
   }
 
-  if (row.type === 'delta' || row.type === 'recommendation') {
+  if (row.type === 'delta' || row.type === 'plan-delta' || row.type === 'recommendation') {
     return <td className={`${focusedCellClass} ${getDeltaCellClass(value as number)}`}><span className="delta-value">{formatSignedMetric(value as number, section.format)}</span></td>;
   }
 

@@ -17,8 +17,10 @@ export function LegacyIndexChrome() {
       <div className="save-status-toast hidden" id="saveStatusToast" aria-live="polite" />
       <div className="fab-tray" id="fabTray">
         <button className="recalc-fab save-fab hidden" id="saveFabButton" type="button">Uložiť zmeny</button>
-        <button className="recalc-fab hidden" id="recalcButton" type="button">Prepočítať</button>
-        <button className="fab-collapse-toggle" id="fabCollapseToggle" type="button" aria-label="Skryť tlačidlá" />
+        <div className="fab-bottom-row">
+          <button className="recalc-fab hidden" id="recalcButton" type="button">Prepočítať</button>
+          <button className="fab-collapse-toggle" id="fabCollapseToggle" type="button" aria-label="Skryť tlačidlá" />
+        </div>
       </div>
 
       <div className="note-modal-backdrop hidden" id="noteModalBackdrop">
