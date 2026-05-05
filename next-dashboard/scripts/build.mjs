@@ -22,11 +22,7 @@ function run(command, args) {
 }
 
 async function main() {
-  const isVercelBuild = process.env.VERCEL === '1' || Boolean(process.env.VERCEL_ENV);
-  const prismaGenerateScript = isVercelBuild ? 'prisma:generate:postgres' : 'prisma:generate:sqlite';
-
-  await run('npm', ['run', 'legacy:sync']);
-  await run('npm', ['run', prismaGenerateScript]);
+  await run('npm', ['run', 'prisma:generate']);
   await run('next', ['build']);
 }
 

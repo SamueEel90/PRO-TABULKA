@@ -319,24 +319,26 @@ function StructureMixCell({
                   window.applyReactStructureMixAdjustment?.(month, nextBands, Number(mix.totalAdjustment || 0), baselineDailyHours, Number(workingDays || 0));
                 }}
               />
-              <div className="structure-mix-compare">
-                {(compareMode === 'plan' || compareMode === 'both') ? (
-                  <span className={`structure-compare-chip structure-compare-chip--plan${planDelta > 0 ? ' positive' : planDelta < 0 ? ' negative' : ''}`}>
-                    {`Pl\u00e1n ${formatSignedMetric(planDelta, 'number')}`}
-                  </span>
-                ) : null}
-                {(compareMode === 'ist' || compareMode === 'both') ? (
-                  band.hasRealCount ? (
-                    <span className={`structure-compare-chip structure-compare-chip--ist${realDelta > 0 ? ' positive' : realDelta < 0 ? ' negative' : ''}`}>
-                      {`IST ${formatSignedMetric(realDelta, 'number')}`}
+              {(compareMode === 'plan' || compareMode === 'ist' || compareMode === 'both') ? (
+                <div className="structure-mix-compare">
+                  {(compareMode === 'plan' || compareMode === 'both') ? (
+                    <span className={`structure-compare-chip structure-compare-chip--plan${planDelta > 0 ? ' positive' : planDelta < 0 ? ' negative' : ''}`}>
+                      {`Pl\u00e1n ${formatSignedMetric(planDelta, 'number')}`}
                     </span>
-                  ) : (
-                    <span className="structure-compare-chip structure-compare-chip--ist is-empty" title="IST e\u0161te nie je k dispoz\u00edcii">
-                      IST {formatSignedMetric(0, 'number')}
-                    </span>
-                  )
-                ) : null}
-              </div>
+                  ) : null}
+                  {(compareMode === 'ist' || compareMode === 'both') ? (
+                    band.hasRealCount ? (
+                      <span className={`structure-compare-chip structure-compare-chip--ist${realDelta > 0 ? ' positive' : realDelta < 0 ? ' negative' : ''}`}>
+                        {`IST ${formatSignedMetric(realDelta, 'number')}`}
+                      </span>
+                    ) : (
+                      <span className="structure-compare-chip structure-compare-chip--ist is-empty" title="IST e\u0161te nie je k dispoz\u00edcii">
+                        IST {formatSignedMetric(0, 'number')}
+                      </span>
+                    )
+                  ) : null}
+                </div>
+              ) : null}
             </label>
           );
         })}

@@ -9,7 +9,7 @@ type LoadState =
   | { status: 'ready' }
   | { status: 'error'; message: string };
 
-type LegacyAsset = 'index' | 'sumar' | 'test';
+type LegacyAsset = 'index' | 'sumar';
 type BodyMode = 'full' | 'scripts-only';
 
 function isHeadAssetElement(node: Element) {

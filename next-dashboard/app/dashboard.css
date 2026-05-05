@@ -5177,6 +5177,7 @@ body.theme-dark .activity-entry-metric {
   justify-content: center;
   width: 30px;
   height: 30px;
+  padding: 0;
   border: 1px solid var(--line, rgba(19, 32, 51, 0.12));
   border-radius: 6px;
   background: #fff;
@@ -5194,6 +5195,7 @@ body.theme-dark .activity-entry-metric {
 .task-item-button--done {
   background: #2e7d32;
   border-color: #2e7d32;
+  border-radius: 50%;
   color: #fff;
 }
 
