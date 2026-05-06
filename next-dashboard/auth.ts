@@ -24,7 +24,6 @@ import { db } from '@/lib/db/client';
 import { logger } from '@/lib/logger';
 import { secrets } from '@/lib/secrets';
 
-const KAUFLAND_DOMAIN = '@kaufland.sk';
 const isDevLoginEnabled = secrets.bool('DEV_LOGIN_ENABLED', process.env.NODE_ENV !== 'production');
 
 // ── Type augmentation: add our domain fields onto the session/JWT ──────────
@@ -121,12 +120,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async signIn({ user, account }) {
       const email = (user.email || '').toLowerCase().trim();
       if (!email) return false;
-
-      // Google: enforce kaufland.sk domain in addition to OAuth's `hd` param
-      if (account?.provider === 'google' && !email.endsWith(KAUFLAND_DOMAIN)) {
-        logger.warn({ email, provider: account.provider }, 'sign in rejected: non-kaufland email');
-        return false;
-      }
 
       const dbUser = await db.user.findUnique({ where: { email } });
       if (!dbUser) {
