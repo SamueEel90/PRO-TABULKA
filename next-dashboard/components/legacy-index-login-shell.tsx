@@ -1,3 +1,5 @@
+import { LegacyIndexAdminLink } from './legacy-index-admin-link';
+
 type LegacyIndexLoginShellProps = {
   initialLogin?: string;
 };
@@ -28,6 +30,7 @@ export function LegacyIndexLoginShell({ initialLogin = '' }: LegacyIndexLoginShe
             <button className="primary-btn" id="loginButton" type="button">Vstúpiť</button>
             <button className="secondary-btn" id="summaryButton" type="button">GF / VKL sumár</button>
           </div>
+          <LegacyIndexAdminLink />
           <div className="tiny login-help-text">Na prihlásenie použi Google účet.</div>
         </div>
         <div className="demo-hints">

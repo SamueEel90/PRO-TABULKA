@@ -5315,6 +5315,13 @@ body.theme-dark .task-item-button {
   color: #b71c1c;
 }
 
+.login-admin-link {
+  display: block;
+  margin-top: 10px;
+  text-align: center;
+  text-decoration: none;
+}
+
 body.theme-dark .session-indicator {
   background: rgba(255, 255, 255, 0.04);
   border-color: rgba(255, 255, 255, 0.08);

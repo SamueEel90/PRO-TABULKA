@@ -710,14 +710,24 @@
 			}
 
 			function navigateToLogin() {
-				google.script.run
-					.withSuccessHandler(function(appUrl) {
-						navigateToAppView(appUrl, '');
+				fetch('/api/auth/csrf', { credentials: 'same-origin' })
+					.then(function(res) { return res.ok ? res.json() : { csrfToken: '' }; })
+					.then(function(data) {
+						const body = new URLSearchParams();
+						body.set('csrfToken', (data && data.csrfToken) || '');
+						body.set('callbackUrl', '/login');
+						body.set('json', 'true');
+						return fetch('/api/auth/signout', {
+							method: 'POST',
+							credentials: 'same-origin',
+							headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+							body: body.toString()
+						});
 					})
-					.withFailureHandler(function() {
-						navigateToAppView('', '');
-					})
-					.getWebAppUrl();
+					.catch(function() {})
+					.finally(function() {
+						window.top.location.href = '/login';
+					});
 			}
 
 			function navigateToAppView(appUrl, view) {
