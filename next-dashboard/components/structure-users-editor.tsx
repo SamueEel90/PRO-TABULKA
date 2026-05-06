@@ -145,7 +145,7 @@ export function StructureUsersEditor({ adminSecret = '' }: { adminSecret?: strin
               </thead>
               <tbody>
                 {stores.map((row, index) => (
-                  <tr key={`${row.id || 'new'}-${index}`}>
+                  <tr key={index}>
                     <td><input value={row.gfName} onChange={(event) => setStoreField(index, 'gfName', event.target.value)} /></td>
                     <td><input value={row.vklName} onChange={(event) => setStoreField(index, 'vklName', event.target.value)} /></td>
                     <td><input value={row.id} onChange={(event) => setStoreField(index, 'id', event.target.value)} /></td>
@@ -178,7 +178,7 @@ export function StructureUsersEditor({ adminSecret = '' }: { adminSecret?: strin
               </thead>
               <tbody>
                 {users.map((row, index) => (
-                  <tr key={`${row.email || 'new'}-${index}`} className={row.markedForDelete ? 'admin-row--deleted' : ''}>
+                  <tr key={index} className={row.markedForDelete ? 'admin-row--deleted' : ''}>
                     <td>
                       <select value={row.role} onChange={(event) => setUserField(index, 'role', event.target.value)}>
                         <option value="ADMIN">ADMIN</option>

@@ -25,9 +25,14 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <main className={styles.shell}>
       <section className={styles.card}>
         <header className={styles.header}>
-          <span className={styles.kicker}>PRO Dashboard</span>
-          <h1 className={styles.title}>Prihlásenie</h1>
-          <p className={styles.subtitle}>Prihláste sa svojím firemným účtom Kaufland.</p>
+          <div className={styles.brand}>
+            <span className={styles.brandLogo}>
+              <img src="https://upload.wikimedia.org/wikipedia/commons/6/65/Kaufland_Deutschland.png" alt="Kaufland logo" />
+            </span>
+            <span className={styles.brandText}>KAUFLAND PRO GJ 2026</span>
+          </div>
+          <h1 className={styles.title}>PRO GJ 2026.</h1>
+          <p className={styles.subtitle}>Dashboard vývoja 2026.</p>
         </header>
 
         <LoginForm
