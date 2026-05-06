@@ -16,9 +16,12 @@
  *   - x-user-store, x-user-vkl, x-user-gf (when applicable)
  */
 
+import NextAuth from 'next-auth';
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { auth } from '@/auth';
+import { authConfig } from '@/auth.config';
+
+const { auth } = NextAuth(authConfig);
 
 // API prefixes that don't require authentication (Auth.js own endpoints)
 const PUBLIC_API_PREFIXES = ['/api/auth'];
