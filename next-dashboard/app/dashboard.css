@@ -2386,29 +2386,7 @@ summary {
 				margin-top: 3px;
 			}
 
-			.metric-skeleton {
-				display: flex;
-				flex-direction: column;
-				gap: 3px;
-			}
-
-			.metric-skeleton-section {
-				height: 7rem;
-				border-radius: 1.25rem;
-				background: linear-gradient(90deg,
-					var(--surface-muted) 0%,
-					var(--surface-soft) 40%,
-					var(--surface-muted) 80%);
-				background-size: 200% 100%;
-				animation: skeleton-shimmer 1.6s ease-in-out infinite;
-			}
-
-			@keyframes skeleton-shimmer {
-				0%   { background-position: 200% 0; }
-				100% { background-position: -200% 0; }
-			}
-
-			body.theme-dark .metric-section {
+body.theme-dark .metric-section {
 				background: var(--surface-muted);
 				border-color: rgba(255, 255, 255, 0.06);
 			}
