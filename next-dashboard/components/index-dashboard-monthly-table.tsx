@@ -551,14 +551,7 @@ export function IndexDashboardMonthlyTable() {
           <ActivityFeed scopeKey={noteScopeKey} userId={`${scopeId}:${role}`} />
         </div>
       ) : null}
-      {!detail ? (
-        <div className="metric-skeleton" aria-hidden="true">
-          {Array.from({ length: 7 }).map((_, i) => (
-            <div key={i} className="metric-skeleton-section" />
-          ))}
-        </div>
-      ) : null}
-      <div id="metricTableReactRoot" hidden={!detail}>
+<div id="metricTableReactRoot" hidden={!detail}>
         {detail ? orderedSections.map((section) => {
           const toggleLabel = section.collapsed ? 'Rozbaliť' : 'Zbaliť';
 
