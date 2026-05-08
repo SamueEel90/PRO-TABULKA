@@ -37,7 +37,7 @@ export async function POST(request: Request) {
             resolveLogin(String(params[0] || '')),
             String(params[1] || 'ALL'),
             Array.isArray(params[2]) ? params[2] as Array<{ metric: string; month: string; value: number }> : [],
-            Array.isArray(params[3]) ? params[3] as Array<{ metric: string; text: string }> : [],
+            Array.isArray(params[3]) ? params[3] as Array<{ metric: string; text: string; noteScopeMode?: string }> : [],
             Array.isArray(params[4]) ? params[4] as Array<{ metric: string; month: string; weekIndex: number; weekLabel?: string; rangeLabel?: string; value: number; distributionMode?: string }> : [],
             String(params[5] || 'scope'),
           ),

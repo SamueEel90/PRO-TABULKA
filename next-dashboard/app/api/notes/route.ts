@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { sendNotificationEmail } from '@/lib/mailer';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -114,6 +115,9 @@ export async function POST(request: Request) {
           sourceCommentId: comment.id,
         },
       });
+
+      // Notify the VOD assigned to the store (best-effort, dev override)
+      void notifyTaskAssigned({ scopeKey, metricKey, role, author, text: trimmedText });
     }
 
     // Log activity
@@ -131,5 +135,58 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, comment, task });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Nepodarilo sa pridať komentár.' }, { status: 500 });
+  }
+}
+
+async function notifyTaskAssigned(input: {
+  scopeKey: string;
+  metricKey: string;
+  role: string;
+  author: string;
+  text: string;
+}) {
+  try {
+    const recipients: Array<{ email: string; storeId: string | null }> = [];
+
+    if (input.scopeKey.startsWith('STORE|')) {
+      const storeId = input.scopeKey.split('|')[1] || '';
+      const vodUsers = await prisma.user.findMany({
+        where: { primaryStoreId: storeId, role: 'VOD', email: { not: '' } },
+        select: { email: true, primaryStoreId: true },
+      });
+      vodUsers.forEach((user) => recipients.push({ email: user.email, storeId: user.primaryStoreId }));
+    } else if (input.scopeKey.startsWith('AGGREGATE|VKL|')) {
+      const vklName = input.scopeKey.split('|').slice(2).join('|');
+      const vodUsers = await prisma.user.findMany({
+        where: { vklName, role: 'VOD', email: { not: '' } },
+        select: { email: true, primaryStoreId: true },
+      });
+      vodUsers.forEach((user) => recipients.push({ email: user.email, storeId: user.primaryStoreId }));
+    }
+
+    if (!recipients.length) {
+      return;
+    }
+
+    const subject = `Nová úloha: ${input.metricKey || 'všeobecné'}`;
+    const body = `${input.author} (${input.role}) ti pridelil úlohu k metrike „${input.metricKey || '—'}":\n\n${input.text}\n\nOtvor PRO TABULKA pre detail.`;
+
+    await Promise.all(
+      recipients.map((recipient) =>
+        sendNotificationEmail({
+          to: recipient.email,
+          subject,
+          text: body,
+          context: {
+            scopeKey: input.scopeKey,
+            metricKey: input.metricKey,
+            recipientStoreId: recipient.storeId,
+            event: 'task-assigned',
+          },
+        }),
+      ),
+    );
+  } catch (error) {
+    /* best effort */
   }
 }

@@ -201,6 +201,12 @@ function patchIndexInlineScript(scriptContent: string) {
     }
   });
 
+  window.addEventListener('pro-dashboard:metric-layout-changed', function() {
+    if (state && state.dashboard && typeof renderMetricTable === 'function' && typeof getActiveTableView === 'function' && getActiveTableView() === 'weekly') {
+      renderMetricTable(state.dashboard);
+    }
+  });
+
   // Wrap saveDashboardChanges_ so we dispatch refresh events after every save
   if (typeof saveDashboardChanges_ === 'function') {
     var originalSaveDashboardChanges = saveDashboardChanges_;

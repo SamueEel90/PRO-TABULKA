@@ -71,6 +71,46 @@ export async function POST(request: Request) {
     for (const value of filteredValues) {
       dedupedMap.set(`${value.storeId}::${value.metricCode}::${value.monthId}`, value);
     }
+
+    const STRUCTURE_HOURS_CODE = 'struktura-hodin';
+    const WORKING_DAYS_CODE = 'pracovne-dni-zamestnancov';
+    const TIER_HOURS_PER_DAY: Record<string, number> = {
+      'struktura-filialky-100': 7.75,
+      'struktura-filialky-90': 7,
+      'struktura-filialky-77': 6,
+      'struktura-filialky-65': 5,
+      'struktura-filialky-52': 4,
+      'struktura-filialky-39': 3,
+    };
+
+    const groupKey = (storeId: string, monthId: string) => `${storeId}::${monthId}`;
+    const groups = new Map<string, { storeId: string; monthId: string; sample: typeof filteredValues[number]; workingDays: number; tierHours: number }>();
+    for (const value of dedupedMap.values()) {
+      const key = groupKey(value.storeId, value.monthId);
+      const existing = groups.get(key) || { storeId: value.storeId, monthId: value.monthId, sample: value, workingDays: 0, tierHours: 0 };
+      if (value.metricCode === WORKING_DAYS_CODE) {
+        existing.workingDays = value.value;
+      } else if (TIER_HOURS_PER_DAY[value.metricCode] !== undefined) {
+        existing.tierHours += value.value * TIER_HOURS_PER_DAY[value.metricCode];
+      }
+      groups.set(key, existing);
+    }
+
+    for (const group of groups.values()) {
+      if (group.workingDays <= 0 || group.tierHours <= 0) continue;
+      const computed = group.workingDays * group.tierHours;
+      const key = `${group.storeId}::${STRUCTURE_HOURS_CODE}::${group.monthId}`;
+      const existing = dedupedMap.get(key);
+      if (existing && Math.abs(existing.value) > 0.0001) continue;
+      dedupedMap.set(key, {
+        ...group.sample,
+        metricCode: STRUCTURE_HOURS_CODE,
+        metricName: 'Štruktúra hodín',
+        value: computed,
+        present: true,
+      });
+    }
+
     const values = Array.from(dedupedMap.values());
 
     if (!values.length) {
