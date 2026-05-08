@@ -62,10 +62,16 @@ export async function POST(request: Request) {
       preferredSheetName: IST_SHEET_NAME,
     });
     const currentBusinessMonth = getCurrentBusinessMonth();
-    const values = filterMeaningfulIstValues(parsedImport.values.filter((value) => (
+    const filteredValues = filterMeaningfulIstValues(parsedImport.values.filter((value) => (
       value.businessYear === currentBusinessMonth.businessYear
       && value.businessOrder <= currentBusinessMonth.businessOrder
     )));
+
+    const dedupedMap = new Map<string, typeof filteredValues[number]>();
+    for (const value of filteredValues) {
+      dedupedMap.set(`${value.storeId}::${value.metricCode}::${value.monthId}`, value);
+    }
+    const values = Array.from(dedupedMap.values());
 
     if (!values.length) {
       return NextResponse.json({ error: `V súbore ${IST_SHEET_NAME} sa nenašli žiadne IST hodnoty do aktuálneho mesiaca ${currentBusinessMonth.label}.` }, { status: 400 });
