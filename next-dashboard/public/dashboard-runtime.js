@@ -3698,7 +3698,18 @@
 
 				const planDeltaRow = rows.find(function(row) { return row.type === 'plan-delta'; }) || null;
 				if (planDeltaRow && planRow && realRow) {
-					planDeltaRow.values = getMetricDeltaValues(section, planRow, realRow, planRow);
+					const planDeltaCount = Math.max(
+						Array.isArray(planRow.values) ? planRow.values.length : 0,
+						Array.isArray(realRow.values) ? realRow.values.length : 0
+					);
+					planDeltaRow.values = Array.from({ length: planDeltaCount }, function(_, index) {
+						const hasActual = hasActualRealValue(realRow, index);
+						if (!hasActual) return 0;
+						return normalizeStoredMetricValue(
+							Number(getActualRealValue(realRow, index) || 0) - Number(planRow.values ? planRow.values[index] : 0),
+							section.format
+						);
+					});
 					planDeltaRow.total = planDeltaRow.values.reduce(function(sum, v) { return sum + Number(v || 0); }, 0);
 				}
 			}

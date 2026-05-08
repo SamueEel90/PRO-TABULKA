@@ -358,6 +358,7 @@ function emptyMetricNotes() {
   return {
     VOD: { text: '', author: '', updatedAt: '' },
     VKL: { text: '', author: '', updatedAt: '' },
+    VKL_BROADCAST: { text: '', author: '', updatedAt: '' },
   };
 }
 
@@ -1327,7 +1328,7 @@ function buildMetricSection(
   const realValues = cells.map((cell) => getDisplayedRealValue(metric, cell));
   const forecastValues = cells.map((cell) => cell.forecast);
   const deltaValues = cells.map((cell) => roundMetric(cell.forecast - (cell.hasRealData ? cell.real : cell.plan), format));
-  const planDeltaValues = cells.map((cell) => cell.hasRealData ? roundMetric(cell.plan - cell.real, format) : 0);
+  const planDeltaValues = cells.map((cell) => cell.hasRealData ? roundMetric(cell.real - cell.plan, format) : 0);
   const adjustmentValues = cells.map((cell) => cell.adjustment);
 
   return {
@@ -1775,15 +1776,15 @@ export async function getScopeNotesFromSql(loginValue: string, selectedScope: st
     };
   }
 
-  if (user.role === 'VOD' && scope.type === 'STORE' && !String(notes.VKL.text || '').trim()) {
-    const fallbackScope = buildVklAggregateNoteScope(user, scope, structure);
-    if (fallbackScope) {
-      const vklRow = await loadLatestNote(fallbackScope.key, 'VKL', metricKey);
-      if (vklRow) {
-        notes.VKL = {
-          text: vklRow.text || '',
-          author: vklRow.author || '',
-          updatedAt: new Intl.DateTimeFormat('sk-SK', { dateStyle: 'short', timeStyle: 'medium' }).format(vklRow.updatedAt),
+  if (scope.type === 'STORE' && (user.role === 'VOD' || user.role === 'VKL')) {
+    const broadcastScope = buildVklAggregateNoteScope(user, scope, structure);
+    if (broadcastScope) {
+      const broadcastRow = await loadLatestNote(broadcastScope.key, 'VKL', metricKey);
+      if (broadcastRow) {
+        notes.VKL_BROADCAST = {
+          text: broadcastRow.text || '',
+          author: broadcastRow.author || '',
+          updatedAt: new Intl.DateTimeFormat('sk-SK', { dateStyle: 'short', timeStyle: 'medium' }).format(broadcastRow.updatedAt),
         };
       }
     }
@@ -1839,7 +1840,7 @@ export async function saveDashboardChangesToSql(
   loginValue: string,
   selectedScope: string,
   adjustmentUpdates: Array<{ metric: string; month: string; value: number }>,
-  noteUpdates: Array<{ metric: string; text: string }>,
+  noteUpdates: Array<{ metric: string; text: string; noteScopeMode?: string }>,
   weeklyUpdates: Array<{ metric: string; month: string; weekIndex: number; weekLabel?: string; rangeLabel?: string; value: number; distributionMode?: string }>,
   requestedVklNoteTarget?: string,
 ) {
@@ -2005,11 +2006,20 @@ export async function saveDashboardChangesToSql(
       throw new Error('Poznámky môže zapisovať iba VOD alebo VKL.');
     }
 
-    const vklNoteTargetMode = normalizeVklNoteTargetMode(user, scope, requestedVklNoteTarget);
-    const noteScope = user.role === 'VKL' && vklNoteTargetMode === 'vkl'
-      ? buildVklAggregateNoteScope(user, scope, structure) || buildNoteScope(user, scope)
-      : buildNoteScope(user, scope);
+    const fallbackVklTargetMode = normalizeVklNoteTargetMode(user, scope, requestedVklNoteTarget);
+    const baseNoteScope = buildNoteScope(user, scope);
+    const aggregateNoteScope = buildVklAggregateNoteScope(user, scope, structure);
+
+    function resolveScopeForUpdate(updateMode?: string) {
+      const mode = String(updateMode || fallbackVklTargetMode || '').toLowerCase();
+      if (user.role === 'VKL' && mode === 'vkl') {
+        return aggregateNoteScope || baseNoteScope;
+      }
+      return baseNoteScope;
+    }
+
     for (const update of noteUpdates) {
+      const noteScope = resolveScopeForUpdate(update.noteScopeMode);
       const metricKey = update.metric === GLOBAL_SCOPE_NOTE_METRIC ? GLOBAL_SCOPE_NOTE_METRIC : canonicalizeMetric(update.metric);
       const noteText = String(update.text == null ? '' : update.text).trim();
 

@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import { countUnread, getLastReadAt, markRead } from '@/lib/note-read-state';
 
 type TaskInfo = {
   id: string;
@@ -76,6 +78,11 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
 
   const threadCount = comments.length + (legacyNote && !comments.length ? 1 : 0);
   const openTaskCount = comments.filter((c) => c.task && c.task.status === 'open').length;
+  const [readMarker, setReadMarker] = useState<string | null>(() => getLastReadAt(scopeKey, metricKey));
+  const unreadCount = useMemo(
+    () => countUnread(comments, readMarker, currentAuthor),
+    [comments, readMarker, currentAuthor],
+  );
   const canCreateTasks = currentRole === 'VKL' || currentRole === 'GF';
   const canCompleteTasks = currentRole === 'VOD';
   const canDeleteTasks = currentRole === 'VKL' || currentRole === 'GF';
@@ -114,6 +121,17 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
       fetchComments();
     }
   }, [open, fetchComments]);
+
+  useEffect(() => {
+    if (open && comments.length) {
+      markRead(scopeKey, metricKey);
+      setReadMarker(new Date().toISOString());
+    }
+  }, [open, comments.length, scopeKey, metricKey]);
+
+  useEffect(() => {
+    setReadMarker(getLastReadAt(scopeKey, metricKey));
+  }, [scopeKey, metricKey]);
 
   useEffect(() => {
     if (open && listRef.current) {
@@ -233,14 +251,22 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
     return (
       <button
         type="button"
-        className={`note-thread-toggle${openTaskCount > 0 ? ' note-thread-toggle--has-tasks' : ''}`}
+        className={`note-thread-toggle${openTaskCount > 0 ? ' note-thread-toggle--has-tasks' : ''}${unreadCount > 0 ? ' note-thread-toggle--has-unread' : ''}`}
         onClick={() => setOpen(true)}
-        title={openTaskCount > 0 ? `${openTaskCount} otvorených úloh` : legacyNote?.text || 'Otvoriť vlákno komentárov'}
+        title={
+          unreadCount > 0
+            ? `${unreadCount} nových komentárov`
+            : openTaskCount > 0
+              ? `${openTaskCount} otvorených úloh`
+              : legacyNote?.text || 'Otvoriť vlákno komentárov'
+        }
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </svg>
-        {threadCount > 0 ? (
+        {unreadCount > 0 ? (
+          <span className="note-thread-unread" title={`${unreadCount} nových`}>{unreadCount} nové</span>
+        ) : threadCount > 0 ? (
           <span className="note-thread-count">{threadCount}</span>
         ) : null}
         {openTaskCount > 0 ? (

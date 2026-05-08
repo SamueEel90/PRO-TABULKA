@@ -1620,6 +1620,36 @@
 				align-items: start;
 				gap: 0.5rem;
 			}
+
+			.hero-breakdown-row-head--toggle {
+				cursor: pointer;
+				list-style: none;
+				user-select: none;
+			}
+
+			.hero-breakdown-row-head--toggle::-webkit-details-marker {
+				display: none;
+			}
+
+			.hero-breakdown-row-head--toggle .hero-breakdown-store::before {
+				content: '\25B8';
+				display: inline-block;
+				margin-right: 0.35rem;
+				font-size: 0.72rem;
+				color: var(--muted);
+				transition: transform 0.15s ease;
+			}
+
+			details[open] > .hero-breakdown-row-head--toggle .hero-breakdown-store::before {
+				transform: rotate(90deg);
+			}
+
+			.hero-breakdown-children-count {
+				color: var(--muted);
+				font-weight: 500;
+				font-size: 0.78rem;
+				margin-left: 0.25rem;
+			}
 			.hero-breakdown-store {
 				color: var(--text-soft);
 				font-weight: 700;
@@ -2473,6 +2503,16 @@
 				backdrop-filter: blur(14px) saturate(1.04);
 			}
 
+			.note-card--full {
+				grid-column: 1 / -1;
+			}
+
+			.note-card--broadcast {
+				border-color: rgba(200, 79, 64, 0.35);
+				background: rgba(255, 247, 235, 0.96);
+				border-left: 4px solid var(--brand);
+			}
+
 			.note-card h4 {
 				margin: 0 0 0.5rem;
 				font-size: 0.8125rem;
@@ -2533,6 +2573,72 @@
 			body.theme-dark .note-scope-toggle {
 				background: rgba(17, 35, 53, 0.72);
 				border-color: rgba(114, 153, 189, 0.14);
+			}
+
+			.note-scope-toggle--vkl {
+				background: rgba(200, 79, 64, 0.12);
+				border-color: rgba(200, 79, 64, 0.4);
+			}
+
+			.note-broadcast-banner {
+				display: flex;
+				align-items: center;
+				gap: 0.55rem;
+				margin: 0 0 0.75rem;
+				padding: 0.6rem 0.85rem;
+				border-radius: 0.75rem;
+				background: rgba(200, 79, 64, 0.12);
+				border: 1px solid rgba(200, 79, 64, 0.45);
+				border-left: 4px solid var(--brand);
+				color: #6e1f15;
+				font-size: 0.85rem;
+				line-height: 1.35;
+				animation: note-broadcast-banner-pulse 2s ease-in-out infinite;
+			}
+
+			body.theme-dark .note-broadcast-banner {
+				background: rgba(200, 79, 64, 0.22);
+				color: #ffd9d2;
+				border-color: rgba(200, 79, 64, 0.55);
+			}
+
+			.note-broadcast-banner-icon {
+				font-size: 1.1rem;
+				flex-shrink: 0;
+			}
+
+			.note-broadcast-banner-text {
+				flex: 1;
+			}
+
+			@keyframes note-broadcast-banner-pulse {
+				0%, 100% { box-shadow: 0 0 0 0 rgba(200, 79, 64, 0.35); }
+				50%      { box-shadow: 0 0 0 6px rgba(200, 79, 64, 0); }
+			}
+
+			.note-card--vkl-broadcast {
+				border-color: rgba(200, 79, 64, 0.45);
+				background: rgba(255, 245, 240, 0.96);
+				box-shadow: 0 0 0 2px rgba(200, 79, 64, 0.15);
+			}
+
+			body.theme-dark .note-card--vkl-broadcast {
+				background: rgba(80, 28, 22, 0.45);
+				border-color: rgba(200, 79, 64, 0.55);
+			}
+
+			.note-card-mode-tag {
+				display: inline-block;
+				margin-left: 0.4rem;
+				padding: 0.1rem 0.45rem;
+				border-radius: 999px;
+				background: var(--brand);
+				color: #fff;
+				font-size: 0.62rem;
+				font-weight: 700;
+				letter-spacing: 0.04em;
+				text-transform: uppercase;
+				vertical-align: middle;
 			}
 
 			body.theme-dark .note-metric-list {
@@ -2756,12 +2862,13 @@
 
 			.metric-month-head.is-focused,
 			.metric-month-cell.is-focused {
-				background: linear-gradient(180deg, rgba(215, 25, 32, 0.10), rgba(215, 25, 32, 0.04));
-				box-shadow: inset 1px 0 0 rgba(215, 25, 32, 0.10), inset -1px 0 0 rgba(215, 25, 32, 0.10);
+				background: linear-gradient(180deg, rgba(245, 158, 11, 0.20), rgba(245, 158, 11, 0.08));
+				box-shadow: inset 1px 0 0 rgba(245, 158, 11, 0.45), inset -1px 0 0 rgba(245, 158, 11, 0.45);
 			}
 
 			.metric-month-head.is-focused {
-				color: #8f171c;
+				color: #b45309;
+				background: linear-gradient(180deg, rgba(245, 158, 11, 0.30), rgba(245, 158, 11, 0.14));
 			}
 
 			body.theme-dark th,
@@ -3870,7 +3977,6 @@
 			<div class="fab-tray" id="fabTray">
 				<button class="recalc-fab save-fab hidden" id="saveFabButton" type="button">Uložiť zmeny</button>
 				<div class="fab-bottom-row">
-					<button class="recalc-fab hidden" id="recalcButton" type="button">Prepočítať</button>
 					<button class="fab-collapse-toggle" id="fabCollapseToggle" type="button" aria-label="Skryť tlačidlá"></button>
 				</div>
 			</div>
@@ -4582,7 +4688,6 @@
 				openNoteModal();
 			});
 			document.getElementById('saveButton').addEventListener('click', saveAdjustments);
-			document.getElementById('recalcButton').addEventListener('click', handleManualRecalculate);
 			document.getElementById('topbarToggle').addEventListener('click', toggleTopBar);
 			document.getElementById('sidebarBackdrop').addEventListener('click', function() {
 				state.topBarCollapsed = true;
@@ -4962,6 +5067,25 @@
 				return rest;
 			}
 
+			function loadProMetricLayoutForPayload(payload) {
+				try {
+					var scopeId = payload && payload.scope ? payload.scope.id : '';
+					var role = payload && payload.user ? payload.user.role : '';
+					var key = 'proDashboard.metricLayout.' + (scopeId || 'unknown') + '.' + (String(role || 'unknown').toUpperCase());
+					var raw = window.localStorage.getItem(key);
+					if (!raw) {
+						return { order: [], hidden: [] };
+					}
+					var parsed = JSON.parse(raw);
+					return {
+						order: Array.isArray(parsed && parsed.order) ? parsed.order.filter(function(v) { return typeof v === 'string'; }) : [],
+						hidden: Array.isArray(parsed && parsed.hidden) ? parsed.hidden.filter(function(v) { return typeof v === 'string'; }) : [],
+					};
+				} catch (e) {
+					return { order: [], hidden: [] };
+				}
+			}
+
 			function getWeeklyCompactMetricSections(payload) {
 				const hiddenMetrics = [
 					normalizeMetricName('Hodiny Brutto GJ2026'),
@@ -4973,27 +5097,49 @@
 					normalizeMetricName('Obrat GJ2026'),
 					normalizeMetricName('Čistý výkon'),
 				];
-				return getFilteredMetricSections(payload)
-					.filter(function(section) {
-						return hiddenMetrics.indexOf(normalizeMetricName(section.metric)) === -1;
-					})
-					.sort(function(left, right) {
-						const leftMetric = normalizeMetricName(left.metric);
-						const rightMetric = normalizeMetricName(right.metric);
-						const leftPriority = priorityMetrics.indexOf(leftMetric);
-						const rightPriority = priorityMetrics.indexOf(rightMetric);
 
-						if (leftPriority === -1 && rightPriority === -1) {
-							return 0;
-						}
-						if (leftPriority === -1) {
-							return 1;
-						}
-						if (rightPriority === -1) {
-							return -1;
-						}
-						return leftPriority - rightPriority;
+				const userLayout = loadProMetricLayoutForPayload(payload);
+				const userHiddenSet = {};
+				(userLayout.hidden || []).forEach(function(metric) { userHiddenSet[metric] = true; });
+				const userOrderIndex = {};
+				(userLayout.order || []).forEach(function(metric, idx) { userOrderIndex[metric] = idx; });
+				const hasUserOrder = (userLayout.order || []).length > 0;
+
+				const filtered = getFilteredMetricSections(payload).filter(function(section) {
+					if (hiddenMetrics.indexOf(normalizeMetricName(section.metric)) !== -1) {
+						return false;
+					}
+					if (userHiddenSet[section.metric]) {
+						return false;
+					}
+					return true;
+				});
+
+				if (hasUserOrder) {
+					return filtered.slice().sort(function(left, right) {
+						var leftIdx = Object.prototype.hasOwnProperty.call(userOrderIndex, left.metric) ? userOrderIndex[left.metric] : Number.POSITIVE_INFINITY;
+						var rightIdx = Object.prototype.hasOwnProperty.call(userOrderIndex, right.metric) ? userOrderIndex[right.metric] : Number.POSITIVE_INFINITY;
+						return leftIdx - rightIdx;
 					});
+				}
+
+				return filtered.sort(function(left, right) {
+					const leftMetric = normalizeMetricName(left.metric);
+					const rightMetric = normalizeMetricName(right.metric);
+					const leftPriority = priorityMetrics.indexOf(leftMetric);
+					const rightPriority = priorityMetrics.indexOf(rightMetric);
+
+					if (leftPriority === -1 && rightPriority === -1) {
+						return 0;
+					}
+					if (leftPriority === -1) {
+						return 1;
+					}
+					if (rightPriority === -1) {
+						return -1;
+					}
+					return leftPriority - rightPriority;
+				});
 			}
 
 			function toggleMetricCollapsed(metric) {
@@ -5069,15 +5215,12 @@
 			}
 
 			function updateRecalcButtonVisibility(payload) {
-				const recalcButton = document.getElementById('recalcButton');
 				const saveFabButton = document.getElementById('saveFabButton');
-				if (!recalcButton || !saveFabButton) {
+				if (!saveFabButton) {
 					return;
 				}
 
 				const canRecalculate = Boolean(payload && payload.user && payload.user.role === 'VOD' && payload.scope && payload.scope.type === 'STORE');
-				recalcButton.classList.toggle('hidden', !canRecalculate);
-				recalcButton.disabled = !canRecalculate;
 				saveFabButton.classList.toggle('hidden', !canRecalculate);
 				saveFabButton.disabled = !canRecalculate;
 			}
@@ -5180,10 +5323,10 @@
 						var valueClass = 'hero-breakdown-value ' + getDeltaCellClass(colorVal);
 						var hasChildren = Array.isArray(item.children) && item.children.length;
 						if (hasChildren) {
-							return '<div class="hero-breakdown-row hero-breakdown-row--group"><div class="hero-breakdown-group">'
-								+ '<div class="hero-breakdown-row-head"><span class="hero-breakdown-store">' + escapeHtml(item.label) + '</span><span class="' + valueClass + '">' + formatMetric(item.value, item.format || card.format) + '</span></div>'
+							return '<div class="hero-breakdown-row hero-breakdown-row--group"><details class="hero-breakdown-group">'
+								+ '<summary class="hero-breakdown-row-head hero-breakdown-row-head--toggle"><span class="hero-breakdown-store">' + escapeHtml(item.label) + ' <span class="hero-breakdown-children-count">(' + Number(item.children.length || 0) + ')</span></span><span class="' + valueClass + '">' + formatMetric(item.value, item.format || card.format) + '</span></summary>'
 								+ '<div class="hero-breakdown-list hero-breakdown-list--nested">' + renderHeroBreakdownItems(item.children) + '</div>'
-								+ '</div></div>';
+								+ '</details></div>';
 						}
 						return '<div class="hero-breakdown-row"><span class="hero-breakdown-store">' + escapeHtml(item.label) + '</span><span class="' + valueClass + '">' + formatMetric(item.value, item.format || card.format) + '</span></div>';
 					}).join('');
@@ -5277,8 +5420,21 @@
 			function buildAggregateRequiredNetHoursSnapshot(payload, periodContext, isYearScope) {
 				const turnoverSection = findSectionByMetric(payload, 'Obrat GJ2026');
 				const hoursSection = findSectionByMetric(payload, 'Hodiny netto');
-				const turnoverBreakdown = turnoverSection && Array.isArray(turnoverSection.breakdown) ? turnoverSection.breakdown : [];
-				const hoursBreakdown = hoursSection && Array.isArray(hoursSection.breakdown) ? hoursSection.breakdown : [];
+
+				function flattenLeaves(items) {
+					var leaves = [];
+					(items || []).forEach(function(item) {
+						if (Array.isArray(item.breakdown) && item.breakdown.length) {
+							leaves = leaves.concat(flattenLeaves(item.breakdown));
+						} else {
+							leaves.push(item);
+						}
+					});
+					return leaves;
+				}
+
+				const turnoverBreakdown = flattenLeaves(turnoverSection && Array.isArray(turnoverSection.breakdown) ? turnoverSection.breakdown : []);
+				const hoursBreakdown = flattenLeaves(hoursSection && Array.isArray(hoursSection.breakdown) ? hoursSection.breakdown : []);
 				const itemIds = {};
 
 				turnoverBreakdown.forEach(function(item) { itemIds[String(item.storeId || '').trim()] = true; });
@@ -5374,9 +5530,17 @@
 							? buildBreakdownItems(turnoverChildren, hoursChildren)
 							: null;
 
+						const isRequiredHoursKey = breakdownKey !== 'period-performance'
+							&& breakdownKey !== 'year-performance'
+							&& breakdownKey !== 'period-hours'
+							&& breakdownKey !== 'year-hours';
+						const aggregatedValue = (isRequiredHoursKey && children && children.length)
+							? children.reduce(function(sum, child) { return sum + (Number(child.value) || 0); }, 0)
+							: valueConfig.value;
+
 						return {
 							label: resolvedLabel,
-							value: valueConfig.value,
+							value: aggregatedValue,
 							format: valueConfig.format,
 							colorInverted: !!valueConfig.colorInverted,
 							children: children && children.length ? children : undefined,
@@ -7243,19 +7407,6 @@
 				document.getElementById('noteModalMeta').textContent = noteScopeText;
 				document.getElementById('noteModalContent').innerHTML = renderNoteModalCards(state.dashboard, getCachedMetricNotes(GLOBAL_SCOPE_NOTE_KEY), isMetricNotesLoading(GLOBAL_SCOPE_NOTE_KEY));
 
-				document.querySelectorAll('[data-vkl-note-scope-mode]').forEach(function(button) {
-					button.addEventListener('click', function() {
-						const requestedMode = this.dataset.vklNoteScopeMode === 'vkl' ? 'vkl' : 'store';
-						if (requestedMode === getCurrentVklNoteTargetForRequest()) {
-							return;
-						}
-						state.vklNoteScopeMode = requestedMode;
-						renderNoteModal();
-						renderScopeNotesIndicator();
-						ensureNoteModalNotesLoaded(state.dashboard);
-					});
-				});
-
 				document.querySelectorAll('.note-textarea').forEach(function(input) {
 					input.addEventListener('input', function() {
 						state.pendingNotes[buildPendingNoteKey(this.dataset.metric, this.dataset.role, this.dataset.noteScopeMode)] = this.value;
@@ -7269,30 +7420,60 @@
 					return '<div class="note-card"><h4>Načítavam poznámky</h4><div class="note-meta">Čítam aktuálne poznámky z Google Sheets.</div></div>';
 				}
 
-				const resolvedNotes = notes || { VOD: {}, VKL: {} };
+				const resolvedNotes = notes || { VOD: {}, VKL: {}, VKL_BROADCAST: {} };
 				const metrics = getNoteModalMetrics(payload);
-				const canEditVod = payload.user.role === 'VOD' && payload.scope.type === 'STORE';
-				const canEditVkl = payload.user.role === 'VKL';
+				const userRole = payload.user.role;
+				const canEditVod = userRole === 'VOD' && payload.scope.type === 'STORE';
 				const isStoreScope = payload.scope.type === 'STORE';
-				const isVklStoreScope = payload.user.role === 'VKL' && isStoreScope;
-				const currentVklMode = getCurrentVklNoteTargetForRequest();
+				const isVklStoreScope = userRole === 'VKL' && isStoreScope;
+				const isVklAggregateScope = userRole === 'VKL' && !isStoreScope;
 				const vodPlaceholder = isStoreScope
 					? 'Sem si VOD zapisuje body, kontext a follow-upy pre túto filiálku.'
 					: 'Sem si VOD zapisuje body, kontext a follow-upy pre aktuálny agregát.';
-				const vklPlaceholder = isStoreScope && currentVklMode === 'vkl'
-					? 'Sem si VKL zapisuje body, priority a úlohy pre celý svoj VKL. Túto poznámku uvidia všetky filiálky tohto VKL.'
-					: isStoreScope
-					? 'Sem si VKL zapisuje body, priority a úlohy len pre túto jednu filiálku.'
-					: 'Sem si VKL zapisuje body, priority a úlohy pre celý aktuálny VKL scope.';
-				const vklToggle = isVklStoreScope
-					? '<div class="note-scope-toggle" role="tablist" aria-label="Rozsah VKL poznámky">'
-						+ '<button class="note-scope-option' + (currentVklMode === 'store' ? ' is-active' : '') + '" type="button" data-vkl-note-scope-mode="store">Len táto filiálka</button>'
-						+ '<button class="note-scope-option' + (currentVklMode === 'vkl' ? ' is-active' : '') + '" type="button" data-vkl-note-scope-mode="vkl">Celý VKL</button>'
-						+ '</div>'
-					: '';
+				const vklStorePlaceholder = 'Poznámka pre túto jednu filiálku — uvidí ju len jej VOD.';
+				const vklBroadcastPlaceholder = 'Poznámka pre VŠETKY filiálky tohto VKL — uvidia ju všetci VOD pod týmto VKL.';
 
-				return renderSingleNoteCard('VOD', GLOBAL_SCOPE_NOTE_KEY, resolvedNotes.VOD || {}, canEditVod, vodPlaceholder, '', 'scope', renderMetricNoteRows('VOD', metrics, 'scope'))
-					+ renderSingleNoteCard('VKL', GLOBAL_SCOPE_NOTE_KEY, resolvedNotes.VKL || {}, canEditVkl, vklPlaceholder, vklToggle, currentVklMode, renderMetricNoteRows('VKL', metrics, currentVklMode));
+				// === Top: VKL broadcast card (full-width) ===
+				const broadcastNote = resolvedNotes.VKL_BROADCAST || {};
+				const broadcastMeta = broadcastNote.updatedAt
+					? 'Naposledy upravil ' + escapeHtml(broadcastNote.author || 'VKL') + ' • ' + escapeHtml(broadcastNote.updatedAt)
+					: 'Zatiaľ bez poznámky';
+				const broadcastPendingKey = buildPendingNoteKey(GLOBAL_SCOPE_NOTE_KEY, 'VKL', 'vkl');
+				const broadcastPending = Object.prototype.hasOwnProperty.call(state.pendingNotes, broadcastPendingKey) && userRole === 'VKL'
+					? state.pendingNotes[broadcastPendingKey]
+					: null;
+				const broadcastTextValue = broadcastPending != null ? broadcastPending : String(broadcastNote.text || '');
+				let broadcastCard = '';
+				if (isVklStoreScope) {
+					broadcastCard = '<div class="note-card note-card--broadcast note-card--vkl-broadcast note-card--full">'
+						+ '<h4>Poznámka VKL — <span class="note-card-mode-tag">pre celý VKL</span></h4>'
+						+ '<div class="note-broadcast-banner" role="status">'
+						+ '<span class="note-broadcast-banner-icon" aria-hidden="true">📢</span>'
+						+ '<span class="note-broadcast-banner-text">Píšete poznámku pre <strong>VŠETKY filiálky</strong> tohto VKL — všetci VOD pod vami ju uvidia.</span>'
+						+ '</div>'
+						+ '<div class="note-meta">' + broadcastMeta + '</div>'
+						+ '<textarea class="note-textarea" data-role="VKL" data-metric="' + escapeHtml(GLOBAL_SCOPE_NOTE_KEY) + '" data-note-scope-mode="vkl" placeholder="' + escapeHtml(vklBroadcastPlaceholder) + '">' + escapeHtml(broadcastTextValue) + '</textarea>'
+						+ '</div>';
+				} else if (userRole === 'VOD' && isStoreScope && String(broadcastNote.text || '').trim()) {
+					broadcastCard = '<div class="note-card note-card--broadcast note-card--full">'
+						+ '<h4>Poznámka VKL — pre celý VKL</h4>'
+						+ '<div class="note-meta">' + broadcastMeta + '</div>'
+						+ '<div class="note-readonly">' + escapeHtml(broadcastNote.text || 'Bez textu') + '</div>'
+						+ '</div>';
+				}
+
+				// === Bottom row: VOD card + per-store VKL card ===
+				// VKL store-level card: editable for VKL@STORE, read-only for VOD.
+				// For VKL@AGGREGATE: editable at scope level (mode='scope').
+				const vklMode = isVklAggregateScope ? 'scope' : 'store';
+				const vklCanEdit = userRole === 'VKL';
+				const vklPlaceholderForCard = isVklAggregateScope
+					? 'Poznámka pre celý aktuálny VKL scope.'
+					: vklStorePlaceholder;
+
+				return broadcastCard
+					+ renderSingleNoteCard('VOD', GLOBAL_SCOPE_NOTE_KEY, resolvedNotes.VOD || {}, canEditVod, vodPlaceholder, '', 'scope', renderMetricNoteRows('VOD', metrics, 'scope'))
+					+ renderSingleNoteCard('VKL', GLOBAL_SCOPE_NOTE_KEY, resolvedNotes.VKL || {}, vklCanEdit, vklPlaceholderForCard, '', vklMode, renderMetricNoteRows('VKL', metrics, vklMode));
 			}
 
 			function getNoteModalMetrics(payload) {
@@ -7423,8 +7604,8 @@
 					? 'Naposledy upravil ' + escapeHtml(note.author || role) + ' • ' + escapeHtml(note.updatedAt)
 					: 'Zatiaľ bez poznámky';
 
-				return '<div class="note-card">'
-					+ '<h4>Poznámka ' + escapeHtml(role) + '</h4>'
+				return '<div class="note-card' + (noteScopeMode === 'vkl' ? ' note-card--vkl-broadcast' : '') + '">'
+					+ '<h4>Poznámka ' + escapeHtml(role) + (noteScopeMode === 'vkl' ? ' <span class="note-card-mode-tag">pre celý VKL</span>' : '') + '</h4>'
 					+ (headerExtraHtml || '')
 					+ '<div class="note-meta">' + meta + '</div>'
 					+ (isEditable
@@ -7681,7 +7862,9 @@
 					'externa pracovna agentura (+) reinigung': 'Externá agentúra',
 					'odmena za dohodu': 'Brigádnici(DBPŠ)',
 					'odmena za pr.pracu ziak (+) 50%': 'Dualisti',
-					'fima/prestavba/dodatocne prace/neo': 'FiMa/Prestavba/Ostatné'
+					'fima/prestavba/dodatocne prace/neo': 'FiMa/Prestavba/Ostatné',
+					'dovolenka (-)': 'Dovolenka',
+					'nadcasy (+)': 'Nadčasy'
 				};
 
 				return Object.prototype.hasOwnProperty.call(replacements, normalizedMetric)
@@ -7810,7 +7993,18 @@
 
 				const planDeltaRow = rows.find(function(row) { return row.type === 'plan-delta'; }) || null;
 				if (planDeltaRow && planRow && realRow) {
-					planDeltaRow.values = getMetricDeltaValues(section, planRow, realRow, planRow);
+					const planDeltaCount = Math.max(
+						Array.isArray(planRow.values) ? planRow.values.length : 0,
+						Array.isArray(realRow.values) ? realRow.values.length : 0
+					);
+					planDeltaRow.values = Array.from({ length: planDeltaCount }, function(_, index) {
+						const hasActual = hasActualRealValue(realRow, index);
+						if (!hasActual) return 0;
+						return normalizeStoredMetricValue(
+							Number(getActualRealValue(realRow, index) || 0) - Number(planRow.values ? planRow.values[index] : 0),
+							section.format
+						);
+					});
 					planDeltaRow.total = planDeltaRow.values.reduce(function(sum, v) { return sum + Number(v || 0); }, 0);
 				}
 			}
@@ -9045,23 +9239,6 @@
 				}, 450);
 			}
 
-			function handleManualRecalculate() {
-				if (!state.dashboard) {
-					return;
-				}
-
-				hideSaveStatus();
-				if (!hasPendingAdjustmentChanges()) {
-					state.previewDashboard = null;
-					renderTopWidgets(state.dashboard);
-					renderCharts(state.dashboard);
-					renderMetricTable(state.dashboard);
-					return;
-				}
-
-				refreshLocalPreview();
-			}
-
 			function hasPendingAdjustmentChanges() {
 				return Object.keys(state.pendingAdjustments).some(function(metric) {
 					return Object.keys(state.pendingAdjustments[metric] || {}).length > 0;
@@ -9106,20 +9283,27 @@
 				}
 				const noteUpdates = (config.includeNotes === false ? [] : (function() {
 					const userRole = state.dashboard.user.role;
-					const currentNoteScopeMode = userRole === 'VKL' ? getCurrentVklNoteTargetForRequest() : 'scope';
+					const isVklStoreScope = userRole === 'VKL' && state.dashboard.scope && state.dashboard.scope.type === 'STORE';
+					const modesToSave = userRole === 'VKL'
+						? (isVklStoreScope ? ['store', 'vkl'] : ['scope'])
+						: ['scope'];
 					const noteMetrics = [GLOBAL_SCOPE_NOTE_KEY].concat(getNoteModalMetrics(state.dashboard));
-					return noteMetrics.reduce(function(result, metric) {
-						const draftKey = buildPendingNoteKey(metric, userRole, currentNoteScopeMode);
-						if (!Object.prototype.hasOwnProperty.call(state.pendingNotes, draftKey)) {
-							return result;
-						}
-						result.push({
-							metric: metric,
-							text: state.pendingNotes[draftKey],
-							draftKey: draftKey,
+					const result = [];
+					modesToSave.forEach(function(mode) {
+						noteMetrics.forEach(function(metric) {
+							const draftKey = buildPendingNoteKey(metric, userRole, mode);
+							if (!Object.prototype.hasOwnProperty.call(state.pendingNotes, draftKey)) {
+								return;
+							}
+							result.push({
+								metric: metric,
+								text: state.pendingNotes[draftKey],
+								noteScopeMode: mode,
+								draftKey: draftKey,
+							});
 						});
-						return result;
-					}, []);
+					});
+					return result;
 				})());
 
 				if ((!updates.length || !canSaveAdjustments) && (!noteUpdates.length || !canSaveNotes)) {
