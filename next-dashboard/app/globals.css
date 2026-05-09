@@ -65,6 +65,25 @@ body.legacy-dashboard-page > .app-background {
   display: none;
 }
 
+body.legacy-dashboard-page.legacy-sumar-page > .app-background {
+  display: block;
+}
+
+body.legacy-sumar-page {
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.10), transparent 36%),
+    radial-gradient(circle at top right, rgba(100, 116, 139, 0.12), transparent 32%),
+    linear-gradient(180deg, #f7fafd 0%, #edf3f8 46%, #e2eaf2 100%) !important;
+  transition: background 0.35s ease;
+}
+
+body.legacy-sumar-page.theme-dark {
+  background:
+    radial-gradient(circle at top left, rgba(200, 79, 64, 0.16), transparent 38%),
+    radial-gradient(circle at top right, rgba(36, 86, 124, 0.18), transparent 36%),
+    linear-gradient(180deg, #0c1118 0%, #14181f 50%, #1a1318 100%) !important;
+}
+
 body.legacy-dashboard-page::before {
   display: none;
 }

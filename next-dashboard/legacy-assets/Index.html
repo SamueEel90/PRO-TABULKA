@@ -4802,6 +4802,10 @@
 
 				responsiveLayoutTimer = setTimeout(function() {
 					responsiveLayoutTimer = null;
+					const active = document.activeElement;
+					if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+						return;
+					}
 					const payload = getActiveDashboard();
 					if (!payload) {
 						return;
@@ -5209,7 +5213,7 @@
 					? ''
 					: payload.user.role === 'VKL'
 						? (payload.scope.type === 'STORE'
-							? 'V note modale si vyberieš, či ide VKL poznámka len pre túto filiálku alebo pre celý VKL.'
+							? 'V note modale si vyberieš, či ide VKL poznámka len pre túto filiálku alebo pre celú oblasť.'
 							: 'VKL poznámka sa uloží pre celý aktuálny VKL scope.')
 						: 'Tento pohľad je len na čítanie. Poznámky zapisuje VOD alebo VKL.';
 			}
@@ -6354,7 +6358,7 @@
 					{ match: 'dlhodoba nepritomnost (33+ dni) (b)', label: 'PN Dlhodobé' },
 					{ match: 'externa pracovna agentura (+) reinigung', label: 'Agentúra Reinigung' },
 					{ match: 'externa pracovna agentura (+) wareneinraumung', label: 'Agentúra Waren' },
-					{ match: 'odmena za pr.pracu ziak (+) 50%', label: 'Dualisti' },
+					{ match: 'odmena za pr.pracu ziak (+) 50%', label: 'Dualisti 50%' },
 					{ match: 'odmena za dohodu', label: 'Brigádnici(DBPŠ)' },
 					{ match: 'odmena za dohodu (-)', label: 'Brigádnici(DBPŠ)' },
 					{ match: 'odmena za dohodu (+)', label: 'Brigádnici(DBPŠ)' },
@@ -7446,7 +7450,7 @@
 				let broadcastCard = '';
 				if (isVklStoreScope) {
 					broadcastCard = '<div class="note-card note-card--broadcast note-card--vkl-broadcast note-card--full">'
-						+ '<h4>Poznámka VKL — <span class="note-card-mode-tag">pre celý VKL</span></h4>'
+						+ '<h4>Poznámka VKL — <span class="note-card-mode-tag">pre celú oblasť</span></h4>'
 						+ '<div class="note-broadcast-banner" role="status">'
 						+ '<span class="note-broadcast-banner-icon" aria-hidden="true">📢</span>'
 						+ '<span class="note-broadcast-banner-text">Píšete poznámku pre <strong>VŠETKY filiálky</strong> tohto VKL — všetci VOD pod vami ju uvidia.</span>'
@@ -7456,7 +7460,7 @@
 						+ '</div>';
 				} else if (userRole === 'VOD' && isStoreScope && String(broadcastNote.text || '').trim()) {
 					broadcastCard = '<div class="note-card note-card--broadcast note-card--full">'
-						+ '<h4>Poznámka VKL — pre celý VKL</h4>'
+						+ '<h4>Poznámka VKL — pre celú oblasť</h4>'
 						+ '<div class="note-meta">' + broadcastMeta + '</div>'
 						+ '<div class="note-readonly">' + escapeHtml(broadcastNote.text || 'Bez textu') + '</div>'
 						+ '</div>';
@@ -7605,7 +7609,7 @@
 					: 'Zatiaľ bez poznámky';
 
 				return '<div class="note-card' + (noteScopeMode === 'vkl' ? ' note-card--vkl-broadcast' : '') + '">'
-					+ '<h4>Poznámka ' + escapeHtml(role) + (noteScopeMode === 'vkl' ? ' <span class="note-card-mode-tag">pre celý VKL</span>' : '') + '</h4>'
+					+ '<h4>Poznámka ' + escapeHtml(role) + (noteScopeMode === 'vkl' ? ' <span class="note-card-mode-tag">pre celú oblasť</span>' : '') + '</h4>'
 					+ (headerExtraHtml || '')
 					+ '<div class="note-meta">' + meta + '</div>'
 					+ (isEditable
@@ -7861,7 +7865,7 @@
 					'dlhodoba nepritomnost (33+ dni) (b)': 'PN Dlhodobé',
 					'externa pracovna agentura (+) reinigung': 'Externá agentúra',
 					'odmena za dohodu': 'Brigádnici(DBPŠ)',
-					'odmena za pr.pracu ziak (+) 50%': 'Dualisti',
+					'odmena za pr.pracu ziak (+) 50%': 'Dualisti 50%',
 					'fima/prestavba/dodatocne prace/neo': 'FiMa/Prestavba/Ostatné',
 					'dovolenka (-)': 'Dovolenka',
 					'nadcasy (+)': 'Nadčasy'
@@ -8005,7 +8009,16 @@
 							section.format
 						);
 					});
-					planDeltaRow.total = planDeltaRow.values.reduce(function(sum, v) { return sum + Number(v || 0); }, 0);
+					if (normalizeMetricName(section.metric) === normalizeMetricName('Čistý výkon')) {
+						const planDeltaActuals = planDeltaRow.values.filter(function(_, index) {
+							return hasActualRealValue(realRow, index);
+						});
+						planDeltaRow.total = planDeltaActuals.length
+							? planDeltaActuals.reduce(function(sum, v) { return sum + Number(v || 0); }, 0) / planDeltaActuals.length
+							: 0;
+					} else {
+						planDeltaRow.total = planDeltaRow.values.reduce(function(sum, v) { return sum + Number(v || 0); }, 0);
+					}
 				}
 			}
 
@@ -8896,6 +8909,12 @@
 					return;
 				}
 
+				const baseSavedValues = Array.isArray(baseForecastRow.savedValues) ? baseForecastRow.savedValues : baseForecastRow.values;
+				forecastRow.savedValues = months.map(function(month, index) {
+					const pendingValue = getPendingAdjustmentValue(previewSection.metric, month);
+					return pendingValue != null ? Number(pendingValue) : Number(baseSavedValues[index] || 0);
+				});
+				forecastRow.savedTotal = roundPreviewValue(sumArray(forecastRow.savedValues), roundMode);
 				forecastRow.values = months.map(function(month, index) {
 					const hasActual = hasActualRealValue(realRow, index);
 					if (hasActual) {

@@ -184,6 +184,7 @@ type MetricMonthCell = {
   real: number;
   adjustment: number;
   forecast: number;
+  savedForecast: number;
   variance: number;
   variancePct: number;
   closedMonth: boolean;
@@ -1090,13 +1091,16 @@ function buildAggregateMetricMonthCellFromStores(
     const turnoverPlan = sumValues(turnoverCells.map((cell) => cell.plan));
     const turnoverReal = sumValues(turnoverCells.map((cell) => cell.hasRealData ? cell.real : cell.plan));
     const turnoverForecast = sumValues(turnoverCells.map((cell) => cell.forecast));
+    const turnoverSavedForecast = sumValues(turnoverCells.map((cell) => cell.savedForecast));
     const hoursPlan = sumValues(hoursCells.map((cell) => cell.plan));
     const hoursReal = sumValues(hoursCells.map((cell) => cell.hasRealData ? cell.real : cell.plan));
     const hoursForecast = sumValues(hoursCells.map((cell) => cell.forecast));
+    const hoursSavedForecast = sumValues(hoursCells.map((cell) => cell.savedForecast));
     const hasRealData = turnoverCells.some((cell) => cell.hasRealData) || hoursCells.some((cell) => cell.hasRealData);
     const plan = turnoverPlan && hoursPlan ? turnoverPlan / hoursPlan : 0;
     const real = turnoverReal && hoursReal ? turnoverReal / hoursReal : 0;
     const forecast = turnoverForecast && hoursForecast ? turnoverForecast / hoursForecast : 0;
+    const savedForecast = turnoverSavedForecast && hoursSavedForecast ? turnoverSavedForecast / hoursSavedForecast : 0;
     const variance = forecast - (hasRealData ? real : plan);
 
     return {
@@ -1104,6 +1108,7 @@ function buildAggregateMetricMonthCellFromStores(
       real: roundMetric(real, format),
       adjustment: 0,
       forecast: roundMetric(forecast, format),
+      savedForecast: roundMetric(savedForecast, format),
       variance: roundMetric(variance, format),
       variancePct: plan ? variance / plan : 0,
       closedMonth: isClosedMonth(month.label),
@@ -1126,6 +1131,7 @@ function buildAggregateMetricMonthCellFromStores(
   const real = sumValues(storeCells.map((cell) => cell.hasRealData ? cell.real : cell.plan));
   const adjustment = sumValues(storeCells.map((cell) => cell.adjustment));
   const forecast = sumValues(storeCells.map((cell) => cell.forecast));
+  const savedForecast = sumValues(storeCells.map((cell) => cell.savedForecast));
   const hasRealData = storeCells.some((cell) => cell.hasRealData);
   const variance = forecast - (hasRealData ? real : plan);
 
@@ -1134,6 +1140,7 @@ function buildAggregateMetricMonthCellFromStores(
     real: roundMetric(real, format),
     adjustment: roundMetric(adjustment, format),
     forecast: roundMetric(forecast, format),
+    savedForecast: roundMetric(savedForecast, format),
     variance: roundMetric(variance, format),
     variancePct: plan ? variance / plan : 0,
     closedMonth: isClosedMonth(month.label),
@@ -1174,6 +1181,7 @@ function buildMetricMonthCell(
       real: roundMetric(real, format),
       adjustment: roundMetric(variance, format),
       forecast: roundMetric(forecast, format),
+      savedForecast: roundMetric(forecast, format),
       variance: roundMetric(variance, format),
       variancePct: plan ? variance / plan : 0,
       closedMonth: false,
@@ -1187,6 +1195,7 @@ function buildMetricMonthCell(
     const plan = turnover.plan && hours.plan ? turnover.plan / hours.plan : 0;
     const real = turnover.real && hours.real ? turnover.real / hours.real : 0;
     const forecast = turnover.forecast && hours.forecast ? turnover.forecast / hours.forecast : 0;
+    const savedForecast = turnover.savedForecast && hours.savedForecast ? turnover.savedForecast / hours.savedForecast : 0;
     const variance = forecast - (hours.hasRealData ? real : plan);
 
     return {
@@ -1194,6 +1203,7 @@ function buildMetricMonthCell(
       real: roundMetric(real, format),
       adjustment: 0,
       forecast: roundMetric(forecast, format),
+      savedForecast: roundMetric(savedForecast, format),
       variance: roundMetric(variance, format),
       variancePct: plan ? variance / plan : 0,
       closedMonth,
@@ -1215,6 +1225,7 @@ function buildMetricMonthCell(
       real: roundMetric(real, format),
       adjustment: roundMetric(adjustment, format),
       forecast: roundMetric(forecastBase, format),
+      savedForecast: roundMetric(derivedForecast, format),
       variance: roundMetric(variance, format),
       variancePct: plan ? variance / plan : 0,
       closedMonth,
@@ -1228,6 +1239,7 @@ function buildMetricMonthCell(
     const plan = structureHoursCell.plan - longAbsenceCell.plan;
     const real = structureHoursCell.real - longAbsenceCell.real;
     const derivedForecast = structureHoursCell.forecast - longAbsenceCell.forecast;
+    const derivedSavedForecast = structureHoursCell.savedForecast - longAbsenceCell.savedForecast;
     const hasRealData = structureHoursCell.hasRealData || longAbsenceCell.hasRealData;
     const forecastBase = closedMonth && hasRealData ? real : derivedForecast;
     const variance = forecastBase - plan;
@@ -1237,6 +1249,7 @@ function buildMetricMonthCell(
       real: roundMetric(real, format),
       adjustment: roundMetric(closedMonth && hasRealData ? 0 : derivedForecast - plan, format),
       forecast: roundMetric(forecastBase, format),
+      savedForecast: roundMetric(derivedSavedForecast, format),
       variance: roundMetric(variance, format),
       variancePct: plan ? variance / plan : 0,
       closedMonth,
@@ -1267,6 +1280,12 @@ function buildMetricMonthCell(
     ? (hasAggregatedValue(sourceData, 'IST', metric, month.id) || hasAggregatedValue(sourceData, 'IST', NET_HOURS_PLAN_VT_METRIC, month.id))
     : hasAggregatedValue(sourceData, 'IST', metric, month.id));
   const forecastBase = closedMonth && hasRealData ? real : plan + adjustment;
+  const savedAdjustment = normalizeMetricName(metric) === normalizeMetricName(NET_HOURS_METRIC)
+    ? (hasExplicitNetHoursAdjustment
+        ? getAggregatedValue(sourceData, 'VOD', metric, month.id)
+        : calculateNetHoursDerivedAdjustment(sourceData, month.id))
+    : getAggregatedValue(sourceData, 'VOD', metric, month.id);
+  const savedForecast = plan + savedAdjustment;
   const variance = forecastBase - plan;
 
   return {
@@ -1274,6 +1293,7 @@ function buildMetricMonthCell(
     real: roundMetric(real, format),
     adjustment: roundMetric(adjustment, format),
     forecast: roundMetric(forecastBase, format),
+    savedForecast: roundMetric(savedForecast, format),
     variance: roundMetric(variance, format),
     variancePct: plan ? variance / plan : 0,
     closedMonth,
@@ -1327,6 +1347,7 @@ function buildMetricSection(
   const planValues = cells.map((cell) => cell.plan);
   const realValues = cells.map((cell) => getDisplayedRealValue(metric, cell));
   const forecastValues = cells.map((cell) => cell.forecast);
+  const savedForecastValues = cells.map((cell) => cell.savedForecast);
   const deltaValues = cells.map((cell) => roundMetric(cell.forecast - (cell.hasRealData ? cell.real : cell.plan), format));
   const planDeltaValues = cells.map((cell) => cell.hasRealData ? roundMetric(cell.real - cell.plan, format) : 0);
   const adjustmentValues = cells.map((cell) => cell.adjustment);
@@ -1346,7 +1367,7 @@ function buildMetricSection(
         hasRealFlags: cells.map((cell) => cell.hasRealData),
       },
       { type: 'adjustment', label: 'Úprava VOD', values: adjustmentValues, total: roundMetric(sumValues(adjustmentValues), format), closed: cells.map((cell) => cell.closedMonth) },
-      { type: 'forecast', label: 'Úprava VOD', values: forecastValues, total: summary.forecast },
+      { type: 'forecast', label: 'Úprava VOD', values: forecastValues, total: summary.forecast, savedValues: savedForecastValues, savedTotal: roundMetric(sumValues(savedForecastValues), format) },
       { type: 'delta', label: 'Δ Úprava VOD', values: deltaValues, total: roundMetric(sumValues(deltaValues), format) },
       { type: 'plan-delta', label: 'Δ Plán vs IST', values: planDeltaValues, total: roundMetric(sumValues(planDeltaValues), format) },
     ],

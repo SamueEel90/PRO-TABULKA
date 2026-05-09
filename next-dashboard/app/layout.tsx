@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 
-import DotField from '@/components/dot-field';
+import ThemeDotField from '@/components/theme-dot-field';
 import { Providers } from '@/components/providers';
 
 import './globals.css';
@@ -26,21 +26,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </head>
       <body>
         <div className="app-background" aria-hidden="true">
-          <DotField
-            className="app-background__dots"
-            dotRadius={1.5}
-            dotSpacing={14}
-            bulgeStrength={67}
-            glowRadius={160}
-            sparkle={false}
-            waveAmplitude={0}
-            cursorRadius={500}
-            cursorForce={0.1}
-            bulgeOnly
-            gradientFrom="#154c79"
-            gradientTo="#207e77"
-            glowColor="#12212e"
-          />
+          <ThemeDotField />
         </div>
         <Providers>
           <div className="shell">{children}</div>
