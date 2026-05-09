@@ -2092,7 +2092,7 @@
 					{ match: 'dlhodoba nepritomnost (33+ dni) (b)', label: 'PN Dlhodobé' },
 					{ match: 'externa pracovna agentura (+) reinigung', label: 'AgentĂşra Reinigung' },
 					{ match: 'externa pracovna agentura (+) wareneinraumung', label: 'AgentĂşra Waren' },
-					{ match: 'odmena za pr.pracu ziak (+) 50%', label: 'Dualisti' },
+					{ match: 'odmena za pr.pracu ziak (+) 50%', label: 'Dualisti 50%' },
 					{ match: 'odmena za dohodu', label: 'Brigádnici(DBPŠ)' },
 					{ match: 'odmena za dohodu (-)', label: 'Brigádnici(DBPŠ)' },
 					{ match: 'odmena za dohodu (+)', label: 'Brigádnici(DBPŠ)' },
@@ -3568,7 +3568,7 @@
 					'dlhodoba nepritomnost (33+ dni) (b)': 'PN Dlhodobé',
 					'externa pracovna agentura (+) reinigung': 'ExternĂˇ agentĂşra',
 					'odmena za dohodu': 'Brigádnici(DBPŠ)',
-					'odmena za pr.pracu ziak (+) 50%': 'Dualisti',
+					'odmena za pr.pracu ziak (+) 50%': 'Dualisti 50%',
 					'fima/prestavba/dodatocne prace/neo': 'FiMa/Prestavba/OstatnĂ©'
 				};
 

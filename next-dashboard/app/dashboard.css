@@ -2585,6 +2585,25 @@ body.theme-dark .metric-section {
 				transform: translateY(-1px);
 			}
 
+			.metric-toggle-saved {
+				min-width: 5.5rem;
+				padding: 0.5em 0.8em;
+				font-size: 0.75rem;
+				opacity: 0.78;
+			}
+
+			.metric-toggle-saved.is-active {
+				background: #c84f40;
+				border-color: #c84f40;
+				color: #fff;
+				opacity: 1;
+			}
+
+			.forecast-saved-mode {
+				background: rgba(200, 79, 64, 0.08);
+				font-style: italic;
+			}
+
 			.metric-section-body {
 				display: block;
 			}

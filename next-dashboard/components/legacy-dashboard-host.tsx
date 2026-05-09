@@ -336,6 +336,9 @@ export function LegacyDashboardHost({ asset, bodyMode = 'full' }: { asset: Legac
       }
 
       document.body.classList.add('legacy-dashboard-page');
+      if (asset === 'sumar') {
+        document.body.classList.add('legacy-sumar-page');
+      }
 
       try {
         const response = await fetch(`/legacy-index?asset=${asset}`, { cache: 'no-store' });
@@ -368,6 +371,7 @@ export function LegacyDashboardHost({ asset, bodyMode = 'full' }: { asset: Legac
           injectedHeadNodes.forEach((node) => node.remove());
           host.replaceChildren();
           document.body.classList.remove('legacy-dashboard-page');
+          document.body.classList.remove('legacy-sumar-page');
         };
 
         setLoadState({ status: 'ready' });
@@ -411,11 +415,17 @@ export function LegacyDashboardHost({ asset, bodyMode = 'full' }: { asset: Legac
       {loadState.status === 'loading' ? (
         <section className={styles.loading}>
           <div className={styles.loadingCard}>
-            <span className={styles.loadingKicker}>Legacy TSX host</span>
-            <h1 className={styles.loadingTitle}>Nacitavam povodny dashboard bez iframe.</h1>
-            <p className={styles.loadingText}>
-              React stranka prebera legacy HTML, styly a skripty do jedneho runtime povrchu, aby dashboard bezal priamo v TSX route.
-            </p>
+            {asset === 'sumar' ? (
+              <h1 className={styles.loadingTitle}>Načítava Sumár PRO GJ 2026</h1>
+            ) : (
+              <>
+                <span className={styles.loadingKicker}>Legacy TSX host</span>
+                <h1 className={styles.loadingTitle}>Nacitavam povodny dashboard bez iframe.</h1>
+                <p className={styles.loadingText}>
+                  React stranka prebera legacy HTML, styly a skripty do jedneho runtime povrchu, aby dashboard bezal priamo v TSX route.
+                </p>
+              </>
+            )}
           </div>
         </section>
       ) : null}

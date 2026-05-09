@@ -14,7 +14,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const viewParam = Array.isArray(params.view) ? params.view[0] : params.view;
 
   if (viewParam === 'sumar') {
-    redirect('/legacy-sumar');
+    redirect('/sumar');
   }
 
   const redirectParams = new URLSearchParams();

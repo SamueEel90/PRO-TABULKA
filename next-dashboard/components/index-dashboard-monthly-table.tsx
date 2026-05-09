@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import type { MetricFormat, MetricRow, WorkforceStructureMixValue } from '@/lib/legacy/contracts';
 import { applyLayout, loadLayout, subscribeLayout, type MetricLayout } from '@/lib/metric-layout';
+import { loadShowSavedMetrics, subscribeShowSavedMetrics, toggleShowSavedMetric } from '@/lib/forecast-display-mode';
 import { NoteThread } from './note-thread';
 import { ActivityFeed } from './activity-feed';
 import { TaskCounter } from './task-counter';
@@ -32,6 +33,7 @@ type MonthlyTableSectionModel = {
   workingDaysByMonth: Array<number | null>;
   breakdownHtml?: string;
   vodNote?: { text: string; author?: string; updatedAt?: string } | null;
+  showSavedForecast?: boolean;
 };
 
 type MonthlyTableRenderDetail = {
@@ -371,7 +373,9 @@ function renderYearTotalCell(section: MonthlyTableSectionModel, row: MonthlyTabl
   }
 
   if (row.type === 'forecast' || row.type === 'recommendation-result') {
-    return <td className={`year-total-cell ${getForecastCellClass(row.total, section.planTotal)}`}>{formatMetric(row.total, section.format)}</td>;
+    const showSavedTotal = row.type === 'forecast' && section.showSavedForecast && typeof row.savedTotal === 'number';
+    const total = showSavedTotal ? (row.savedTotal as number) : (row.total as number);
+    return <td className={`year-total-cell ${getForecastCellClass(total, section.planTotal)}${showSavedTotal ? ' forecast-saved-mode' : ''}`}>{formatMetric(total, section.format)}</td>;
   }
 
   if (row.type === 'real') {
@@ -402,7 +406,8 @@ function renderYearTotalCell(section: MonthlyTableSectionModel, row: MonthlyTabl
 }
 
 function renderCell(section: MonthlyTableSectionModel, row: MonthlyTableRowModel, entry: VisibleMonthEntry, canEdit: boolean, focusedMonth: string, compareMode?: string) {
-  const value = row.values[entry.index];
+  const useSavedForecast = row.type === 'forecast' && section.showSavedForecast && Array.isArray(row.savedValues);
+  const value = useSavedForecast ? (row.savedValues as number[])[entry.index] : row.values[entry.index];
   const month = entry.month;
   const focusedCellClass = month === focusedMonth ? 'metric-month-cell is-focused' : '';
   const format = row.displayFormat || section.format;
@@ -457,7 +462,7 @@ function renderCell(section: MonthlyTableSectionModel, row: MonthlyTableRowModel
   }
 
   if (row.type === 'forecast') {
-    if (section.usesForecastInput) {
+    if (section.usesForecastInput && !useSavedForecast) {
       const disabled = hasActualRealValue(section.realRow, entry.index) || Boolean(section.adjustmentClosed[entry.index]);
       return (
         <td className={focusedCellClass}>
@@ -475,7 +480,7 @@ function renderCell(section: MonthlyTableSectionModel, row: MonthlyTableRowModel
       );
     }
 
-    return <td className={`${focusedCellClass} ${getForecastCellClass(value as number, section.planValues[entry.index])}`}>{formatMetric(value as number, section.format)}</td>;
+    return <td className={`${focusedCellClass} ${getForecastCellClass(value as number, section.planValues[entry.index])}${useSavedForecast ? ' forecast-saved-mode' : ''}`}>{formatMetric(value as number, section.format)}</td>;
   }
 
   if (row.type === 'real') {
@@ -490,6 +495,7 @@ function renderCell(section: MonthlyTableSectionModel, row: MonthlyTableRowModel
 export function IndexDashboardMonthlyTable() {
   const [detail, setDetail] = useState<MonthlyTableRenderDetail | null>(null);
   const [layout, setLayout] = useState<MetricLayout>({ order: [], hidden: [] });
+  const [showSavedMetrics, setShowSavedMetrics] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     const handleRender = (event: Event) => {
@@ -531,12 +537,25 @@ export function IndexDashboardMonthlyTable() {
     return unsubscribe;
   }, [scopeId, role]);
 
+  useEffect(() => {
+    if (!scopeId || !role) {
+      setShowSavedMetrics(new Set());
+      return;
+    }
+    setShowSavedMetrics(loadShowSavedMetrics(scopeId, role));
+    const unsubscribe = subscribeShowSavedMetrics(scopeId, role, () => {
+      setShowSavedMetrics(loadShowSavedMetrics(scopeId, role));
+    });
+    return unsubscribe;
+  }, [scopeId, role]);
+
   const orderedSections = useMemo(() => {
     if (!detail) {
       return [];
     }
-    return applyLayout(detail.sections, layout);
-  }, [detail, layout]);
+    const ordered = applyLayout(detail.sections, layout);
+    return ordered.map((section) => ({ ...section, showSavedForecast: showSavedMetrics.has(section.metric) }));
+  }, [detail, layout, showSavedMetrics]);
 
   return (
     <>
@@ -575,6 +594,26 @@ export function IndexDashboardMonthlyTable() {
                     {section.headerMeta ? <span className="tiny">{section.headerMeta}</span> : null}
                   </div>
                   <div className="metric-actions">
+                    {(() => {
+                      const normalized = normalizeMetricName(section.metric);
+                      const hideSavedToggle =
+                        normalized === normalizeMetricName('Štruktúra hodín')
+                        || normalized === normalizeMetricName('Štruktúra filiálky (plné úväzky)')
+                        || normalized === normalizeMetricName('Čistý výkon')
+                        || normalized === normalizeMetricName('Hodiny netto');
+                      if (hideSavedToggle) return null;
+                      return (
+                        <button
+                          aria-pressed={section.showSavedForecast ? 'true' : 'false'}
+                          className={`metric-toggle metric-toggle-saved${section.showSavedForecast ? ' is-active' : ''}`}
+                          title={section.showSavedForecast ? 'Úprava VOD: pôvodné hodnoty (bez IST)' : 'Úprava VOD: prekryté IST hodnotami'}
+                          type="button"
+                          onClick={() => toggleShowSavedMetric(scopeId, role, section.metric)}
+                        >
+                          Úprava VOD: {section.showSavedForecast ? 'Pôv.' : 'IST'}
+                        </button>
+                      );
+                    })()}
                     <button
                       aria-expanded={section.collapsed ? 'false' : 'true'}
                       className="metric-toggle"

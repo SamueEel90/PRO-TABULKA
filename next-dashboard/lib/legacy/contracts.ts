@@ -54,6 +54,8 @@ export type MetricRow = {
   hasRealFlags?: boolean[];
   closed?: boolean[];
   displayFormat?: MetricFormat;
+  savedValues?: number[];
+  savedTotal?: number;
 };
 
 export type MetricSection = {
