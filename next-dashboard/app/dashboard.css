@@ -6048,6 +6048,10 @@ body.theme-dark .ist-approval-note {
   border-color: rgba(255, 255, 255, 0.14);
   color: rgba(255, 255, 255, 0.92);
 }
+body.theme-dark .ist-adjust-select option {
+  background: #1a1f2b;
+  color: rgba(255, 255, 255, 0.92);
+}
 body.theme-dark .ist-adjust-item,
 body.theme-dark .ist-approval-item {
   background: rgba(255, 255, 255, 0.03);
