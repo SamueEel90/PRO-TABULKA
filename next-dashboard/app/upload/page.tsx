@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
+import { IstAdjustmentsAudit } from '@/components/ist-adjustments-audit';
 import { MonthlyValuesEditor } from '@/components/monthly-values-editor';
 import { StructureUsersEditor } from '@/components/structure-users-editor';
 import { UploadForm } from '@/components/upload-form';
@@ -71,6 +72,8 @@ Samuel | samuel@firma.sk | Ivan Bosák | bosak@firma.sk | Barišová Monika | mo
       </section>
 
       <MonthlyValuesEditor adminSecret={adminSecret} />
+
+      <IstAdjustmentsAudit />
     </main>
   );
 }

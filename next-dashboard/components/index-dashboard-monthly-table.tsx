@@ -8,6 +8,8 @@ import { loadShowSavedMetrics, subscribeShowSavedMetrics, toggleShowSavedMetric 
 import { NoteThread } from './note-thread';
 import { ActivityFeed } from './activity-feed';
 import { TaskCounter } from './task-counter';
+import { IstAdjustRequest } from './ist-adjust-request';
+import { IstAdjustApproval } from './ist-adjust-approval';
 
 type VisibleMonthEntry = {
   month: string;
@@ -576,6 +578,9 @@ export function IndexDashboardMonthlyTable() {
             currentRole={role}
             currentAuthor={userName}
           />
+          {role === 'VKL' && vklName ? (
+            <IstAdjustApproval vklName={vklName} currentRole={role} />
+          ) : null}
           <ActivityFeed scopeKey={noteScopeKey} userId={`${scopeId}:${role}`} />
         </div>
       ) : null}
@@ -601,6 +606,23 @@ export function IndexDashboardMonthlyTable() {
                         gfVklOptions={gfVklOptions}
                         legacyNote={section.vodNote}
                       />
+                      {role === 'VOD' && scopeType === 'STORE' && scopeId && (() => {
+                        const norm = normalizeMetricName(section.metric);
+                        const blocked = [
+                          'Štruktúra filiálky (plné úväzky)',
+                          'Hodiny netto',
+                          'Čistý výkon',
+                          'Hodiny Brutto GJ2026',
+                        ].some((m) => normalizeMetricName(m) === norm);
+                        return blocked ? null : (
+                          <IstAdjustRequest
+                            storeId={scopeId}
+                            metricCode={section.metric}
+                            metricTitle={section.title}
+                            currentRole={role}
+                          />
+                        );
+                      })()}
                     </div>
                     {section.headerMeta ? <span className="tiny">{section.headerMeta}</span> : null}
                   </div>

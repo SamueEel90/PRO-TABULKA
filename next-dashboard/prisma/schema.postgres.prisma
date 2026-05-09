@@ -19,6 +19,7 @@ model Store {
   monthlyValues   MonthlyValue[]
   users           User[]
   weeklyOverrides WeeklyVodOverride[]
+  istAdjustmentRequests IstAdjustmentRequest[]
 }
 
 model User {
@@ -109,6 +110,31 @@ model DashboardNote {
 
   @@unique([scopeKey, role, metricKey])
   @@index([scopeKey, metricKey])
+}
+
+model IstAdjustmentRequest {
+  id              String   @id @default(cuid())
+  storeId         String
+  metricCode      String
+  monthId         String
+  monthLabel      String
+  oldValue        Float
+  newValue        Float
+  reason          String
+  status          String   @default("pending")
+  requestedById   String
+  requestedByName String
+  vklName         String?
+  decidedAt       DateTime?
+  decidedById     String?
+  decidedByName   String?
+  decisionNote    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now())
+  store           Store    @relation(fields: [storeId], references: [id])
+
+  @@index([vklName, status])
+  @@index([storeId, status])
 }
 
 model WeeklyVodOverride {
