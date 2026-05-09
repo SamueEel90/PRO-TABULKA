@@ -45,6 +45,8 @@ type MonthlyTableRenderDetail = {
   scopeType?: string;
   noteScopeKey?: string;
   vklName?: string;
+  gfName?: string;
+  gfVklOptions?: string[];
   role?: string;
   userName?: string;
   sections: MonthlyTableSectionModel[];
