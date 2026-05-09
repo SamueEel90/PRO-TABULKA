@@ -619,7 +619,8 @@
 
 			const initialLogin = new URLSearchParams(window.location.search).get('login') || '';
 			if (initialLogin) {
-				document.getElementById('loginInput').value = initialLogin;
+				const loginInputEl = document.getElementById('loginInput');
+				if (loginInputEl) loginInputEl.value = initialLogin;
 				state.loginValue = initialLogin;
 				loadDashboard('ALL');
 			}
@@ -648,12 +649,9 @@
 			}
 
 			function handleLogin() {
-				const loginValue = document.getElementById('loginInput').value.trim();
-				if (!loginValue) {
-					showLoginError('Zadaj email alebo test identifikĂˇtor.');
-					return;
-				}
-				state.loginValue = loginValue;
+				const loginInput = document.getElementById('loginInput');
+				const loginValue = loginInput ? loginInput.value.trim() : '';
+				state.loginValue = loginValue || null;
 				hideLoginError();
 				loadDashboard('ALL');
 			}

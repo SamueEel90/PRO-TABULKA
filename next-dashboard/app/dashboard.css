@@ -290,13 +290,176 @@ summary {
 				border: 1px solid var(--line);
 			}
 
+			.login-card--centered {
+				text-align: center;
+			}
+
+			.login-card--centered .login-form,
+			.login-card--centered .demo-hints {
+				text-align: left;
+			}
+
+			.login-card--centered .login-action-row {
+				grid-template-columns: auto auto;
+				justify-content: center;
+			}
+
+			.login-card--centered .login-action-row .primary-btn,
+			.login-card--centered .login-action-row .secondary-btn {
+				width: auto;
+				min-width: 9.5rem;
+				padding-inline: 1.6em;
+			}
+
+			.login-card--centered .login-help-text,
+			.login-card--centered .demo-hints {
+				text-align: center;
+			}
+
+			.login-card--centered .demo-hints strong {
+				display: inline-block;
+			}
+
+			/* Glassmorphism login card */
+			.login-card {
+				position: relative;
+				overflow: hidden;
+				background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.22));
+				backdrop-filter: blur(32px) saturate(1.5);
+				-webkit-backdrop-filter: blur(32px) saturate(1.5);
+				border: 1px solid rgba(255, 255, 255, 0.5);
+				box-shadow: 0 30px 60px rgba(15, 32, 60, 0.12), 0 6px 18px rgba(15, 32, 60, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+			}
+
+			.login-card::before {
+				content: '';
+				position: absolute;
+				top: 0;
+				left: 0;
+				right: 0;
+				height: 45%;
+				background: linear-gradient(180deg, rgba(255, 255, 255, 0.32), transparent);
+				pointer-events: none;
+				border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+			}
+
+			body.theme-dark .login-card {
+				background: linear-gradient(180deg, rgba(28, 22, 26, 0.5), rgba(20, 22, 25, 0.32));
+				border-color: rgba(255, 255, 255, 0.08);
+				box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+			}
+
+			body.theme-dark .login-card::before {
+				background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent);
+			}
+
+			/* Login action buttons — glass + hover shimmer */
+			.login-action-row .primary-btn,
+			.login-action-row .secondary-btn {
+				position: relative;
+				overflow: hidden;
+				isolation: isolate;
+				padding: 0.95em 1.6em;
+				border-radius: 999px;
+				font-size: 1rem;
+				font-weight: 800;
+				letter-spacing: 0.02em;
+				transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+			}
+
+			.login-action-row .primary-btn::before,
+			.login-action-row .secondary-btn::before {
+				content: '';
+				position: absolute;
+				inset: 0;
+				z-index: -1;
+				background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.45) 50%, transparent 70%);
+				transform: translateX(-110%);
+				transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+				pointer-events: none;
+			}
+
+			.login-action-row .primary-btn:hover::before,
+			.login-action-row .secondary-btn:hover::before {
+				transform: translateX(110%);
+			}
+
+			.login-action-row .primary-btn {
+				color: #fff;
+				background: linear-gradient(135deg, #d71920 0%, #a1141a 100%);
+				border-color: rgba(215, 25, 32, 0.55);
+				box-shadow: 0 12px 28px rgba(215, 25, 32, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+			}
+
+			.login-action-row .primary-btn:hover {
+				transform: translateY(-2px) scale(1.01);
+				box-shadow: 0 18px 36px rgba(215, 25, 32, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.36);
+				background: linear-gradient(135deg, #e62028 0%, #b8161c 100%);
+			}
+
+			.login-action-row .primary-btn:active {
+				transform: translateY(0) scale(0.99);
+				box-shadow: 0 6px 14px rgba(215, 25, 32, 0.28);
+			}
+
+			.login-action-row .secondary-btn {
+				color: var(--navy);
+				background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.55));
+				backdrop-filter: blur(14px) saturate(1.2);
+				-webkit-backdrop-filter: blur(14px) saturate(1.2);
+				border-color: rgba(36, 86, 124, 0.22);
+				box-shadow: 0 8px 22px rgba(34, 56, 77, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+			}
+
+			.login-action-row .secondary-btn:hover {
+				transform: translateY(-2px) scale(1.01);
+				background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(247, 250, 253, 0.75));
+				border-color: rgba(36, 86, 124, 0.36);
+				box-shadow: 0 14px 30px rgba(34, 56, 77, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+			}
+
+			.login-action-row .secondary-btn:active {
+				transform: translateY(0) scale(0.99);
+				box-shadow: 0 6px 14px rgba(34, 56, 77, 0.10);
+			}
+
+			body.theme-dark .login-action-row .secondary-btn {
+				color: var(--navy);
+				background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
+				border-color: rgba(255, 255, 255, 0.10);
+				box-shadow: 0 8px 22px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+			}
+
+			body.theme-dark .login-action-row .secondary-btn:hover {
+				background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+				border-color: rgba(255, 255, 255, 0.18);
+				box-shadow: 0 14px 30px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+			}
+
+			.login-action-row .primary-btn:focus-visible,
+			.login-action-row .secondary-btn:focus-visible {
+				outline: none;
+				box-shadow: 0 0 0 3px rgba(215, 25, 32, 0.32), 0 14px 30px rgba(215, 25, 32, 0.24);
+			}
+
+			@media (prefers-reduced-motion: reduce) {
+				.login-action-row .primary-btn::before,
+				.login-action-row .secondary-btn::before {
+					display: none;
+				}
+				.login-action-row .primary-btn:hover,
+				.login-action-row .secondary-btn:hover {
+					transform: none;
+				}
+			}
+
 			.login-brand {
 				position: relative;
 				overflow: hidden;
 				display: inline-flex;
 				align-items: center;
-				gap: 0.875rem;
-				padding: 0.85em 1.25em;
+				gap: 1rem;
+				padding: 0.85em 1.4em;
 				border-radius: var(--radius-pill);
 				background: rgba(215, 25, 32, 0.08);
 				color: var(--brand);
@@ -304,7 +467,6 @@ summary {
 				letter-spacing: 0.08em;
 				text-transform: uppercase;
 				font-size: 1rem;
-				justify-self: center;
 				margin: 0 auto;
 			}
 
@@ -320,8 +482,8 @@ summary {
 			.login-brand img {
 				position: relative;
 				z-index: 1;
-				width: 2rem;
-				height: 2rem;
+				width: 2.6rem;
+				height: 2.6rem;
 				object-fit: contain;
 			}
 
