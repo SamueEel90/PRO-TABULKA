@@ -5,9 +5,9 @@ import { useEffect, useState } from 'react';
 import DotField from './dot-field';
 
 const LIGHT_PALETTE = {
-  gradientFrom: '#154c79',
-  gradientTo: '#207e77',
-  glowColor: '#12212e',
+  gradientFrom: '#c84f40',
+  gradientTo: '#e07a6d',
+  glowColor: '#7a2a23',
 };
 
 const DARK_PALETTE = {

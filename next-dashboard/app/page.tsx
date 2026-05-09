@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
+import { auth } from '@/auth';
+
 export const metadata: Metadata = {
   title: 'Kaufland PRO Dashboard',
 };
@@ -14,6 +16,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const viewParam = Array.isArray(params.view) ? params.view[0] : params.view;
 
   if (viewParam === 'sumar') {
+    redirect('/sumar');
+  }
+
+  // GL has no access to filiálkový dashboard — go straight to sumar.
+  const session = await auth();
+  if (session?.user?.role === 'GL') {
     redirect('/sumar');
   }
 

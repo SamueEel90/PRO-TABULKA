@@ -519,11 +519,18 @@ export function IndexDashboardMonthlyTable() {
   const scopeType = String(detail?.scopeType || '');
   const noteScopeKey = String(detail?.noteScopeKey || '');
   const vklName = String(detail?.vklName || '');
+  const gfName = String(detail?.gfName || '');
+  const gfVklOptions: string[] = Array.isArray(detail?.gfVklOptions) ? (detail!.gfVklOptions as string[]) : [];
   const role = String(detail?.role || '');
   const userName = String(detail?.userName || role);
 
-  // For STORE scope, also fetch broadcast comments from VKL level
-  const broadcastScopeKey = scopeType === 'STORE' && vklName ? `AGGREGATE|VKL|${vklName}` : '';
+  // Broadcast hierarchy: VOD viewing STORE pulls VKL aggregate; VKL pulls GF aggregate.
+  let broadcastScopeKey = '';
+  if (role === 'VOD' && scopeType === 'STORE' && vklName) {
+    broadcastScopeKey = `AGGREGATE|VKL|${vklName}`;
+  } else if (role === 'VKL' && gfName) {
+    broadcastScopeKey = `AGGREGATE|GF|${gfName}`;
+  }
 
   useEffect(() => {
     if (!scopeId || !role) {
@@ -588,6 +595,8 @@ export function IndexDashboardMonthlyTable() {
                         metricTitle={section.title}
                         currentRole={role}
                         currentAuthor={userName}
+                        gfName={gfName}
+                        gfVklOptions={gfVklOptions}
                         legacyNote={section.vodNote}
                       />
                     </div>

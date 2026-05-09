@@ -33,7 +33,7 @@ declare module 'next-auth' {
     user: {
       id: string;
       email: string;
-      role: 'VOD' | 'VKL' | 'GF' | 'ADMIN';
+      role: 'VOD' | 'VKL' | 'GF' | 'GL' | 'ADMIN';
       primaryStoreId: string | null;
       vklName: string | null;
       gfName: string | null;
@@ -44,7 +44,7 @@ declare module 'next-auth' {
 declare module '@auth/core/jwt' {
   interface JWT {
     userId: string;
-    role: 'VOD' | 'VKL' | 'GF' | 'ADMIN';
+    role: 'VOD' | 'VKL' | 'GF' | 'GL' | 'ADMIN';
     primaryStoreId: string | null;
     vklName: string | null;
     gfName: string | null;
@@ -150,7 +150,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const dbUser = await db.user.findUnique({ where: { email: user.email } });
         if (dbUser) {
           token.userId = dbUser.id;
-          token.role = dbUser.role as 'VOD' | 'VKL' | 'GF' | 'ADMIN';
+          token.role = dbUser.role as 'VOD' | 'VKL' | 'GF' | 'GL' | 'ADMIN';
           token.primaryStoreId = dbUser.primaryStoreId;
           token.vklName = dbUser.vklName;
           token.gfName = dbUser.gfName;
@@ -167,7 +167,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = String(token.userId || '');
-        session.user.role = (token.role as 'VOD' | 'VKL' | 'GF' | 'ADMIN');
+        session.user.role = (token.role as 'VOD' | 'VKL' | 'GF' | 'GL' | 'ADMIN');
         session.user.primaryStoreId = (token.primaryStoreId as string | null) ?? null;
         session.user.vklName = (token.vklName as string | null) ?? null;
         session.user.gfName = (token.gfName as string | null) ?? null;

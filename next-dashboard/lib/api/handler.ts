@@ -64,7 +64,7 @@ type RouteOptions<TQuery, TBody, TParams> = {
    */
   requireAuth?: boolean;
   /** Restrict to specific roles. Implies requireAuth. */
-  roles?: ReadonlyArray<'VOD' | 'VKL' | 'GF' | 'ADMIN'>;
+  roles?: ReadonlyArray<'VOD' | 'VKL' | 'GF' | 'GL' | 'ADMIN'>;
   handler: HandlerFn<TQuery, TBody, TParams>;
 };
 

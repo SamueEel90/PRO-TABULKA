@@ -88,6 +88,8 @@ function patchIndexInlineScript(scriptContent: string) {
       scopeType: payload && payload.scope ? String(payload.scope.type || '') : '',
       noteScopeKey: payload && payload.scope ? String(payload.scope.noteScopeKey || '') : '',
       vklName: payload && payload.user ? String(payload.user.vklName || '') : '',
+      gfName: payload && payload.user ? String(payload.user.gfName || '') : '',
+      gfVklOptions: payload && payload.user && Array.isArray(payload.user.gfVklOptions) ? payload.user.gfVklOptions.slice() : [],
       role: payload && payload.user ? String(payload.user.role || '') : '',
       userName: payload && payload.user ? String(payload.user.displayName || payload.user.name || '') : '',
       sections: filteredSections.map(function(section) {

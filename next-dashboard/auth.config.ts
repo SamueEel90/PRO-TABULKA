@@ -15,7 +15,7 @@ export const authConfig = {
     session({ session, token }) {
       if (token && session.user) {
         session.user.id = String(token.userId || '');
-        session.user.role = token.role as 'VOD' | 'VKL' | 'GF' | 'ADMIN';
+        session.user.role = token.role as 'VOD' | 'VKL' | 'GF' | 'GL' | 'ADMIN';
         session.user.primaryStoreId = (token.primaryStoreId as string | null) ?? null;
         session.user.vklName = (token.vklName as string | null) ?? null;
         session.user.gfName = (token.gfName as string | null) ?? null;
