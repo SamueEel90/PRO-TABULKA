@@ -15,12 +15,47 @@
 
 .loadingCard,
 .errorCard {
+  position: relative;
+  overflow: hidden;
   width: 100%;
-  background: rgba(255, 255, 255, 0.97);
-  border: 1px solid rgba(100, 116, 139, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.22));
+  backdrop-filter: blur(32px) saturate(1.5);
+  -webkit-backdrop-filter: blur(32px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 28px;
-  box-shadow: 0 24px 52px rgba(51, 65, 85, 0.1);
+  box-shadow: 0 30px 60px rgba(15, 32, 60, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.55);
   padding: 28px;
+}
+
+.loadingCard::before,
+.errorCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 45%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.32), transparent);
+  pointer-events: none;
+  border-radius: 28px 28px 0 0;
+}
+
+:global(body.theme-dark) .loadingCard,
+:global(body.theme-dark) .errorCard {
+  background: linear-gradient(180deg, rgba(28, 22, 26, 0.5), rgba(20, 22, 25, 0.32));
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #e3edf8;
+}
+
+:global(body.theme-dark) .loadingCard::before,
+:global(body.theme-dark) .errorCard::before {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent);
+}
+
+:global(body.theme-dark) .loadingText,
+:global(body.theme-dark) .errorText {
+  color: #cbd5e1;
 }
 
 .loadingKicker,

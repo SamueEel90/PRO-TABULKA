@@ -155,35 +155,11 @@
 				font-feature-settings: 'tnum' 1, 'zero' 1;
 				color: var(--text);
 				min-height: 100vh;
-				background: linear-gradient(180deg, #fafbfc 0%, #f3f4f6 46%, #eceff3 100%);
+				background: transparent;
 			}
 
 			body.theme-dark {
-				background: linear-gradient(180deg, #121416 0%, #1a1b1f 44%, #261d20 100%);
-			}
-
-			body::before {
-				content: '';
-				position: fixed;
-				inset: 0;
-				background:
-					radial-gradient(circle at top left, rgba(215, 25, 32, 0.04), transparent 25%),
-					radial-gradient(circle at top right, rgba(148, 163, 184, 0.05), transparent 22%),
-					radial-gradient(circle at 50% 120%, rgba(100, 116, 139, 0.04), transparent 24%),
-					linear-gradient(rgba(51, 65, 85, 0.014) 1px, transparent 1px),
-					linear-gradient(90deg, rgba(51, 65, 85, 0.014) 1px, transparent 1px);
-				background-size: auto, auto, auto, 1.75rem 1.75rem, 1.75rem 1.75rem;
-				pointer-events: none;
-				z-index: 0;
-			}
-
-			body.theme-dark::before {
-				background:
-					radial-gradient(circle at top left, rgba(215, 25, 32, 0.12), transparent 25%),
-					radial-gradient(circle at top right, rgba(130, 136, 140, 0.08), transparent 22%),
-					radial-gradient(circle at 50% 120%, rgba(240, 136, 114, 0.07), transparent 24%),
-					linear-gradient(rgba(146, 132, 136, 0.045) 1px, transparent 1px),
-					linear-gradient(90deg, rgba(146, 132, 136, 0.045) 1px, transparent 1px);
+				background: transparent;
 			}
 
 			.dotfield-backdrop {
@@ -244,11 +220,10 @@
 			}
 
 			.login-card {
-				width: min(100%, 35rem);
-				background: var(--surface-muted);
-				padding: var(--space-9);
-				border-radius: var(--radius-xl);
-				border: 1px solid var(--line);
+				width: 100%;
+				max-width: 560px;
+				padding: 3rem 3.25rem;
+				border-radius: 24px;
 			}
 
 			.login-card--centered {
@@ -449,13 +424,23 @@
 			.login-card h1 {
 				margin: 1.375rem 0 0.625rem;
 				font-size: clamp(2.25rem, 6vw, 3.375rem);
+				font-weight: 800;
 				line-height: 0.96;
 				letter-spacing: -0.03em;
+				color: #16324a;
+			}
+
+			body.theme-dark .login-card h1 {
+				color: #ffffff;
 			}
 
 			.login-card p {
 				margin: 0;
-				color: var(--muted);
+				color: #5b6470;
+			}
+
+			body.theme-dark .login-card p {
+				color: #cbd5e1;
 			}
 
 			.login-form {

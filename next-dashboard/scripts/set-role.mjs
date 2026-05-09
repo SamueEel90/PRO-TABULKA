@@ -7,7 +7,7 @@
 
 import { PrismaClient } from '@prisma/client';
 
-const ALLOWED_ROLES = ['VOD', 'VKL', 'GF', 'ADMIN'];
+const ALLOWED_ROLES = ['VOD', 'VKL', 'GF', 'GL', 'ADMIN'];
 
 async function main() {
   const [, , emailArg, roleArg] = process.argv;

@@ -7,6 +7,8 @@ export type DashboardUser = {
   gfName?: string;
   vklName?: string;
   primaryStoreId?: string;
+  /** For GF role: list of VKL names belonging to this GF (drives NoteThread composer dropdown). */
+  gfVklOptions?: string[];
 };
 
 export type DashboardScope = {

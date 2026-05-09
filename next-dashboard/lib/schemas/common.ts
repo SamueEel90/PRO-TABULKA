@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 
-export const Role = z.enum(['VOD', 'VKL', 'GF', 'ADMIN']);
+export const Role = z.enum(['VOD', 'VKL', 'GF', 'GL', 'ADMIN']);
 export type Role = z.infer<typeof Role>;
 
 export const ScopeType = z.enum(['STORE', 'AGGREGATE']);

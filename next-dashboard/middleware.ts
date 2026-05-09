@@ -80,7 +80,19 @@ export default auth((request) => {
         { status: 403, headers: { 'x-request-id': requestId } },
       );
     }
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    const fallback = session.user.role === 'GL' ? '/sumar' : '/dashboard';
+    return NextResponse.redirect(new URL(fallback, request.url));
+  }
+
+  // 3b. GL has no access to /dashboard (Filiálky) — redirect to /sumar
+  if (session.user.role === 'GL' && pathname.startsWith('/dashboard')) {
+    if (isApi) {
+      return NextResponse.json(
+        { ok: false, error: 'GL nemá prístup k filiálkovému dashboardu.' },
+        { status: 403, headers: { 'x-request-id': requestId } },
+      );
+    }
+    return NextResponse.redirect(new URL('/sumar', request.url));
   }
 
   // 4. VOD (filialka) can only access their own store's dashboard

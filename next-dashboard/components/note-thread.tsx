@@ -33,9 +33,17 @@ type NoteThreadProps = {
   metricTitle: string;
   currentRole: string;
   currentAuthor: string;
+  /** Current user's GF name — needed for GF composer to broadcast to all VKLs */
+  gfName?: string;
+  /** List of VKL names under the current GF — for GF composer "specific VKL" dropdown */
+  gfVklOptions?: string[];
   /** Legacy single-note to show as first entry when no thread comments exist yet */
   legacyNote?: { text: string; author?: string; updatedAt?: string } | null;
 };
+
+type GfTarget =
+  | { kind: 'all' }
+  | { kind: 'vkl'; vkl: string };
 
 const dateFormatter = new Intl.DateTimeFormat('sk-SK', {
   day: 'numeric',
@@ -65,7 +73,7 @@ function roleBadgeClass(role: string) {
   return 'note-role-badge';
 }
 
-export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle, currentRole, currentAuthor, legacyNote }: NoteThreadProps) {
+export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle, currentRole, currentAuthor, gfName = '', gfVklOptions = [], legacyNote }: NoteThreadProps) {
   const [open, setOpen] = useState(false);
   const [comments, setComments] = useState<NoteComment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -73,8 +81,16 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
   const [text, setText] = useState('');
   const [createTask, setCreateTask] = useState(false);
   const [error, setError] = useState('');
+  const isGf = currentRole === 'GF';
+  const canBroadcastAsGf = isGf && Boolean(gfName);
+  const [gfTarget, setGfTarget] = useState<GfTarget>({ kind: 'all' });
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const personalScopeKey = isGf && gfName ? `PRIVATE|GF|${gfName}` : '';
+  const [personalComments, setPersonalComments] = useState<NoteComment[]>([]);
+  const [personalText, setPersonalText] = useState('');
+  const [personalSending, setPersonalSending] = useState(false);
 
   const threadCount = comments.length + (legacyNote && !comments.length ? 1 : 0);
   const openTaskCount = comments.filter((c) => c.task && c.task.status === 'open').length;
@@ -84,8 +100,9 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
     [comments, readMarker, currentAuthor],
   );
   const canCreateTasks = currentRole === 'VKL' || currentRole === 'GF';
-  const canCompleteTasks = currentRole === 'VOD';
+  const canCompleteTasks = currentRole === 'VOD' || currentRole === 'VKL';
   const canDeleteTasks = currentRole === 'VKL' || currentRole === 'GF';
+  const taskTargetLabel = isGf ? 'VKL' : 'VOD';
   const canDeleteComment = (comment: NoteComment) => {
     if (currentRole === 'VKL' || currentRole === 'GF') return true;
     if (currentRole === 'VOD') return comment.role === 'VOD' && comment.author === currentAuthor;
@@ -116,11 +133,25 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
     }
   }, [scopeKey, broadcastScopeKey, metricKey]);
 
+  const fetchPersonalComments = useCallback(async () => {
+    if (!personalScopeKey || !metricKey) return;
+    try {
+      const res = await fetch(`/api/notes?scopeKey=${encodeURIComponent(personalScopeKey)}&metricKey=${encodeURIComponent(metricKey)}`);
+      const data = await res.json();
+      if (data.ok) {
+        setPersonalComments(data.comments || []);
+      }
+    } catch {
+      /* best effort */
+    }
+  }, [personalScopeKey, metricKey]);
+
   useEffect(() => {
     if (open) {
       fetchComments();
+      if (personalScopeKey) fetchPersonalComments();
     }
-  }, [open, fetchComments]);
+  }, [open, fetchComments, fetchPersonalComments, personalScopeKey]);
 
   useEffect(() => {
     if (open && comments.length) {
@@ -149,6 +180,15 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
     const trimmed = text.trim();
     if (!trimmed || sending) return;
 
+    let effectiveScopeKey = scopeKey;
+    if (canBroadcastAsGf) {
+      if (gfTarget.kind === 'vkl' && gfTarget.vkl) {
+        effectiveScopeKey = `AGGREGATE|VKL|${gfTarget.vkl}`;
+      } else {
+        effectiveScopeKey = `AGGREGATE|GF|${gfName}`;
+      }
+    }
+
     setSending(true);
     setError('');
     try {
@@ -156,7 +196,7 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          scopeKey,
+          scopeKey: effectiveScopeKey,
           metricKey,
           role: currentRole,
           author: currentAuthor,
@@ -221,6 +261,47 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
       window.dispatchEvent(new CustomEvent('pro-dashboard:tasks-changed'));
     } catch {
       setError('Nepodarilo sa upraviť úlohu.');
+    }
+  };
+
+  const handleSendPersonal = async () => {
+    const trimmed = personalText.trim();
+    if (!trimmed || personalSending || !personalScopeKey) return;
+    setPersonalSending(true);
+    try {
+      const res = await fetch('/api/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scopeKey: personalScopeKey,
+          metricKey,
+          role: currentRole,
+          author: currentAuthor,
+          text: trimmed,
+          createTask: false,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setPersonalText('');
+        await fetchPersonalComments();
+      } else {
+        setError(data.error || 'Nepodarilo sa uložiť poznámku.');
+      }
+    } catch {
+      setError('Nepodarilo sa uložiť osobnú poznámku.');
+    } finally {
+      setPersonalSending(false);
+    }
+  };
+
+  const handleDeletePersonal = async (id: string) => {
+    if (!confirm('Zmazať túto osobnú poznámku?')) return;
+    try {
+      await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+      await fetchPersonalComments();
+    } catch {
+      setError('Nepodarilo sa zmazať poznámku.');
     }
   };
 
@@ -299,6 +380,58 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
         </button>
       </div>
 
+      {personalScopeKey ? (
+        <div className="note-thread-personal">
+          <div className="note-thread-personal-head">
+            <span className="note-thread-personal-title">Moje poznámky</span>
+            <span className="note-thread-personal-hint">vidíš iba ty</span>
+          </div>
+          {personalComments.length ? (
+            <ul className="note-thread-personal-list">
+              {personalComments.map((entry) => (
+                <li key={entry.id} className="note-thread-personal-item">
+                  <span className="note-thread-personal-date">{formatCommentDate(entry.createdAt)}</span>
+                  <span className="note-thread-personal-text">{entry.text}</span>
+                  <button
+                    type="button"
+                    className="note-thread-personal-delete"
+                    onClick={() => handleDeletePersonal(entry.id)}
+                    aria-label="Zmazať poznámku"
+                    title="Zmazať"
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="note-thread-personal-input">
+            <textarea
+              className="note-thread-personal-textarea"
+              rows={2}
+              placeholder="Tvoja súkromná poznámka…"
+              value={personalText}
+              onChange={(e) => setPersonalText(e.target.value)}
+              disabled={personalSending}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendPersonal();
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="note-thread-personal-save"
+              onClick={handleSendPersonal}
+              disabled={personalSending || !personalText.trim()}
+            >
+              {personalSending ? '…' : 'Uložiť'}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="note-thread-list" ref={listRef}>
         {/* Show legacy note as first entry if no thread comments exist */}
         {legacyNote && !comments.length ? (
@@ -338,7 +471,11 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
                 <span className={roleBadgeClass(comment.role)}>{roleLabel(comment.role)}</span>
                 <span className="note-comment-author">{comment.author}</span>
                 {comment.isBroadcast ? (
-                  <span className="note-comment-broadcast-tag">pre všetky filiálky</span>
+                  <span className="note-comment-broadcast-tag">
+                    {comment.scopeKey.startsWith('AGGREGATE|GF|')
+                      ? 'globálne od GF'
+                      : 'pre všetky filiálky'}
+                  </span>
                 ) : null}
                 {task ? (
                   <span className={`note-task-badge note-task-badge--${task.status}`}>
@@ -424,6 +561,41 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
       {error ? <div className="note-thread-error">{error}</div> : null}
 
       <div className="note-thread-input-wrap">
+        {canBroadcastAsGf ? (
+          <div className="note-thread-target">
+            <span className="note-thread-target-label">Pre koho:</span>
+            <label className="note-thread-target-option">
+              <input
+                type="radio"
+                name={`gf-target-${metricKey}`}
+                checked={gfTarget.kind === 'all'}
+                onChange={() => setGfTarget({ kind: 'all' })}
+              />
+              <span>Všetkým VKL</span>
+            </label>
+            <label className="note-thread-target-option">
+              <input
+                type="radio"
+                name={`gf-target-${metricKey}`}
+                checked={gfTarget.kind === 'vkl'}
+                onChange={() => setGfTarget({ kind: 'vkl', vkl: gfVklOptions[0] || '' })}
+                disabled={!gfVklOptions.length}
+              />
+              <span>Konkrétnemu VKL</span>
+            </label>
+            {gfTarget.kind === 'vkl' ? (
+              <select
+                className="note-thread-target-select"
+                value={gfTarget.vkl}
+                onChange={(e) => setGfTarget({ kind: 'vkl', vkl: e.target.value })}
+              >
+                {gfVklOptions.map((vkl) => (
+                  <option key={vkl} value={vkl}>{vkl}</option>
+                ))}
+              </select>
+            ) : null}
+          </div>
+        ) : null}
         <div className="note-thread-input">
           <textarea
             ref={inputRef}
@@ -452,7 +624,7 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
               onChange={(e) => setCreateTask(e.target.checked)}
               disabled={sending}
             />
-            <span>Pridať ako úlohu pre VOD</span>
+            <span>Pridať ako úlohu pre {taskTargetLabel}</span>
           </label>
         ) : null}
       </div>

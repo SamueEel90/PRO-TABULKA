@@ -440,6 +440,9 @@ async function authenticateUser(loginValue: string, context: 'dashboard' | 'summ
     if (user.role === 'ADMIN' && context === 'dashboard') {
       throw new Error('Admin účet má prístup iba do sumáru, nie do filiálkového dashboardu.');
     }
+    if (user.role === 'GL' && context === 'dashboard') {
+      throw new Error('GL účet má prístup iba do sumáru, nie do filiálkového dashboardu.');
+    }
 
     let accessibleStoreIds: string[] = [];
     if (user.role === 'VOD' && user.primaryStoreId) {
@@ -449,6 +452,7 @@ async function authenticateUser(loginValue: string, context: 'dashboard' | 'summ
     } else if (user.role === 'VKL' && user.vklName) {
       accessibleStoreIds = stores.filter((store) => store.vklName === user.vklName).map((store) => store.id);
     } else {
+      // ADMIN, GL, or unscoped → full Slovakia
       accessibleStoreIds = stores.map((store) => store.id);
     }
 
@@ -521,6 +525,26 @@ function resolveScope(user: AuthenticatedUser, selectedScope: string, structure:
     };
   }
 
+  if (scopeValue.startsWith('VKL:')) {
+    const vklName = scopeValue.slice(4);
+    if (user.role !== 'GF' || !user.gfName) {
+      throw new Error('Iba GF má prístup k VKL aggregate scope.');
+    }
+    if (structure.vklToGf[vklName] !== user.gfName) {
+      throw new Error('Tento VKL nie je pod tvojím GF.');
+    }
+    const vklStores = (structure.vklToStores[vklName] || []).filter((id) => allowedStores.includes(id));
+    if (!vklStores.length) {
+      throw new Error(`Pre VKL ${vklName} zatiaľ nie sú v SQL naimportované žiadne predajne.`);
+    }
+    return {
+      id: scopeValue,
+      type: 'AGGREGATE',
+      label: `Sumár VKL — ${vklName}`,
+      storeIds: vklStores,
+    };
+  }
+
   if (!allowedStores.includes(scopeValue)) {
     throw new Error('Nemáš prístup k zvolenému scope.');
   }
@@ -533,7 +557,7 @@ function resolveScope(user: AuthenticatedUser, selectedScope: string, structure:
   };
 }
 
-function buildAvailableScopes(user: AuthenticatedUser, storeNames: Record<string, string>): DashboardScopeOption[] {
+function buildAvailableScopes(user: AuthenticatedUser, structure: StructureData, storeNames: Record<string, string>): DashboardScopeOption[] {
   const scopes: DashboardScopeOption[] = [];
 
   if (user.role !== 'VOD') {
@@ -541,6 +565,21 @@ function buildAvailableScopes(user: AuthenticatedUser, storeNames: Record<string
       id: 'ALL',
       label: user.role === 'GF' ? 'Sumár GF' : 'Sumár VKL',
       type: 'AGGREGATE',
+    });
+  }
+
+  if (user.role === 'GF' && user.gfName) {
+    const vkls = Object.entries(structure.vklToGf)
+      .filter(([, gf]) => gf === user.gfName)
+      .map(([vkl]) => vkl)
+      .filter(Boolean)
+      .sort();
+    vkls.forEach((vkl) => {
+      scopes.push({
+        id: `VKL:${vkl}`,
+        label: `Sumár VKL — ${vkl}`,
+        type: 'AGGREGATE',
+      });
     });
   }
 
@@ -1695,6 +1734,10 @@ function buildNoteScope(user: AuthenticatedUser, scope: DashboardScope): NoteSco
   if (scope.type === 'STORE') {
     return { key: `STORE|${scope.id}`, type: 'STORE', scopeId: scope.id, label: scope.label };
   }
+  if (scope.id.startsWith('VKL:')) {
+    const vklName = scope.id.slice(4);
+    return { key: `AGGREGATE|VKL|${vklName}`, type: 'AGGREGATE', scopeId: vklName, label: scope.label };
+  }
   if (user.role === 'GF') {
     return { key: `AGGREGATE|GF|${user.gfName || 'ALL'}`, type: 'AGGREGATE', scopeId: user.gfName || 'ALL', label: scope.label };
   }
@@ -1751,11 +1794,20 @@ export async function getDashboardDataFromSql(loginValue: string, selectedScope:
   const table = await buildMetricBreakdowns(user, scope, months, buildTable(aggregated, months, metricMeta, storeAggregatedByStoreId));
   const noteScope = buildNoteScope(user, scope);
 
+  const gfVklOptions = user.role === 'GF' && user.gfName
+    ? Array.from(new Set(
+        Object.entries(structure.vklToGf)
+          .filter(([, gf]) => gf === user.gfName)
+          .map(([vkl]) => vkl)
+          .filter(Boolean),
+      )).sort()
+    : [];
+
   return {
     generatedAt: new Intl.DateTimeFormat('sk-SK', { dateStyle: 'short', timeStyle: 'short' }).format(new Date()),
-    user,
+    user: { ...user, gfVklOptions },
     scope: { ...scope, noteScopeKey: noteScope.key },
-    scopes: buildAvailableScopes(user, storeNames),
+    scopes: buildAvailableScopes(user, structure, storeNames),
     months: months.map((month) => month.label),
     cards: buildCards(table),
     charts: buildCharts(table, months.map((month) => month.label)),

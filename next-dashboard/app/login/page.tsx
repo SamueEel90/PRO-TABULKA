@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 import { LoginForm } from './login-form';
 import styles from './login.module.css';
@@ -23,6 +24,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 
   return (
     <main className={styles.shell}>
+      <div className={styles.utilityBar} aria-label="Rýchle akcie prihlásenia">
+        <ThemeToggle />
+      </div>
       <section className={styles.card}>
         <header className={styles.header}>
           <div className={styles.brand}>

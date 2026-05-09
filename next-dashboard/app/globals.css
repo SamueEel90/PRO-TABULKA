@@ -62,30 +62,99 @@ a {
 }
 
 body.legacy-dashboard-page > .app-background {
-  display: none;
-}
-
-body.legacy-dashboard-page.legacy-sumar-page > .app-background {
   display: block;
 }
 
+body.legacy-dashboard-page,
 body.legacy-sumar-page {
   background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.10), transparent 36%),
-    radial-gradient(circle at top right, rgba(100, 116, 139, 0.12), transparent 32%),
-    linear-gradient(180deg, #f7fafd 0%, #edf3f8 46%, #e2eaf2 100%) !important;
+    radial-gradient(circle at 12% 18%, rgba(37, 99, 235, 0.12), transparent 38%),
+    radial-gradient(circle at 88% 82%, rgba(215, 25, 32, 0.10), transparent 42%),
+    linear-gradient(135deg, rgba(21, 76, 121, 0.06), rgba(32, 126, 119, 0.06)) !important;
   transition: background 0.35s ease;
 }
 
+body.theme-dark {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(232, 80, 130, 0.10), transparent 38%),
+    radial-gradient(circle at 88% 82%, rgba(232, 110, 60, 0.09), transparent 38%),
+    linear-gradient(180deg, #0d0a0e 0%, #16111a 50%, #1f1115 100%);
+}
+
+body.legacy-dashboard-page.theme-dark,
 body.legacy-sumar-page.theme-dark {
   background:
-    radial-gradient(circle at top left, rgba(200, 79, 64, 0.16), transparent 38%),
-    radial-gradient(circle at top right, rgba(36, 86, 124, 0.18), transparent 36%),
-    linear-gradient(180deg, #0c1118 0%, #14181f 50%, #1a1318 100%) !important;
+    radial-gradient(circle at 12% 18%, rgba(232, 80, 130, 0.10), transparent 38%),
+    radial-gradient(circle at 88% 82%, rgba(232, 110, 60, 0.09), transparent 38%),
+    linear-gradient(180deg, #0d0a0e 0%, #16111a 50%, #1f1115 100%) !important;
 }
 
 body.legacy-dashboard-page::before {
   display: none;
+}
+
+.shell-utility-button {
+  position: relative;
+  width: 3.15rem;
+  height: 3.15rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 1.05rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08)),
+    linear-gradient(135deg, rgba(103, 112, 123, 0.56), rgba(67, 72, 79, 0.4));
+  box-shadow:
+    0 14px 28px rgba(8, 12, 18, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px) saturate(1.08);
+  color: #f7fafc;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.shell-utility-button:hover {
+  transform: translateY(-1px) scale(1.01);
+  border-color: rgba(255, 255, 255, 0.34);
+}
+
+.shell-utility-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(215, 25, 32, 0.28), 0 18px 34px rgba(8, 12, 18, 0.28);
+}
+
+.shell-utility-button.is-active {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08)),
+    linear-gradient(135deg, rgba(226, 34, 41, 0.92), rgba(143, 22, 29, 0.88));
+}
+
+.shell-utility-button svg {
+  position: relative;
+  z-index: 1;
+  width: 1.32rem;
+  height: 1.32rem;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body.theme-dark .shell-utility-button {
+  border-color: rgba(236, 243, 255, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03)),
+    linear-gradient(135deg, rgba(90, 93, 98, 0.66), rgba(48, 42, 47, 0.58));
+}
+
+body.theme-dark .shell-utility-button.is-active {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
+    linear-gradient(135deg, rgba(227, 58, 64, 0.92), rgba(141, 28, 35, 0.92));
 }
 
 .app-background {
@@ -112,7 +181,7 @@ body.legacy-dashboard-page::before {
   inset: 0;
   width: 100%;
   height: 100%;
-  opacity: 0.42;
+  opacity: 0.4;
 }
 
 .legacy-frame-shell {
