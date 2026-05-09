@@ -4,18 +4,41 @@
   align-items: center;
   justify-content: center;
   padding: 2rem 1rem;
-  background: linear-gradient(135deg, rgba(21, 76, 121, 0.06), rgba(32, 126, 119, 0.06));
+  background:
+    radial-gradient(circle at 12% 18%, rgba(37, 99, 235, 0.12), transparent 38%),
+    radial-gradient(circle at 88% 82%, rgba(215, 25, 32, 0.10), transparent 42%),
+    linear-gradient(135deg, rgba(21, 76, 121, 0.06), rgba(32, 126, 119, 0.06));
+  position: relative;
+  isolation: isolate;
 }
 
 .card {
+  position: relative;
+  overflow: hidden;
   width: 100%;
   max-width: 560px;
-  background: rgba(255, 255, 255, 0.97);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(19, 32, 51, 0.08);
-  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.22));
+  backdrop-filter: blur(32px) saturate(1.5);
+  -webkit-backdrop-filter: blur(32px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 24px;
   padding: 3rem 3.25rem;
-  box-shadow: 0 18px 48px rgba(19, 32, 51, 0.1);
+  box-shadow:
+    0 30px 60px rgba(15, 32, 60, 0.14),
+    0 6px 18px rgba(15, 32, 60, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 45%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.32), transparent);
+  pointer-events: none;
+  border-radius: 24px 24px 0 0;
 }
 
 .header {
@@ -102,25 +125,56 @@
 }
 
 .googleButton {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.7rem;
-  padding: 0.95rem 1.1rem;
+  padding: 1rem 1.2rem;
   border: 1px solid rgba(19, 32, 51, 0.15);
-  border-radius: 10px;
-  background: #fff;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 253, 0.78));
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
   color: #16324a;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+  box-shadow: 0 8px 22px rgba(19, 32, 51, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.googleButton::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.55) 50%, transparent 70%);
+  transform: translateX(-110%);
+  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
 }
 
 .googleButton:hover:not(:disabled) {
-  background: rgba(19, 32, 51, 0.03);
-  border-color: rgba(19, 32, 51, 0.25);
-  box-shadow: 0 2px 8px rgba(19, 32, 51, 0.08);
+  transform: translateY(-2px) scale(1.01);
+  background: linear-gradient(180deg, #ffffff, rgba(244, 247, 252, 0.92));
+  border-color: rgba(19, 32, 51, 0.28);
+  box-shadow: 0 14px 30px rgba(19, 32, 51, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.googleButton:hover:not(:disabled)::before {
+  transform: translateX(110%);
+}
+
+.googleButton:active:not(:disabled) {
+  transform: translateY(0) scale(0.99);
+  box-shadow: 0 4px 10px rgba(19, 32, 51, 0.10);
 }
 
 .googleButton:disabled {
@@ -162,36 +216,75 @@
 }
 
 .input {
-  padding: 0.85rem 1rem;
-  border: 1px solid rgba(19, 32, 51, 0.15);
-  border-radius: 10px;
-  background: #fff;
+  padding: 0.95rem 1.1rem;
+  border: 1px solid rgba(19, 32, 51, 0.14);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.7));
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
   font-size: 1rem;
   color: #16324a;
   font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 .input:focus {
   outline: none;
-  border-color: #d71920;
-  box-shadow: 0 0 0 2px rgba(215, 25, 32, 0.1);
+  border-color: rgba(215, 25, 32, 0.55);
+  background: linear-gradient(180deg, #ffffff, rgba(252, 248, 248, 0.85));
+  box-shadow: 0 0 0 3px rgba(215, 25, 32, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .devButton {
-  padding: 0.95rem 1.1rem;
-  border: none;
-  border-radius: 10px;
-  background: #d71920;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  padding: 1rem 1.2rem;
+  border: 1px solid rgba(215, 25, 32, 0.55);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #d71920 0%, #a1141a 100%);
   color: #fff;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  transition: background 0.15s, box-shadow 0.15s;
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.25s ease,
+    box-shadow 0.25s ease;
+  box-shadow: 0 12px 28px rgba(215, 25, 32, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.devButton::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.45) 50%, transparent 70%);
+  transform: translateX(-110%);
+  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
 }
 
 .devButton:hover:not(:disabled) {
-  background: #a1141a;
-  box-shadow: 0 2px 8px rgba(215, 25, 32, 0.18);
+  transform: translateY(-2px) scale(1.01);
+  background: linear-gradient(135deg, #e62028 0%, #b8161c 100%);
+  box-shadow: 0 18px 36px rgba(215, 25, 32, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.36);
+}
+
+.devButton:hover:not(:disabled)::before {
+  transform: translateX(110%);
+}
+
+.devButton:active:not(:disabled) {
+  transform: translateY(0) scale(0.99);
+  box-shadow: 0 6px 14px rgba(215, 25, 32, 0.28);
+}
+
+.devButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(215, 25, 32, 0.32), 0 14px 30px rgba(215, 25, 32, 0.24);
 }
 
 .devButton:disabled {

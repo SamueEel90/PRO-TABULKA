@@ -251,13 +251,174 @@
 				border: 1px solid var(--line);
 			}
 
+			.login-card--centered {
+				text-align: center;
+			}
+
+			.login-card--centered .login-form,
+			.login-card--centered .demo-hints {
+				text-align: left;
+			}
+
+			.login-card--centered .login-action-row {
+				grid-template-columns: auto auto;
+				justify-content: center;
+			}
+
+			.login-card--centered .login-action-row .primary-btn,
+			.login-card--centered .login-action-row .secondary-btn {
+				width: auto;
+				min-width: 9.5rem;
+				padding-inline: 1.6em;
+			}
+
+			.login-card--centered .login-help-text,
+			.login-card--centered .demo-hints {
+				text-align: center;
+			}
+
+			.login-card--centered .demo-hints strong {
+				display: inline-block;
+			}
+
+			.login-card {
+				position: relative;
+				overflow: hidden;
+				background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.22));
+				backdrop-filter: blur(32px) saturate(1.5);
+				-webkit-backdrop-filter: blur(32px) saturate(1.5);
+				border: 1px solid rgba(255, 255, 255, 0.5);
+				box-shadow: 0 30px 60px rgba(15, 32, 60, 0.12), 0 6px 18px rgba(15, 32, 60, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+			}
+
+			.login-card::before {
+				content: '';
+				position: absolute;
+				top: 0;
+				left: 0;
+				right: 0;
+				height: 45%;
+				background: linear-gradient(180deg, rgba(255, 255, 255, 0.32), transparent);
+				pointer-events: none;
+				border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+			}
+
+			body.theme-dark .login-card {
+				background: linear-gradient(180deg, rgba(28, 22, 26, 0.5), rgba(20, 22, 25, 0.32));
+				border-color: rgba(255, 255, 255, 0.08);
+				box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+			}
+
+			body.theme-dark .login-card::before {
+				background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent);
+			}
+
+			.login-action-row .primary-btn,
+			.login-action-row .secondary-btn {
+				position: relative;
+				overflow: hidden;
+				isolation: isolate;
+				padding: 0.95em 1.6em;
+				border-radius: 999px;
+				font-size: 1rem;
+				font-weight: 800;
+				letter-spacing: 0.02em;
+				transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+			}
+
+			.login-action-row .primary-btn::before,
+			.login-action-row .secondary-btn::before {
+				content: '';
+				position: absolute;
+				inset: 0;
+				z-index: -1;
+				background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.45) 50%, transparent 70%);
+				transform: translateX(-110%);
+				transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+				pointer-events: none;
+			}
+
+			.login-action-row .primary-btn:hover::before,
+			.login-action-row .secondary-btn:hover::before {
+				transform: translateX(110%);
+			}
+
+			.login-action-row .primary-btn {
+				color: #fff;
+				background: linear-gradient(135deg, #d71920 0%, #a1141a 100%);
+				border-color: rgba(215, 25, 32, 0.55);
+				box-shadow: 0 12px 28px rgba(215, 25, 32, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+			}
+
+			.login-action-row .primary-btn:hover {
+				transform: translateY(-2px) scale(1.01);
+				box-shadow: 0 18px 36px rgba(215, 25, 32, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.36);
+				background: linear-gradient(135deg, #e62028 0%, #b8161c 100%);
+			}
+
+			.login-action-row .primary-btn:active {
+				transform: translateY(0) scale(0.99);
+				box-shadow: 0 6px 14px rgba(215, 25, 32, 0.28);
+			}
+
+			.login-action-row .secondary-btn {
+				color: var(--navy);
+				background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.55));
+				backdrop-filter: blur(14px) saturate(1.2);
+				-webkit-backdrop-filter: blur(14px) saturate(1.2);
+				border-color: rgba(36, 86, 124, 0.22);
+				box-shadow: 0 8px 22px rgba(34, 56, 77, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+			}
+
+			.login-action-row .secondary-btn:hover {
+				transform: translateY(-2px) scale(1.01);
+				background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(247, 250, 253, 0.75));
+				border-color: rgba(36, 86, 124, 0.36);
+				box-shadow: 0 14px 30px rgba(34, 56, 77, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+			}
+
+			.login-action-row .secondary-btn:active {
+				transform: translateY(0) scale(0.99);
+				box-shadow: 0 6px 14px rgba(34, 56, 77, 0.10);
+			}
+
+			body.theme-dark .login-action-row .secondary-btn {
+				color: var(--navy);
+				background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
+				border-color: rgba(255, 255, 255, 0.10);
+				box-shadow: 0 8px 22px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+			}
+
+			body.theme-dark .login-action-row .secondary-btn:hover {
+				background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+				border-color: rgba(255, 255, 255, 0.18);
+				box-shadow: 0 14px 30px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+			}
+
+			.login-action-row .primary-btn:focus-visible,
+			.login-action-row .secondary-btn:focus-visible {
+				outline: none;
+				box-shadow: 0 0 0 3px rgba(215, 25, 32, 0.32), 0 14px 30px rgba(215, 25, 32, 0.24);
+			}
+
+			@media (prefers-reduced-motion: reduce) {
+				.login-action-row .primary-btn::before,
+				.login-action-row .secondary-btn::before {
+					display: none;
+				}
+				.login-action-row .primary-btn:hover,
+				.login-action-row .secondary-btn:hover {
+					transform: none;
+				}
+			}
+
 			.login-brand {
 				position: relative;
 				overflow: hidden;
 				display: inline-flex;
 				align-items: center;
-				gap: 0.875rem;
-				padding: 0.85em 1.25em;
+				gap: 1rem;
+				padding: 0.85em 1.4em;
 				border-radius: var(--radius-pill);
 				background: rgba(215, 25, 32, 0.08);
 				color: var(--brand);
@@ -265,7 +426,6 @@
 				letter-spacing: 0.08em;
 				text-transform: uppercase;
 				font-size: 1rem;
-				justify-self: center;
 				margin: 0 auto;
 			}
 
@@ -281,8 +441,8 @@
 			.login-brand img {
 				position: relative;
 				z-index: 1;
-				width: 2rem;
-				height: 2rem;
+				width: 2.6rem;
+				height: 2.6rem;
 				object-fit: contain;
 			}
 
@@ -3986,26 +4146,22 @@
 					<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"></circle><path d="M12 2.5v2.2"></path><path d="M12 19.3v2.2"></path><path d="M21.5 12h-2.2"></path><path d="M4.7 12H2.5"></path><path d="M18.7 5.3l-1.6 1.6"></path><path d="M6.9 17.1l-1.6 1.6"></path><path d="M18.7 18.7l-1.6-1.6"></path><path d="M6.9 6.9L5.3 5.3"></path></svg>
 				</button>
 			</div>
-			<div class="login-card">
+			<div class="login-card login-card--centered">
 				<div class="login-brand"><img src="https://upload.wikimedia.org/wikipedia/commons/6/65/Kaufland_Deutschland.png" alt="Kaufland logo">Kaufland PRO GJ 2026 </div>
 				<h1>PRO GJ 2026.</h1>
 				<p>
 					Dashboard vývoja 2026.
 				</p>
 				<div class="login-form">
-					<label>
-						<div class="field-label">Prihlásenie</div>
-						<input class="text-input" id="loginInput" placeholder="napr. testgf@gmail.com alebo 1030">
-					</label>
+					<input type="hidden" id="loginInput">
 					<div class="login-action-row">
-						<button class="primary-btn" id="loginButton">Vstúpiť</button>
-						<button class="secondary-btn" id="summaryButton" type="button">GF / VKL sumár</button>
+						<button class="primary-btn" id="loginButton">Filiálky</button>
+						<button class="secondary-btn" id="summaryButton" type="button">Sumár</button>
 					</div>
-					<div class="tiny login-help-text">Na prihlásenie použi Google účet.</div>
 				</div>
 				<div class="demo-hints">
 					<strong>Prihlásenie</strong>
-					<div class="support-text">Ak nemáš do systému prístup kontaktuj prosím administrátora.</div>
+					<div class="support-text">Ak nemáš do systému prístup, kontaktuj prosím administrátora.</div>
 				</div>
 				<a href="#" onclick="openTestLabView();return false;" style="display:inline-flex;align-items:center;gap:.375rem;margin-top:.75rem;padding:.5em .875em;border-radius:999px;background:rgba(55,120,229,.1);color:#24567c;font-size:.8125rem;font-weight:800;text-decoration:none;transition:background .15s ease" onmouseover="this.style.background='rgba(55,120,229,.18)'" onmouseout="this.style.background='rgba(55,120,229,.1)'">🧪 Test Lab →</a>
 				<div class="error-banner hidden" id="loginError"></div>
@@ -4817,12 +4973,9 @@
 			}
 
 			function handleLogin() {
-				const loginValue = document.getElementById('loginInput').value.trim();
-				if (!loginValue) {
-					showLoginError('Zadaj email alebo test identifikátor.');
-					return;
-				}
-				state.loginValue = loginValue;
+				var loginInput = document.getElementById('loginInput');
+				var loginValue = loginInput ? loginInput.value.trim() : '';
+				state.loginValue = loginValue || null;
 				hideLoginError();
 				loadDashboard('ALL');
 			}
