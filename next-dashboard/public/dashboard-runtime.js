@@ -1033,9 +1033,10 @@
 				const periodLabel = periodContext.label;
 				const focusWidgets = buildHeroWidgets(payload, periodContext);
 
-				document.getElementById('heroTitle').textContent = payload.scope.type === 'AGGREGATE'
-					? 'PRO GJ 2026 ' + payload.user.role
-					: 'PRO GJ 2026 ' + payload.scope.label;
+				const heroScopeName = payload.scope.type === 'AGGREGATE'
+					? (payload.user.vklName || payload.user.gfName || payload.user.displayName || payload.scope.label || payload.user.role)
+					: payload.scope.label;
+				document.getElementById('heroTitle').textContent = heroScopeName;
 				document.getElementById('heroText').textContent = payload.scope.type === 'AGGREGATE'
 					? ' ' + periodLabel + '.'
 					: 'Detail filiĂˇlky pre ' + periodLabel + '.';
@@ -1051,6 +1052,87 @@
 					renderHeroCardGroup('MesaÄŤnĂ˝ prehÄľad', 'PohÄľad pre ' + periodLabel + '.', 'FiltrovanĂ© obdobie', 'hero-group-grid--period', periodCards),
 					renderHeroCardGroup('CelĂ˝ obchodnĂ˝ rok', '', 'RoÄŤnĂ˝ sumĂˇr', 'hero-group-grid--year', yearCards)
 				].join('');
+				loadOverviewStripData(payload);
+			}
+
+			function formatOverviewAction(action) {
+				switch (action) {
+					case 'comment': return 'pridal/a poznĂˇmku';
+					case 'adjustment': return 'upravil/a hodnotu';
+					case 'save': return 'uloĹľil/a zmeny';
+					case 'task-created': return 'vytvoril/a Ăşlohu';
+					case 'task-completed': return 'splnil/a Ăşlohu';
+					case 'task-reopened': return 'znova otvoril/a Ăşlohu';
+					case 'task-dismissed': return 'zruĹˇil/a Ăşlohu';
+					case 'ist-adjust-requested': return 'poĹľiadal/a o Ăşpravu IST';
+					case 'ist-adjust-approved': return 'schvĂˇlil/a Ăşpravu IST';
+					case 'ist-adjust-rejected': return 'zamietol/a Ăşpravu IST';
+					default: return action || '';
+				}
+			}
+
+			function formatOverviewWhen(iso) {
+				try {
+					return new Intl.DateTimeFormat('sk-SK', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+				} catch (e) { return iso || ''; }
+			}
+
+			function loadOverviewStripData(payload) {
+				const scopeKey = (payload.scope && payload.scope.noteScopeKey) || '';
+				if (!scopeKey) return;
+				const scopeId = (payload.scope && payload.scope.id) || '';
+				const role = (payload.user && payload.user.role) || '';
+				const userIdKey = scopeId + ':' + role;
+
+				fetch('/api/tasks?scopeKey=' + encodeURIComponent(scopeKey))
+					.then(function(r) { return r.json(); })
+					.then(function(data) {
+						if (!data || !data.ok) return;
+						const open = (data.tasks || []).filter(function(t) { return t.status === 'open'; });
+						const countEl = document.getElementById('overviewTasksCount');
+						if (countEl) countEl.textContent = String(open.length);
+						const listEl = document.getElementById('overviewTasksList');
+						if (!listEl) return;
+						if (!open.length) {
+							listEl.innerHTML = '<div class="overview-strip-empty">Ĺ˝iadne otvorenĂ© Ăşlohy.</div>';
+							return;
+						}
+						listEl.innerHTML = open.slice(0, 3).map(function(t) {
+							const meta = [t.metricKey, t.monthLabel].filter(Boolean).join(' Â· ');
+							return '<div class="overview-strip-item">'
+								+ '<div class="overview-strip-item-text">' + escapeHtml(t.text || '') + '</div>'
+								+ (meta ? '<div class="overview-strip-item-meta">' + escapeHtml(meta) + '</div>' : '')
+								+ '</div>';
+						}).join('');
+					})
+					.catch(function() {});
+
+				fetch('/api/activity?scopeKey=' + encodeURIComponent(scopeKey) + '&userId=' + encodeURIComponent(userIdKey))
+					.then(function(r) { return r.json(); })
+					.then(function(data) {
+						if (!data || !data.ok) return;
+						const newCountEl = document.getElementById('overviewActivityNew');
+						if (newCountEl) newCountEl.textContent = String(data.newCount || 0);
+						const listEl = document.getElementById('overviewActivityList');
+						if (!listEl) return;
+						const entries = data.entries || [];
+						if (!entries.length) {
+							listEl.innerHTML = '<div class="overview-strip-empty">Ĺ˝iadna aktivita za poslednĂ˝ch 14 dnĂ­.</div>';
+							return;
+						}
+						listEl.innerHTML = entries.slice(0, 3).map(function(e) {
+							const target = [e.metricKey, e.monthLabel].filter(Boolean).join(' Â· ');
+							const detail = e.detail ? String(e.detail).trim() : '';
+							return '<div class="overview-strip-item">'
+								+ '<div class="overview-strip-item-text"><strong>' + escapeHtml(e.actorName || e.actorRole || '') + '</strong> ' + escapeHtml(formatOverviewAction(e.action))
+								+ (target ? ' â€” <span class="overview-strip-item-target">' + escapeHtml(target) + '</span>' : '')
+								+ '</div>'
+								+ (detail ? '<div class="overview-strip-item-detail">' + escapeHtml(detail) + '</div>' : '')
+								+ '<div class="overview-strip-item-meta">' + escapeHtml(formatOverviewWhen(e.createdAt)) + '</div>'
+								+ '</div>';
+						}).join('');
+					})
+					.catch(function() {});
 			}
 
 			function renderHeroCardGroup(title, caption, chipLabel, gridClass, cards) {

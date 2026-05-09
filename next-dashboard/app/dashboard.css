@@ -1582,6 +1582,73 @@ summary {
 				gap: 0.2rem;
 			}
 
+			.hero-headline {
+				display: flex;
+				align-items: center;
+				gap: 1rem;
+				flex-wrap: wrap;
+				margin-bottom: 0.25rem;
+			}
+
+			.hero-headline h2 {
+				margin: 0;
+			}
+
+			.hero-brand-pill {
+				position: relative;
+				overflow: hidden;
+				display: inline-flex;
+				align-items: center;
+				gap: 1rem;
+				padding: 0.85em 1.4em;
+				border-radius: 999px;
+				background: rgba(215, 25, 32, 0.08);
+				color: #d71920;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				font-size: 1rem;
+				width: fit-content;
+				margin: 0;
+				flex-shrink: 0;
+			}
+
+			.hero-brand-pill::before {
+				content: '';
+				position: absolute;
+				inset: -1.125rem auto -1.125rem -0.625rem;
+				width: 7.5rem;
+				background: radial-gradient(circle, rgba(37, 99, 235, 0.14), transparent 70%);
+				pointer-events: none;
+			}
+
+			.hero-brand-pill-logo {
+				position: relative;
+				z-index: 1;
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				width: 2.6rem;
+				height: 2.6rem;
+				flex-shrink: 0;
+			}
+
+			.hero-brand-pill-logo img {
+				width: 100%;
+				height: 100%;
+				object-fit: contain;
+			}
+
+			.hero-brand-pill-text {
+				position: relative;
+				z-index: 1;
+				white-space: nowrap;
+			}
+
+			body.theme-dark .hero-brand-pill {
+				background: rgba(215, 25, 32, 0.18);
+			}
+
 			.hero-panel::after {
 				content: '';
 				position: absolute;
@@ -1620,6 +1687,153 @@ summary {
 				display: grid;
 				grid-template-columns: repeat(2, minmax(0, 1fr));
 				gap: 0.7rem;
+			}
+
+			.hero-top {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+				gap: 1rem;
+				align-items: start;
+			}
+
+			.overview-strip {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: 0.6rem;
+				align-self: stretch;
+			}
+
+			@media (max-width: 900px) {
+				.hero-top {
+					grid-template-columns: 1fr;
+				}
+			}
+
+			.overview-strip-card {
+				padding: 0.78rem 0.9rem;
+				border-radius: 1.125rem;
+				background: #f8fbfe;
+				border: 1px solid rgba(19, 32, 51, 0.1);
+				display: flex;
+				flex-direction: column;
+				gap: 0.5rem;
+				min-width: 0;
+			}
+
+			body.theme-dark .overview-strip-card {
+				background: linear-gradient(180deg, rgba(34, 37, 42, 0.92), rgba(23, 26, 30, 0.9));
+				border-color: rgba(129, 141, 156, 0.12);
+			}
+
+			.overview-strip-head {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 0.5rem;
+			}
+
+			.overview-strip-toggle {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.4rem;
+				background: none;
+				border: 0;
+				padding: 0;
+				margin: 0;
+				cursor: pointer;
+				color: var(--muted);
+			}
+
+			.overview-strip-toggle:hover {
+				color: var(--ink);
+			}
+
+			.overview-strip-toggle:focus-visible {
+				outline: 2px solid rgba(36, 86, 124, 0.4);
+				outline-offset: 3px;
+				border-radius: 4px;
+			}
+
+			.overview-strip-label {
+				font-size: 0.7rem;
+				text-transform: uppercase;
+				letter-spacing: 0.08em;
+				color: var(--muted);
+				font-weight: 800;
+			}
+
+			.overview-strip-card.is-collapsed {
+				gap: 0;
+			}
+
+			.overview-strip-card.is-collapsed .overview-strip-list {
+				display: none;
+			}
+
+			.overview-strip-count {
+				font-size: 1.5rem;
+				font-weight: 800;
+				color: #c84f40;
+				line-height: 1;
+			}
+
+			.overview-strip-list {
+				display: flex;
+				flex-direction: column;
+				gap: 0.35rem;
+			}
+
+			.overview-strip-item {
+				font-size: 0.82rem;
+				color: var(--ink);
+				padding: 0.4rem 0.55rem;
+				border-radius: 0.55rem;
+				background: rgba(36, 86, 124, 0.06);
+			}
+
+			.overview-strip-item-text {
+				line-height: 1.32;
+			}
+
+			.overview-strip-item-meta {
+				font-size: 0.68rem;
+				color: var(--muted);
+				margin-top: 0.15rem;
+			}
+
+			.overview-strip-item-target {
+				color: #24567c;
+				font-weight: 700;
+			}
+
+			body.theme-dark .overview-strip-item-target {
+				color: #8fb6d6;
+			}
+
+			.overview-strip-item-detail {
+				font-size: 0.78rem;
+				color: var(--ink);
+				margin-top: 0.2rem;
+				padding: 0.25rem 0.4rem;
+				background: rgba(255, 255, 255, 0.55);
+				border-radius: 0.35rem;
+				line-height: 1.32;
+			}
+
+			body.theme-dark .overview-strip-item-detail {
+				background: rgba(255, 255, 255, 0.06);
+			}
+
+			.overview-strip-empty {
+				font-size: 0.78rem;
+				color: var(--muted);
+				padding: 0.25rem 0;
+			}
+
+			@media (max-width: 640px) {
+				.overview-strip {
+					grid-template-columns: 1fr;
+				}
 			}
 
 			.hero-group {
