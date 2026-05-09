@@ -72,6 +72,9 @@ function actionLabel(action: string) {
     case 'task-completed': return 'splnil/a úlohu';
     case 'task-reopened': return 'znova otvoril/a úlohu';
     case 'task-dismissed': return 'zrušil/a úlohu';
+    case 'ist-adjust-requested': return 'požiadal/a o úpravu IST';
+    case 'ist-adjust-approved': return 'schválil/a úpravu IST';
+    case 'ist-adjust-rejected': return 'zamietol/a úpravu IST';
     default: return action;
   }
 }

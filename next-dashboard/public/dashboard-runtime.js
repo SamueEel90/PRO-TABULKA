@@ -2003,9 +2003,6 @@
 
 			function filterVisibleDisplayRows(rows) {
 				return (rows || []).filter(function(row) {
-					if (getActiveTableView() === 'monthly' && (row && row.type === 'recommendation' || row && row.type === 'recommendation-result')) {
-						return false;
-					}
 					return isRowLayerVisible(getRowLayerForRowType(row && row.type));
 				});
 			}
@@ -3862,6 +3859,15 @@
 					return rows;
 				}
 
+				if (recommendationRow.type === 'recommendation-result') {
+					const forecastIndex = rows.findIndex(function(row) {
+						return row.type === 'forecast';
+					});
+					const insertIndex = forecastIndex > -1 ? forecastIndex : rows.length;
+					rows.splice(insertIndex, 0, recommendationRow);
+					return rows;
+				}
+
 				const planDeltaIndex = rows.findIndex(function(row) {
 					return row.type === 'plan-delta';
 				});
@@ -3884,7 +3890,24 @@
 					return buildVacationPlanningGuideRow(section, months);
 				}
 
-				if (metricName === normalizeMetricName('Obrat GJ2026') || metricName === normalizeMetricName('Hodiny netto')) {
+				if (metricName === normalizeMetricName('Hodiny netto')) {
+					const monthlyRec = buildMonthlyNetRecommendationFromTurnover(section, months, context);
+					if (monthlyRec) {
+						return monthlyRec;
+					}
+					const recommendation = computeRecommendationDistribution(section, months);
+					if (!recommendation) {
+						return null;
+					}
+					return {
+						type: 'recommendation',
+						label: 'Doporučenie vzorca',
+						values: recommendation.values,
+						total: recommendation.total,
+					};
+				}
+
+				if (metricName === normalizeMetricName('Obrat GJ2026')) {
 					const recommendation = computeRecommendationDistribution(section, months);
 					if (!recommendation) {
 						return null;
@@ -3892,7 +3915,7 @@
 
 					return {
 						type: 'recommendation',
-						label: 'Doporucenie Vzorca',
+						label: 'Doporučenie vzorca',
 						values: recommendation.values,
 						total: recommendation.total,
 					};
@@ -3903,6 +3926,41 @@
 				}
 
 				return null;
+			}
+
+			function buildMonthlyNetRecommendationFromTurnover(section, months, context) {
+				if (!section || !Array.isArray(section.rows) || !context || !Array.isArray(context.table)) {
+					return null;
+				}
+				const turnoverSection = context.table.find(function(item) {
+					return normalizeMetricName(item && item.metric) === normalizeMetricName('Obrat GJ2026');
+				});
+				if (!turnoverSection || !Array.isArray(turnoverSection.rows)) {
+					return null;
+				}
+				const netPlanRow = section.rows.find(function(r) { return r.type === 'plan'; });
+				const turnoverPlanRow = turnoverSection.rows.find(function(r) { return r.type === 'plan'; });
+				const turnoverForecastRow = turnoverSection.rows.find(function(r) { return r.type === 'forecast'; });
+				if (!netPlanRow || !turnoverPlanRow || !turnoverForecastRow) {
+					return null;
+				}
+				const values = months.map(function(_, i) {
+					const netPlan = Number(netPlanRow.values[i] || 0);
+					const tPlan = Number(turnoverPlanRow.values[i] || 0);
+					const tForecast = Number(turnoverForecastRow.values[i] || 0);
+					const variance = tPlan ? (tForecast - tPlan) / tPlan : 0;
+					return normalizeStoredMetricValue(netPlan * (1 + variance / 2), section.format || 'hours');
+				});
+				const totalNetPlan = Number(netPlanRow.total || 0);
+				const totalTPlan = Number(turnoverPlanRow.total || 0);
+				const totalTForecast = Number(turnoverForecastRow.total || 0);
+				const totalVariance = totalTPlan ? (totalTForecast - totalTPlan) / totalTPlan : 0;
+				return {
+					type: 'recommendation-result',
+					label: 'Doporučenie vzorca',
+					values: values,
+					total: normalizeStoredMetricValue(totalNetPlan * (1 + totalVariance / 2), section.format || 'hours'),
+				};
 			}
 
 			function buildVacationPlanningGuideRow(section, months) {

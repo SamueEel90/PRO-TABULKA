@@ -1054,3 +1054,120 @@ button:hover {
     grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.92fr);
   }
 }
+
+/* ==================== IST adjustments audit (/upload) ==================== */
+.ist-audit-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0.8rem 0;
+  align-items: center;
+}
+.ist-audit-stat {
+  display: inline-flex;
+  flex-direction: column;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(19, 32, 51, 0.1);
+  border-radius: 8px;
+  background: rgba(19, 32, 51, 0.03);
+  min-width: 80px;
+}
+.ist-audit-stat-num { font-size: 1.3rem; font-weight: 700; color: #16324a; }
+.ist-audit-stat-label { font-size: 0.7rem; color: #5b6470; text-transform: uppercase; letter-spacing: 0.03em; }
+.ist-audit-stat--pending { border-left: 3px solid #f59e0b; }
+.ist-audit-stat--approved { border-left: 3px solid #2f9e44; }
+.ist-audit-stat--rejected { border-left: 3px solid #c84f40; }
+.ist-audit-top {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: #5b6470;
+}
+.ist-audit-top-label { font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; font-size: 0.7rem; }
+.ist-audit-top-store { background: rgba(19, 32, 51, 0.05); padding: 0.2rem 0.5rem; border-radius: 6px; }
+
+.ist-audit-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.6rem;
+  margin: 0.8rem 0;
+  padding: 0.8rem;
+  background: rgba(19, 32, 51, 0.03);
+  border-radius: 8px;
+}
+.ist-audit-filter { display: flex; flex-direction: column; gap: 0.2rem; }
+.ist-audit-filter > span { font-size: 0.7rem; font-weight: 600; color: #5b6470; text-transform: uppercase; letter-spacing: 0.02em; }
+.ist-audit-filter input,
+.ist-audit-filter select {
+  padding: 0.4rem 0.55rem;
+  border: 1px solid rgba(19, 32, 51, 0.18);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: #fff;
+  font-family: inherit;
+}
+.ist-audit-filter--wide { grid-column: span 2; }
+.ist-audit-filter-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-end;
+  grid-column: span 2;
+  justify-content: flex-end;
+}
+.ist-audit-button {
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid rgba(19, 32, 51, 0.2);
+  background: #fff;
+  font-size: 0.82rem;
+  cursor: pointer;
+  font-weight: 600;
+  color: #16324a;
+}
+.ist-audit-button:hover:not(:disabled) { background: rgba(19, 32, 51, 0.05); }
+.ist-audit-button--primary { background: #24567c; color: #fff; border-color: #24567c; }
+.ist-audit-button--primary:hover:not(:disabled) { background: #1d4661; }
+.ist-audit-button:disabled { opacity: 0.5; cursor: default; }
+.ist-audit-error { color: #c84f40; font-size: 0.85rem; margin-bottom: 0.5rem; }
+
+.ist-audit-table-wrap {
+  overflow-x: auto;
+  border: 1px solid rgba(19, 32, 51, 0.08);
+  border-radius: 8px;
+  background: #fff;
+}
+.ist-audit-empty { padding: 2rem; text-align: center; color: #8a93a0; }
+.ist-audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+.ist-audit-table th,
+.ist-audit-table td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid rgba(19, 32, 51, 0.06);
+  text-align: left;
+  vertical-align: top;
+}
+.ist-audit-table thead th {
+  background: rgba(19, 32, 51, 0.04);
+  font-weight: 600;
+  color: #16324a;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  position: sticky;
+  top: 0;
+}
+.ist-audit-row--pending { background: rgba(245, 158, 11, 0.04); }
+.ist-audit-row--rejected { background: rgba(200, 79, 64, 0.04); }
+.ist-audit-row:hover { background: rgba(36, 86, 124, 0.06); }
+.ist-audit-status { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.ist-audit-status--pending { background: #fff7ed; color: #92400e; }
+.ist-audit-status--approved { background: #dcfce7; color: #166534; }
+.ist-audit-status--rejected { background: #fee2e2; color: #991b1b; }
+.ist-audit-muted { color: #8a93a0; font-size: 0.72rem; }
+.ist-audit-cell-text { max-width: 280px; white-space: pre-wrap; word-break: break-word; }
