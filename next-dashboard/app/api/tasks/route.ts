@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 
+import { ensureCacheFresh } from '@/lib/db/client';
 import { prisma } from '@/lib/prisma';
+import { newId, nowIso, pushNew } from '@/lib/sheets/write-through';
 
 /**
  * GET /api/tasks?scopeKey=...&broadcastScopeKey=...&metricKey=...
@@ -9,6 +11,7 @@ import { prisma } from '@/lib/prisma';
  */
 export async function GET(request: Request) {
   try {
+    await ensureCacheFresh();
     const url = new URL(request.url);
     const scopeKey = url.searchParams.get('scopeKey') || '';
     const broadcastScopeKey = url.searchParams.get('broadcastScopeKey') || '';
@@ -50,6 +53,7 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
+    await ensureCacheFresh();
     const body = await request.json() as {
       scopeKey?: string;
       metricKey?: string;
@@ -66,30 +70,47 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'scopeKey, text, createdByRole, createdByName are required.' }, { status: 400 });
     }
 
+    const trimmedText = String(text).trim();
+    const now = nowIso();
+
+    const taskRecord = {
+      id: newId(),
+      scopeKey,
+      metricKey: metricKey || null,
+      monthLabel: monthLabel || null,
+      text: trimmedText,
+      status: 'open',
+      createdByRole,
+      createdByName,
+      createdAt: now,
+      completedByName: null,
+      completedAt: null,
+      sourceCommentId: sourceCommentId || null,
+    };
+    await pushNew('TaskItem', taskRecord);
     const task = await prisma.taskItem.create({
-      data: {
-        scopeKey,
-        metricKey: metricKey || null,
-        monthLabel: monthLabel || null,
-        text: String(text).trim(),
-        createdByRole,
-        createdByName,
-        sourceCommentId: sourceCommentId || null,
-      },
+      data: { ...taskRecord, createdAt: new Date(now), completedAt: null },
     });
 
-    // Log activity
-    await prisma.activityEntry.create({
-      data: {
+    try {
+      const activityRecord = {
+        id: newId(),
         scopeKey,
         actorRole: createdByRole,
         actorName: createdByName,
         action: 'task-created',
         metricKey: metricKey || null,
         monthLabel: monthLabel || null,
-        detail: String(text).trim().slice(0, 200),
-      },
-    }).catch(() => { /* best effort */ });
+        detail: trimmedText.slice(0, 200),
+        createdAt: now,
+      };
+      await pushNew('ActivityEntry', activityRecord);
+      await prisma.activityEntry.create({
+        data: { ...activityRecord, createdAt: new Date(now) },
+      });
+    } catch {
+      /* best effort */
+    }
 
     return NextResponse.json({ ok: true, task });
   } catch (error) {

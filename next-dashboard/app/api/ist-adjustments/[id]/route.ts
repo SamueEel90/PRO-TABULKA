@@ -1,16 +1,18 @@
 import { NextResponse } from 'next/server';
 
+import { ensureCacheFresh } from '@/lib/db/client';
 import { prisma } from '@/lib/prisma';
 import { getUserFromHeaders } from '@/lib/auth/session';
+import { newId, nowIso, pushDelete, pushNew, pushUpdate } from '@/lib/sheets/write-through';
 
 /**
  * PATCH /api/ist-adjustments/[id]
  * Body: { decision: 'approve' | 'reject', decisionNote?: string }
- * Only VKL (matching store's vklName) or ADMIN can decide.
- * On approve, overwrites MonthlyValue (source=IST) for the request.
  */
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
+    await ensureCacheFresh();
+
     const user = getUserFromHeaders(request.headers);
     const { id } = await ctx.params;
 
@@ -36,28 +38,71 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
     const newStatus = decision === 'approve' ? 'approved' : 'rejected';
     const decisionNote = body.decisionNote ? String(body.decisionNote).trim().slice(0, 1000) : null;
+    const now = nowIso();
 
     if (decision === 'approve') {
       // Overwrite the IST MonthlyValue
-      await prisma.monthlyValue.update({
+      const existingMv = await prisma.monthlyValue.findUnique({
         where: { source_storeId_metricCode_monthId: { source: 'IST', storeId: req.storeId, metricCode: req.metricCode, monthId: req.monthId } },
-        data: { value: req.newValue, present: true },
       });
+      if (existingMv) {
+        const mvRecord = {
+          id: existingMv.id,
+          source: existingMv.source,
+          storeId: existingMv.storeId,
+          metricCode: existingMv.metricCode,
+          monthId: existingMv.monthId,
+          value: req.newValue,
+          present: true,
+          importedAt: existingMv.importedAt.toISOString(),
+          importBatchId: existingMv.importBatchId,
+          createdAt: existingMv.createdAt.toISOString(),
+          updatedAt: now,
+        };
+        await pushUpdate('MonthlyValue', mvRecord);
+        await prisma.monthlyValue.update({
+          where: { id: existingMv.id },
+          data: { value: req.newValue, present: true, updatedAt: new Date(now) },
+        });
+      }
     }
 
+    const updatedRecord = {
+      id: req.id,
+      storeId: req.storeId,
+      metricCode: req.metricCode,
+      monthId: req.monthId,
+      monthLabel: req.monthLabel,
+      oldValue: req.oldValue,
+      newValue: req.newValue,
+      reason: req.reason,
+      status: newStatus,
+      requestedById: req.requestedById,
+      requestedByName: req.requestedByName,
+      vklName: req.vklName,
+      decidedAt: now,
+      decidedById: user.id,
+      decidedByName: user.email,
+      decisionNote,
+      createdAt: req.createdAt.toISOString(),
+      updatedAt: now,
+    };
+    await pushUpdate('IstAdjustmentRequest', updatedRecord);
     const updated = await prisma.istAdjustmentRequest.update({
       where: { id },
       data: {
         status: newStatus,
-        decidedAt: new Date(),
+        decidedAt: new Date(now),
         decidedById: user.id,
         decidedByName: user.email,
         decisionNote,
+        updatedAt: new Date(now),
       },
     });
 
-    await prisma.activityEntry.create({
-      data: {
+    try {
+      const activityRecord = {
+        id: newId(),
         scopeKey: `STORE|${req.storeId}`,
         actorRole: user.role,
         actorName: user.email,
@@ -67,8 +112,15 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
         detail: decision === 'approve'
           ? `${req.oldValue} → ${req.newValue}${decisionNote ? ` · ${decisionNote.slice(0, 120)}` : ''}`
           : `Zamietnuté${decisionNote ? ` · ${decisionNote.slice(0, 160)}` : ''}`,
-      },
-    }).catch(() => { /* best effort */ });
+        createdAt: now,
+      };
+      await pushNew('ActivityEntry', activityRecord);
+      await prisma.activityEntry.create({
+        data: { ...activityRecord, createdAt: new Date(now) },
+      });
+    } catch {
+      /* best effort */
+    }
 
     return NextResponse.json({ ok: true, request: updated });
   } catch (error) {
@@ -82,10 +134,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
 /**
  * DELETE /api/ist-adjustments/[id]
- * VOD that created the request can cancel it while pending.
  */
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
+    await ensureCacheFresh();
     const user = getUserFromHeaders(request.headers);
     const { id } = await ctx.params;
 
@@ -103,6 +155,7 @@ export async function DELETE(request: Request, ctx: { params: Promise<{ id: stri
       return NextResponse.json({ ok: false, error: 'Vybavenú žiadosť nie je možné zmazať.' }, { status: 400 });
     }
 
+    await pushDelete('IstAdjustmentRequest', id);
     await prisma.istAdjustmentRequest.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (error) {

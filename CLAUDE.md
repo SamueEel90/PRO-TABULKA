@@ -12,10 +12,10 @@ Celý kód je v priečinku `next-dashboard/`.
 |---|---|
 | Framework | Next.js 15 (App Router, RSC default) |
 | UI | React 18, TypeScript 5.6 strict |
-| ORM | Prisma 5.22 |
-| DB dev | SQLite (`prisma/schema.prisma`) |
-| DB prod | Supabase PostgreSQL (`prisma/schema.postgres.prisma`) |
-| Auth | NextAuth v5 beta 31 (JWT sessions) |
+| ORM | Prisma 5.22 (na lokálnu SQLite cache) |
+| DB — source of truth | **Google Sheets** (cez Apps Script Web App) |
+| DB — read cache | SQLite (`prisma/dev.db` lokál, `/tmp/cache.db` Vercel) |
+| Auth | NextAuth v5 — email + heslo (bcrypt) |
 | Validácia | Zod 4.4 |
 | Logging | Pino 10 (JSON prod, pretty dev) |
 | Parsovanie | xlsx 0.18.5, papaparse 5.4.1 |
@@ -23,200 +23,275 @@ Celý kód je v priečinku `next-dashboard/`.
 | Hosting | Vercel |
 | Fonty | IBM Plex Sans (Google Fonts) |
 
+## Architektúra DB (kritické pre pochopenie)
+
+```
+Browser  →  Vercel Lambda  →  Apps Script Web App  →  Google Sheet
+              │                        ↑
+              ├─ SQLite cache         (source of truth)
+              │
+              └─ rebuild zo Sheets pri cold start
+```
+
+- **Source of truth** sú Google Sheety — jeden spreadsheet `PRO_TABULKA_DB`, každá Prisma tabuľka má vlastný tab.
+- **Lokálna SQLite cache** je *zrkadlo* zo Sheetu, používa sa na rýchle reads cez Prisma.
+- **Read path:** všetky API routes volajú `ensureCacheFresh()` (auto-volá `apiRoute` wrapper) ktorá refreshne cache zo Sheets ak je stale, potom čítajú cez Prisma.
+- **Write path:** `pushNew`/`pushUpdate`/`pushDelete`/`pushBulkReplaceSlice` z `lib/sheets/write-through.ts` → najprv POST do Apps Script (Sheets), pri úspechu update SQLite cache.
+- **Apps Script Web App** je samostatne deployed v Google Drive — Vercel ho volá HTTP-om s shared secretom.
+
+### Sheets DB — Apps Script Web App
+
+Apps Script je v menu `Extensions → Apps Script` v spreadsheete. Endpoint prijíma POST s `{ secret, op, ...args }` a robí CRUD operácie. Podporované ops:
+- `ping`, `modifiedTime`, `listTabs`
+- `read` (jedna tab), `readAll` (všetky taby)
+- `append`, `updateById`, `deleteById`
+- `bulkReplace` (rewrite celej tabuľky), `ensureTabs` (idempotent create)
+
+URL + secret sú v env vars `SHEETS_APPS_SCRIPT_URL`, `SHEETS_APPS_SCRIPT_SECRET`. Spreadsheet ID v `SHEETS_SPREADSHEET_ID` (referencia).
+
+### SQLite cache
+
+Cache sa rebuilduje `lib/db/bootstrap.ts:rebuildCache()`:
+1. Single round-trip pull zo Sheets (`sheets.readAll(...)`)
+2. Wipe všetkých tabuliek (reverse FK order)
+3. Insert v FK order, s defenzívnym dedupom by id
+4. Zápis meta JSON-u (`prisma/dev.cache.meta.json` lokál, `/tmp/cache.meta.json` Vercel)
+
+`ensureFresh()` rozhoduje kedy znova pullovať:
+- Cache neexistuje alebo schemaVersion mismatch → full rebuild
+- `lastAttemptAt` < 30s → back-off, nepúšťať znova
+- Cache mladší ako 60s → trust
+- `modifiedTime` Sheets sa nezmenil → bump local timestamp
+- Inak → full rebuild
+
 ## Adresárová štruktúra
 
 ```
 next-dashboard/
 ├── app/
-│   ├── layout.tsx              # Root layout (Providers, fonts, DotField bg)
+│   ├── layout.tsx
 │   ├── page.tsx                # Redirect → /dashboard
-│   ├── globals.css             # Globálne štýly + CSS premenné
-│   ├── dashboard/
-│   │   ├── page.tsx            # Dashboard index (výber predajne/metrík)
-│   │   └── [storeId]/page.tsx  # Dashboard pre konkrétnu predajňu
-│   ├── login/
-│   │   ├── page.tsx
-│   │   ├── login-form.tsx      # Client component (Dev Login / Google OAuth)
-│   │   └── login.module.css
-│   ├── upload/                 # Admin import stránka
-│   ├── sumar/                  # Sumárna stránka
+│   ├── globals.css
+│   ├── dashboard/[storeId]/
+│   ├── login/                  # Email + heslo
+│   ├── upload/                 # Admin imports
+│   ├── admin/users/            # Admin user management
+│   ├── sumar/
 │   └── api/
-│       ├── auth/[...nextauth]/ # Auth.js HTTP handler
+│       ├── auth/[...nextauth]/
 │       ├── import/
-│       │   ├── monthly-ist/    # Import IST dát
-│       │   ├── reset-ist-vod/  # Vymazanie IST + VOD dát
-│       │   ├── reset-vod/      # Vymazanie VOD overrides
-│       │   └── structure-users/# Import org štruktúry + login mapping
+│       │   ├── monthly-ist/
+│       │   ├── monthly-plan/
+│       │   ├── structure-users/
+│       │   ├── reset-ist-vod/
+│       │   └── reset-vod/
 │       ├── admin/
-│       │   ├── monthly-values/ # Bulk edit mesačných hodnôt
-│       │   └── structure-users/# Bulk update štruktúry
-│       ├── notes/              # CRUD komentárov/threadov
-│       ├── tasks/              # CRUD úloh
-│       └── activity/           # Activity log
+│       │   ├── users/, users/[id]/
+│       │   ├── monthly-values/
+│       │   └── structure-users/
+│       ├── notes/, tasks/, activity/
+│       └── ist-adjustments/
 ├── components/
-│   ├── legacy-dashboard-host.tsx      # Hlavný dashboard UI komponent
-│   ├── note-thread.tsx                # Komentárové vlákna
-│   ├── task-counter.tsx               # Badge úloh
-│   ├── activity-feed.tsx              # Activity log zobrazenie
-│   ├── upload-form.tsx                # File upload
-│   ├── structure-users-editor.tsx     # Editor org štruktúry
-│   ├── monthly-values-editor.tsx      # Bulk edit hodnôt
-│   ├── index-dashboard-monthly-table.tsx # Mesačná tabuľka
-│   ├── index-dashboard-chart-section.tsx # Grafy
-│   ├── plan-charts.tsx                # Plánové grafy
-│   ├── dot-field.tsx                  # Animované pozadie
-│   ├── providers.tsx                  # SessionProvider wrapper
-│   └── session-indicator.tsx          # Info o prihlásenom userovi
 ├── lib/
-│   ├── db/client.ts            # Prisma singleton
-│   ├── api/handler.ts          # API route wrapper (Zod validácia, error handling)
-│   ├── auth/session.ts         # Extrahovanie usera z middleware headers
-│   ├── logger/index.ts         # Pino logger
-│   ├── secrets/index.ts        # Env var accessor
-│   ├── schemas/common.ts       # Zdieľané Zod schémy (Role, ScopeKey, StoreId...)
-│   ├── import-monthly-ist.ts   # IST CSV/XLSX parsing
-│   ├── import-structure-users.ts # Org štruktúra parsing
-│   ├── months.ts               # Mesiac label ↔ DB ID (SK názvy, business year)
-│   ├── metric-layout.ts        # Poradie/viditeľnosť metrík (localStorage)
-│   └── plan-dashboard.ts       # Plánová agregácia
+│   ├── sheets/                 # *** Sheets-as-DB vrstva ***
+│   │   ├── client.ts           # HTTP klient pre Apps Script
+│   │   ├── schema.ts           # Prisma model ↔ Sheet tab mapping
+│   │   ├── rows.ts             # SheetRow ↔ object conversion
+│   │   └── write-through.ts    # pushNew/Update/Delete/BulkReplaceSlice
+│   ├── db/
+│   │   ├── client.ts           # Prisma singleton + ensureCacheFresh
+│   │   └── bootstrap.ts        # rebuildCache + ensureFresh
+│   ├── auth/
+│   │   ├── passwords.ts        # bcrypt + temp password gen
+│   │   └── session.ts          # headers → CurrentUser
+│   ├── api/handler.ts          # apiRoute wrapper
+│   └── ...
 ├── prisma/
-│   ├── schema.prisma           # SQLite schéma (dev)
-│   ├── schema.postgres.prisma  # PostgreSQL schéma (prod)
-│   └── supabase-init.sql       # DDL init
+│   └── schema.prisma           # SQLite cache schema
 ├── scripts/
-│   ├── build.mjs               # prisma generate + next build
-│   ├── import-ist.mjs          # CLI IST import
-│   ├── import-plan.mjs         # CLI PLAN import
-│   ├── import-structure-login.mjs # CLI org import
-│   └── set-role.mjs            # CLI role update
-├── auth.ts                     # Auth.js v5 konfigurácia
-├── auth.config.ts              # Edge-safe auth config (middleware)
-├── middleware.ts               # Auth check, role enforcement, header injection
+│   ├── sheets-init.mjs         # Create/repair Sheet tabs
+│   ├── sheets-pull.mjs         # Force pull Sheets → SQLite
+│   └── hash-password.mjs       # Generate bcrypt hash
+├── auth.ts                     # NextAuth v5 — Credentials provider
+├── auth.config.ts              # Edge-safe config (middleware)
+├── middleware.ts               # Auth + role enforcement
 └── package.json
 ```
 
-## Databázová schéma (PostgreSQL prod)
-
-### Hlavné tabuľky
+## Databázová schéma
 
 | Tabuľka | Účel | Kľúč |
 |---|---|---|
-| `Store` | Predajne (id=4-cif. kód, name, gfName, vklName) | `id` (String) |
-| `User` | Zamestnanci (email unique, role, primaryStoreId, gfName, vklName) | `id` (cuid) |
-| `Metric` | KPI definície (code, displayName, unit, aggregation) | `code` (String) |
-| `Month` | Kalendár (label, year, monthNumber, businessYear, businessOrder) | `id` (String, "YYYY-MM") |
-| `MonthlyValue` | Dáta (source, storeId, metricCode, monthId, value, present) | `id` (cuid), unique: [source, storeId, metricCode, monthId] |
-| `ImportBatch` | Audit importov (source, fileName, rowCount, status) | `id` (cuid) |
-| `DashboardNote` | Komentáre (scopeKey, scopeType, metricKey, role, author, text) | `id` (cuid), unique: [scopeKey, role, metricKey] |
-| `WeeklyVodOverride` | VOD týždenné úpravy (storeId, metric, monthLabel, weekIndex, value) | `id` (cuid), unique: [storeId, metric, monthLabel, weekIndex] |
+| `Store` | Predajne (id=4-cif. kód) | `id` |
+| `User` | Účty s `passwordHash` (bcrypt) | `id` (cuid), `email` unique |
+| `Metric` | KPI definície | `code` |
+| `Month` | Kalendár (`YYYY-MM`) | `id` |
+| `MonthlyValue` | Dáta (source ∈ IST/PLAN/VOD/FORECAST) | unique: [source, storeId, metricCode, monthId] |
+| `ImportBatch` | Audit importov | `id` |
+| `DashboardNote` | Komentáre per scope/metric/role | unique: [scopeKey, role, metricKey] |
+| `NoteComment`, `TaskItem` | Diskusie + úlohy | |
+| `ActivityEntry` | Audit log | |
+| `UserLastSeen` | Tracking, deterministický id `lastseen::{userId}::{scopeKey}` | unique: [userId, scopeKey] |
+| `WeeklyVodOverride` | VOD týždenné úpravy | unique: [storeId, metric, monthLabel, weekIndex] |
+| `IstAdjustmentRequest` | VOD žiadosti o úpravu IST | |
 
 ### Poznámky k schéme
-- `MonthlyValue.source`: "IST", "PLAN", "FORECAST" atď.
-- `DashboardNote.scopeKey`: formát `STORE|{storeId}` alebo `AGGREGATE|VKL|{vklName}` alebo `AGGREGATE|GF|{gfName}`
-- `DashboardNote` má unique constraint na [scopeKey, role, metricKey] — jeden komentár per rola per metrika per scope
-- Business year: začína marcom (index 2). Marec 2026 → businessYear=2026, businessOrder=0
+
+- `MonthlyValue.source`: `IST`, `PLAN`, `VOD` (manuálne úpravy), `FORECAST`
+- `DashboardNote.scopeKey`: `STORE|{storeId}` / `AGGREGATE|VKL|{vklName}` / `AGGREGATE|GF|{gfName}`
+- Business year: marec=0, ..., február=11 (`BUSINESS_YEAR_START_MONTH_INDEX = 2`)
+- **SQLite nemá FK enforcement zapnuté** — preto importy môžu zapísať MonthlyValue referencujúce neexistujúci Store bez chyby. Pri parent tabuľkách (Store, Month, Metric, User) musíme používať `prisma.upsert` (nie delete+create) v import endpointoch lebo MonthlyValue/User referencuje tieto parents.
 
 ## Autentifikácia a roly
 
-### Roly (hierarchia)
-1. **ADMIN** — plná správa, importy, bulk edit
+### Roly
+
+1. **ADMIN** — plná správa, importy, bulk edit, user management
 2. **GF** (General Manager) — viac predajní, aggregate view
-3. **VKL** (District Manager) — okresná úroveň, broadcast komentárov na všetky predajne
-4. **VOD** (Store Manager) — jedna predajňa, vidí len svoju
+3. **VKL** (District Manager) — okresná úroveň, broadcast komentárov
+4. **VOD** (Store Manager) — jedna predajňa
+5. **GL** — len sumár, žiadny filiálkový dashboard
 
 ### Auth flow
-- Middleware (`middleware.ts`) → kontrola JWT → injekcia headerov (`x-user-id`, `x-user-email`, `x-user-role`, `x-user-store`, `x-user-vkl`, `x-user-gf`)
-- Verejné routes: `/login`, `/api/auth/*`
-- Admin routes: `/api/admin/*`, `/api/import/*`, `/upload` → vyžadujú role=ADMIN
-- VOD redirect: VOD môže len na `/dashboard/{svojStoreId}`
-- Providers: Google OAuth (@kaufland.sk) + Dev Login (len dev, `DEV_LOGIN_ENABLED=true`)
 
-### Session extraction v API routes
-`lib/auth/session.ts` číta headers z middleware — netreba re-verifikovať JWT.
+- `/login` → email + heslo formulár
+- NextAuth Credentials provider → `bcrypt.compare()` proti `User.passwordHash` v cache
+- JWT session s rolou + scope
+- Middleware (`middleware.ts`) → injektuje `x-user-*` headers pre downstream handlery
+- Verejné routes: `/login`, `/api/auth/*`
+- Admin routes: `/admin/*`, `/api/admin/*`, `/api/import/*`, `/upload` → vyžadujú role=ADMIN
+- VOD redirect: VOD môže len na `/dashboard/{svojStoreId}`
+
+### User management
+
+- Iba ADMIN cez `/admin/users` môže pridávať userov a resetovať heslá
+- Pri pridaní/reset môže ADMIN zadať vlastné heslo, alebo nechať prázdne (vygeneruje sa 10-znakové)
+- Heslo sa zobrazí raz po vytvorení/reset — ADMIN ho skopíruje a odovzdá userovi
+- Žiadny self-register, žiadny email-based reset
+- Bcrypt cost factor = 10
+- Bootstrap prvého admina: `npm run hash-password -- "heslo"` → vložiť hash do User tabu v Sheete ručne
+
+### Žiadny Google OAuth ani Dev Login
+
+Pôvodne Google OAuth + Dev Login. Odstránené pri prechode na Sheets-as-DB (corporate security).
 
 ## API routes
 
 ### Pattern
-Všetky routes používajú wrapper `lib/api/handler.ts`:
+
+Všetky moderné routes používajú wrapper `lib/api/handler.ts`:
 ```ts
 apiRoute({ query, body, params, roles, handler })
 ```
-Validuje Zod schémy, injektuje user context, vracia `{ ok: true, ...data }` alebo `{ ok: false, error }`.
+Automaticky volá `ensureCacheFresh()` pred handlerom. Staršie routes (`/api/notes`, atď.) volajú `ensureCacheFresh()` manuálne na vrchu.
 
 ### Endpointy
 
-| Endpoint | Metóda | Prístup | Účel |
-|---|---|---|---|
-| `/api/import/monthly-ist` | POST | ADMIN | Import IST Excel/CSV |
-| `/api/import/structure-users` | POST | ADMIN | Import org štruktúry |
-| `/api/import/reset-ist-vod` | POST | ADMIN | Vymazanie IST + VOD |
-| `/api/import/reset-vod` | POST | ADMIN | Vymazanie VOD overrides |
-| `/api/notes` | GET/POST | Auth | Komentáre (scopeKey + metricKey query) |
-| `/api/notes/[id]` | PATCH/DELETE | Auth | Edit/delete komentára |
-| `/api/tasks` | GET/POST | Auth | Úlohy CRUD |
-| `/api/tasks/[id]` | PATCH/DELETE | Auth | Update/delete úlohy |
-| `/api/activity` | POST | Auth | Log aktivity |
-| `/api/admin/monthly-values` | GET/POST | ADMIN | Bulk edit mesačných hodnôt |
-| `/api/admin/structure-users` | POST | ADMIN | Bulk update štruktúry |
+| Endpoint | Účel |
+|---|---|
+| `/api/import/monthly-ist` POST | Import IST Excel (mesiace ≤ aktuálny) |
+| `/api/import/monthly-plan` POST | Import PLAN ročného plánu (celý rok) |
+| `/api/import/structure-users` POST | Import org štruktúry + loginy |
+| `/api/import/reset-ist-vod` POST | Vymazanie IST + VOD + WeeklyVodOverride |
+| `/api/import/reset-vod` POST | Vymazanie len VOD + WeeklyVodOverride |
+| `/api/admin/users` GET/POST | List + create user |
+| `/api/admin/users/[id]` PATCH | Reset password, toggle active |
+| `/api/admin/monthly-values` GET/PUT | Bulk edit mesačných hodnôt |
+| `/api/admin/structure-users` GET/PUT | Bulk update štruktúry |
+| `/api/notes` GET/POST | Komentáre |
+| `/api/notes/[id]` DELETE | Zmazať komentár |
+| `/api/tasks` GET/POST | Úlohy |
+| `/api/tasks/[id]` PATCH/DELETE | Update/delete úlohy |
+| `/api/activity` GET | Activity log + lastSeen tracking |
+| `/api/ist-adjustments` GET/POST | VOD žiadosti o úpravu IST |
+| `/api/ist-adjustments/[id]` PATCH/DELETE | Schválenie/zamietnutie/zrušenie |
+
+## Write-through pattern
+
+Pre každý zápis:
+
+```ts
+// 1. Ensure cache is fresh (alebo cez apiRoute wrapper automaticky)
+await ensureCacheFresh();
+
+// 2. Build full record with deterministic id + timestamps
+const record = { id: newId(), ...fields, createdAt: nowIso(), updatedAt: nowIso() };
+
+// 3. Push to Sheets first — throws on failure, aborts before cache write
+await pushNew('TabName', record);
+
+// 4. Mirror to local cache
+await prisma.model.create({ data: { ...record, createdAt: new Date(...) } });
+```
+
+Pre updates: `pushUpdate` + `prisma.update`.
+Pre deletes: `pushDelete` + `prisma.delete`.
+Pre bulk: `pushBulkReplaceSlice(tab, predicate, newRecords)` — read+filter+rewrite v jednom round-tripe.
+
+**Parent tabuľky (Store, Month, Metric, User) v cache idú cez `prisma.upsert`** lebo `deleteMany` by zlyhal na FK constraint.
 
 ## Scope model
 
-Hierarchický scope systém pre komentáre a úlohy:
-- `STORE|{storeId}` — na úrovni predajne
-- `AGGREGATE|VKL|{vklName}` — VKL broadcast (viditeľné všetkým predajniam pod VKL)
+Hierarchický scope systém:
+- `STORE|{storeId}` — úroveň predajne
+- `AGGREGATE|VKL|{vklName}` — VKL broadcast (viditeľné všetkým pod VKL)
 - `AGGREGATE|GF|{gfName}` — GF aggregate view
 
-`NoteThread` komponent podporuje `broadcastScopeKey` — keď sa pozerá na STORE, zobrazí aj komentáre z VKL úrovne.
-
-## Metriky (KPIs)
-
-Metriky sú definované v DB tabuľke `Metric`. Príklady: Obrat, Hodiny netto, Čistý výkon, atď.
-MetricLayout (`lib/metric-layout.ts`) — klientské localStorage pre poradie a skrývanie metrík per scope/role.
+`NoteThread` komponent podporuje `broadcastScopeKey` — keď sa pozerá na STORE, zobrazí aj VKL komentáre.
 
 ## Mesiace a business year
 
 `lib/months.ts`:
 - Slovenské názvy mesiacov s aliasmi (s/bez diakritiky)
-- Business year začína marcom (BUSINESS_YEAR_START_MONTH_INDEX = 2)
-- Month ID formát: `YYYY-MM` (napr. "2026-03")
-- BusinessOrder: marec=0, apríl=1, ..., február=11
-
-## Štýlovanie
-
-- Žiadny Tailwind — čistý CSS
-- Globálne CSS premenné v `app/globals.css` (farby, spacing, shadows)
-- CSS modules pre komponenty (`*.module.css`)
-- Farebná paleta: navy (#24567c), červená (#c84f40), zelené, sivé
-- Responsive: `clamp()` pre fluid font-size
+- Business year začína marcom (`BUSINESS_YEAR_START_MONTH_INDEX = 2`)
+- Month ID formát: `YYYY-MM` (napr. `2026-03`)
+- businessOrder: marec=0, apríl=1, ..., február=11
 
 ## NPM skripty
 
 ```bash
-npm run dev          # Next.js dev server
-npm run build        # prisma generate + next build
-npm run lint         # ESLint
-npm run prisma:studio # Prisma Studio GUI
-npm run import:ist   # CLI IST import
-npm run import:plan  # CLI PLAN import
+npm run dev               # Next.js dev server
+npm run build             # prisma generate + next build
+npm run lint
+npm run sheets:init       # Create/repair Sheet tabs + headers
+npm run sheets:pull       # Force pull Sheets → local SQLite cache
+npm run hash-password -- "heslo"   # Generate bcrypt hash
+npm run prisma:studio     # GUI nad SQLite cache
 ```
 
 ## Env premenné
 
 ```
-DATABASE_URL         # PostgreSQL connection string
-DIRECT_URL           # Direct PostgreSQL (nie cez pgBouncer)
-AUTH_SECRET           # JWT signing secret
-GOOGLE_CLIENT_ID      # Google OAuth (prod)
-GOOGLE_CLIENT_SECRET  # Google OAuth (prod)
-DEV_LOGIN_ENABLED     # "true" pre dev login
-LOG_LEVEL             # trace|debug|info|warn|error|fatal
+AUTH_SECRET                   # JWT signing secret
+SHEETS_APPS_SCRIPT_URL        # https://script.google.com/macros/s/.../exec
+SHEETS_APPS_SCRIPT_SECRET     # Shared secret v Apps Script kóde
+SHEETS_SPREADSHEET_ID         # Z URL spreadsheetu (referencia)
+DATABASE_URL                  # Lokál: file:./dev.db   |   Vercel: nepotrebné (auto /tmp)
+ADMIN_PASSWORD                # Pre legacy /upload x-admin-secret header
+LOG_LEVEL                     # trace|debug|info|warn|error|fatal
 ```
+
+**Žiadne** `DIRECT_URL`, `GOOGLE_CLIENT_*`, `DEV_LOGIN_ENABLED` (odstránené pri migrácii).
 
 ## Kľúčové design patterns
 
-1. **Middleware-first auth** — headers injektované pre všetky downstream handlery
-2. **RSC-first data** — DB queries na serveri, dáta cez props do client komponentov
-3. **Scope-aware access** — hierarchický scopeKey pre komentáre/úlohy
-4. **Audit trail** — ActivityEntry + ImportBatch logujú všetky zmeny
-5. **Zod validácia** — na vstupe každého API route
-6. **Pino structured logging** — JSON v prod s request ID
+1. **Sheets-as-DB s SQLite cache** — Sheets je source of truth, SQLite je rýchle čítanie
+2. **Write-through** — všetky writes idú do Sheets pred cache
+3. **Deterministické id-čka pre upsert-like vzory** (napr. `UserLastSeen.id = "lastseen::userId::scopeKey"`)
+4. **Back-off na cache rebuild** (30s) — ak rebuild zlyhá, app sa nezacyklí
+5. **Defensive dedup pri pull-e** — Sheets môže mať duplicate id-čka, posledný vyhráva
+6. **Middleware-first auth** — headers injektované pre všetky downstream handlery
+7. **RSC-first data** — DB queries na serveri, dáta cez props do client komponentov
+8. **Audit trail** — ActivityEntry + ImportBatch
+
+## Známe obmedzenia
+
+- **Cold start ~5-15s na Verceli** (cache rebuild zo Sheets)
+- **Concurrent writes:** Sheets nemá transakcie → last-write-wins
+- **Sheets kvóty:** ~300 reads/min, ~60 writes/min — IST/PLAN importy môžu škrtiť
+- **SQLite FK off** — referenčné chyby sú silent v cache
+- **ActivityEntry rast** — bez auto-purge časom narastie; treba občas archivovať
+
+## Migration history
+
+Pôvodne PostgreSQL/Supabase + Google OAuth + Dev Login. Migrované na Sheets-as-DB + login+heslo z firemných/bezpečnostných dôvodov (vybavenie relačnej DB je v Kauflande zdĺhavé, Sheets je už schválený nástroj). Detaily v `memory/project_sheets_migration.md`.

@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 
+import { ensureCacheFresh } from '@/lib/db/client';
 import { sendNotificationEmail } from '@/lib/mailer';
 import { prisma } from '@/lib/prisma';
+import { newId, nowIso, pushNew } from '@/lib/sheets/write-through';
 
 /**
  * GET /api/notes?scopeKey=...&metricKey=...&broadcastScopeKey=...
@@ -9,15 +11,11 @@ import { prisma } from '@/lib/prisma';
  * Returns comment thread for a given scope + metric.
  * If broadcastScopeKey is provided (store view), also includes comments
  * written at VKL level (broadcast), marked with isBroadcast=true.
- *
- * Scoping logic:
- * - VKL at VKL-level (no store selected) → writes to AGGREGATE|VKL|{vklName} → visible to ALL stores
- * - VKL at store-level → writes to STORE|{storeId} → visible only to that store
- * - VOD → writes to STORE|{storeId} → visible to that store + VKL
- * - When fetching for a store, broadcastScopeKey pulls in VKL-level comments too
  */
 export async function GET(request: Request) {
   try {
+    await ensureCacheFresh();
+
     const url = new URL(request.url);
     const scopeKey = url.searchParams.get('scopeKey') || '';
     const metricKey = url.searchParams.get('metricKey') || '';
@@ -27,7 +25,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: false, error: 'scopeKey and metricKey are required.' }, { status: 400 });
     }
 
-    // Fetch store-level comments
     const scopeKeys = [scopeKey];
     if (broadcastScopeKey && broadcastScopeKey !== scopeKey) {
       scopeKeys.push(broadcastScopeKey);
@@ -42,7 +39,6 @@ export async function GET(request: Request) {
       include: { task: true },
     });
 
-    // Mark broadcast comments (those from VKL-level scope) and flatten task info
     const comments = rawComments.map((comment) => ({
       id: comment.id,
       scopeKey: comment.scopeKey,
@@ -71,10 +67,11 @@ export async function GET(request: Request) {
 /**
  * POST /api/notes
  * Body: { scopeKey, metricKey, role, author, text, createTask?: boolean }
- * Adds a new comment to the thread. If createTask=true, also creates a linked TaskItem.
  */
 export async function POST(request: Request) {
   try {
+    await ensureCacheFresh();
+
     const body = await request.json() as {
       scopeKey?: string;
       metricKey?: string;
@@ -91,46 +88,80 @@ export async function POST(request: Request) {
     }
 
     const trimmedText = String(text).trim();
+    const now = nowIso();
 
+    // 1. Build comment record (id/timestamp fixed client-side so Sheets and SQLite match)
+    const commentRecord = {
+      id: newId(),
+      scopeKey,
+      metricKey,
+      role,
+      author,
+      text: trimmedText,
+      createdAt: now,
+    };
+
+    // 2. Push to Sheets first — throws on failure, aborts before local write
+    await pushNew('NoteComment', commentRecord);
+
+    // 3. Mirror into local cache
     const comment = await prisma.noteComment.create({
       data: {
-        scopeKey,
-        metricKey,
-        role,
-        author,
-        text: trimmedText,
+        ...commentRecord,
+        createdAt: new Date(now),
       },
     });
 
-    // Optionally create linked task
     let task = null;
     if (createTask) {
+      const taskRecord = {
+        id: newId(),
+        scopeKey,
+        metricKey,
+        monthLabel: null,
+        text: trimmedText,
+        status: 'open',
+        createdByRole: role,
+        createdByName: author,
+        createdAt: now,
+        completedByName: null,
+        completedAt: null,
+        sourceCommentId: comment.id,
+      };
+
+      await pushNew('TaskItem', taskRecord);
+
       task = await prisma.taskItem.create({
         data: {
-          scopeKey,
-          metricKey,
-          text: trimmedText,
-          createdByRole: role,
-          createdByName: author,
-          sourceCommentId: comment.id,
+          ...taskRecord,
+          createdAt: new Date(now),
+          completedAt: null,
         },
       });
 
-      // Notify the VOD assigned to the store (best-effort, dev override)
       void notifyTaskAssigned({ scopeKey, metricKey, role, author, text: trimmedText });
     }
 
-    // Log activity
-    await prisma.activityEntry.create({
-      data: {
+    // 4. Activity log — best-effort, don't fail the whole request if it errors
+    try {
+      const activityRecord = {
+        id: newId(),
         scopeKey,
         actorRole: role,
         actorName: author,
         action: createTask ? 'task-created' : 'comment',
         metricKey,
+        monthLabel: null,
         detail: trimmedText.slice(0, 200),
-      },
-    }).catch(() => { /* best effort */ });
+        createdAt: now,
+      };
+      await pushNew('ActivityEntry', activityRecord);
+      await prisma.activityEntry.create({
+        data: { ...activityRecord, createdAt: new Date(now) },
+      });
+    } catch {
+      /* best effort — activity log shouldn't break note creation */
+    }
 
     return NextResponse.json({ ok: true, comment, task });
   } catch (error) {
@@ -164,9 +195,7 @@ async function notifyTaskAssigned(input: {
       vodUsers.forEach((user) => recipients.push({ email: user.email, storeId: user.primaryStoreId }));
     }
 
-    if (!recipients.length) {
-      return;
-    }
+    if (!recipients.length) return;
 
     const subject = `Nová úloha: ${input.metricKey || 'všeobecné'}`;
     const body = `${input.author} (${input.role}) ti pridelil úlohu k metrike „${input.metricKey || '—'}":\n\n${input.text}\n\nOtvor PRO TABULKA pre detail.`;
@@ -186,7 +215,7 @@ async function notifyTaskAssigned(input: {
         }),
       ),
     );
-  } catch (error) {
+  } catch {
     /* best effort */
   }
 }

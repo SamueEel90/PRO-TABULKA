@@ -1,11 +1,15 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "native" = local dev (Windows/Mac/Linux), rhel-openssl-3.0.x = Vercel runtime
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
+// Local SQLite cache fed from Google Sheets via lib/db/bootstrap.ts.
+// On Vercel, DATABASE_URL points to /tmp/cache.db (ephemeral per lambda).
+// Production source of truth lives in Google Sheets — this DB is a mirror.
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model Store {
@@ -25,6 +29,7 @@ model Store {
 model User {
   id             String    @id @default(cuid())
   email          String    @unique
+  passwordHash   String?
   emailVerified  DateTime?
   name           String?
   image          String?
@@ -49,12 +54,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 

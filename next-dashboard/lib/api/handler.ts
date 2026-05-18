@@ -135,6 +135,11 @@ export function apiRoute<TQuery = unknown, TBody = unknown, TParams = unknown>(
         }
       }
 
+      // Refresh the local SQLite cache from Sheets if stale. On cold lambdas
+      // this is the slow path (~5-15s); on warm lambdas it's ~0-500ms.
+      const { ensureCacheFresh } = await import('@/lib/db/client');
+      await ensureCacheFresh();
+
       const data = await options.handler({ request, query, body, params, log: log.child({ userId: user?.id }), requestId, user });
 
       // Success envelope

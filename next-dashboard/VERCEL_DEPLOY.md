@@ -1,33 +1,74 @@
 # Vercel Deployment
 
-Tento projekt ma dve build cesty:
+Projekt používa **Google Sheets ako "databázu"** (source of truth) + lokálnu **SQLite cache** v `/tmp/cache.db` pre rýchle reads. Žiadny PostgreSQL/Supabase nie je potrebný.
 
-- lokalny development a lokalny build: SQLite schema `prisma/schema.prisma`
-- Vercel / production build: PostgreSQL schema `prisma/schema.postgres.prisma`
+## Architektúra na Verceli
 
-## Co uz je pripravene
+```
+Browser  →  Vercel Lambda  →  Apps Script Web App  →  Google Sheet
+              │                        ↑
+              ├─ SQLite cache         (source of truth)
+              │   (/tmp/cache.db)
+              │
+              └─ rebuild zo Sheets pri cold start
+```
 
-- legacy dashboard assets su checknute v `legacy-assets/`
-- route `app/legacy-index/route.ts` vie v produkcii citat interne assets
-- build script pre Vercel vie vygenerovat Prisma client pre PostgreSQL
+Každá lambda má vlastný `/tmp/cache.db`. Pri prvom requeste (cold start) sa cache rebuilduje zo Sheets (~5-15s pre 30 000 riadkov). Reads idú z SQLite, writes idú najprv do Sheets potom do SQLite (write-through).
 
-## Pred prvym Vercel deployom
+## Pred prvým Vercel deployom
 
-1. Vytvor PostgreSQL databazu, napriklad Neon, Supabase alebo Vercel Postgres.
-2. Nastav `DATABASE_URL` vo Vercel project settings na Supabase pooler URL.
-3. Nastav `DIRECT_URL` na priamu Supabase DB URL s hostom `db.<project-ref>.supabase.co:5432`.
-4. Nastav Root Directory na `next-dashboard`.
-5. Nastav Build Command na `npm run build:vercel`.
-6. Nastav Install Command na `npm install`.
-7. Raz inicializuj schema do prazdnej PostgreSQL databazy prikazom:
-   `npm run prisma:dbpush:postgres`
-8. Ak Prisma z lokalu nevie do Supabase dosiahnut, otvor SQL Editor a spusti obsah `prisma/supabase-init.sql`.
+1. **Apps Script Web App** musí byť deployed v Google Sheete — viď `CLAUDE.md` sekciu *Sheets DB*.
+2. V Google Sheete musíš mať spreadsheet so správnou štruktúrou tabov — vygeneruje sa pri prvom spustení `npm run sheets:init` lokálne.
+3. V Vercel project settings:
+   - **Root Directory:** `next-dashboard`
+   - **Build Command:** `npm run build`
+   - **Install Command:** `npm install`
 
-## Poznamky
+## Environment variables (Vercel)
 
-- `npm run build` ostava lokalny SQLite build.
-- `npm run build:vercel` je urceny pre produkcny PostgreSQL deployment.
-- Supabase priama DB URL ma tvar `postgresql://postgres:<heslo>@db.<project-ref>.supabase.co:5432/postgres`.
-- Supabase pooler URL sa pouziva pre runtime `DATABASE_URL`, priama URL pre `DIRECT_URL` a Prisma schema operacie.
-- SQL bootstrap pre Supabase SQL Editor je v `prisma/supabase-init.sql`.
-- Ak stale upravujes root `Index.html`, `dashboardSharedHelpers.html` alebo `sharedStyles.html`, pred lokalnym buildom sa automaticky zosynchronizuju do `legacy-assets/`.
+| Premenná | Hodnota |
+|---|---|
+| `AUTH_SECRET` | JWT signing secret (vygeneruj `openssl rand -base64 32`) |
+| `SHEETS_APPS_SCRIPT_URL` | URL deployovaného Apps Script Web App-u (`https://script.google.com/macros/s/.../exec`) |
+| `SHEETS_APPS_SCRIPT_SECRET` | Shared secret z Apps Script kódu |
+| `SHEETS_SPREADSHEET_ID` | ID Google Sheet-u (z URL) |
+| `ADMIN_PASSWORD` | Heslo pre legacy `/upload` endpointy (`x-admin-secret` header) |
+| `LOG_LEVEL` | `info` v prod, `debug` v deve (voliteľné) |
+| `DATABASE_URL` | **NEPOTREBNÉ na Verceli** — bootstrap sám nastavuje `/tmp/cache.db` |
+
+**Staré premenné na ODSTRÁNENIE** (ak boli predtým nastavené):
+- `DIRECT_URL` (Supabase pgBouncer)
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (Google OAuth — odstránené v auth refactore)
+- `DEV_LOGIN_ENABLED` (dev login odstránený)
+
+## Cold start performance
+
+Prvý request po nečinnosti (~15 min na Verceli Hobby) trvá 5-15s — lambda musí stiahnuť všetky taby zo Sheets a postaviť SQLite. Užívateľ uvidí spinner. Druhý request bežní v ms (cache hot).
+
+Ak chceš znížiť cold start, je možnosť pridať Vercel Cron, ktorý pinguje appku každých ~10 minút.
+
+## Backup a recovery
+
+Source of truth je Google Sheet — Drive má version history. Pre formálny backup:
+
+1. **File → Download → Microsoft Excel (.xlsx)** pravidelne (manuálne alebo cez Drive API)
+2. Recovery: vytvoriť nový spreadsheet, naimportovať backup XLSX, aktualizovať `SHEETS_SPREADSHEET_ID` v env
+
+## Update Apps Script
+
+Keď meníš [next-dashboard/lib/sheets/](next-dashboard/lib/sheets/) treba pamätať že **Apps Script kód v Google Sheete je samostatný** — Vercel pristupuje cez HTTP. Update Apps Script:
+
+1. V spreadsheete `Extensions → Apps Script`
+2. Uprav kód (nový `doPost` switch)
+3. **Deploy → Manage deployments → Edit** na aktívnom deploymente
+4. **Version:** New version → Deploy
+5. URL ostáva rovnaká, env var sa nemení
+
+## Lokálny dev vs Vercel rozdiely
+
+| | Lokálny dev | Vercel |
+|---|---|---|
+| Cache path | `prisma/dev.db` | `/tmp/cache.db` |
+| Persistent cache | Áno (medzi reštartmi) | Nie (ephemeral per lambda) |
+| Cold start | Pri prvom request po `npm run dev` | Pri každom novom lambda kontainere |
+| Build command | `npm run build` | `npm run build` |

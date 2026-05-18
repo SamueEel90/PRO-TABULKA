@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 
 export function UploadForm({ adminSecret = '' }: { adminSecret?: string }) {
-  const [importMode, setImportMode] = useState<'monthly' | 'structure-login' | 'reset-ist-vod' | 'reset-vod'>('monthly');
+  const [importMode, setImportMode] = useState<'monthly' | 'plan' | 'structure-login' | 'reset-ist-vod' | 'reset-vod'>('monthly');
   const [message, setMessage] = useState<string>('');
   const [isPending, startTransition] = useTransition();
   const uploadEndpoint = importMode === 'structure-login'
@@ -12,7 +12,9 @@ export function UploadForm({ adminSecret = '' }: { adminSecret?: string }) {
       ? '/api/import/reset-ist-vod'
       : importMode === 'reset-vod'
         ? '/api/import/reset-vod'
-        : '/api/import/monthly-ist';
+        : importMode === 'plan'
+          ? '/api/import/monthly-plan'
+          : '/api/import/monthly-ist';
   const acceptedFileTypes = importMode === 'structure-login'
     ? '.xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     : '.xlsx,.xls,.csv,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -33,7 +35,9 @@ export function UploadForm({ adminSecret = '' }: { adminSecret?: string }) {
                 ? 'Mažem všetky IST a úpravy VOD...'
                 : importMode === 'reset-vod'
                   ? 'Mažem všetky úpravy VOD...'
-                  : 'Nahrávam a importujem mesačné dáta...',
+                  : importMode === 'plan'
+                    ? 'Nahrávam a importujem PLAN dáta...'
+                    : 'Nahrávam a importujem mesačné dáta...',
           );
           const response = await fetch(uploadEndpoint, {
             method: 'POST',
@@ -51,6 +55,8 @@ export function UploadForm({ adminSecret = '' }: { adminSecret?: string }) {
             setMessage(`Hotovo. Zmazané IST riadky: ${payload.deletedIstRows}. Zmazané VOD riadky: ${payload.deletedVodRows}. Zmazané týždenné VOD úpravy: ${payload.deletedWeeklyOverrides}.`);
           } else if (importMode === 'reset-vod') {
             setMessage(`Hotovo. Zmazané VOD riadky: ${payload.deletedVodRows}. Zmazané týždenné VOD úpravy: ${payload.deletedWeeklyOverrides}.`);
+          } else if (importMode === 'plan') {
+            setMessage(`Hotovo. PLAN sheet ${payload.sheetName}. Filiálok: ${payload.stores}, mesiacov: ${payload.months}, metrík: ${payload.metrics}. Importovaných riadkov: ${payload.rowCount}. Súbor: ${payload.fileName}`);
           } else {
             setMessage(`Hotovo. IST sheet ${payload.sheetName}. Importované mesiace: ${payload.importedMonthRange}. Importovaných riadkov: ${payload.rowCount}. Súbor: ${payload.fileName}`);
           }
@@ -63,8 +69,9 @@ export function UploadForm({ adminSecret = '' }: { adminSecret?: string }) {
     >
       <label>
         <span>Čo chceš nahrať</span>
-        <select name="importMode" value={importMode} onChange={(event) => setImportMode(event.target.value as 'monthly' | 'structure-login' | 'reset-ist-vod' | 'reset-vod')}>
+        <select name="importMode" value={importMode} onChange={(event) => setImportMode(event.target.value as 'monthly' | 'plan' | 'structure-login' | 'reset-ist-vod' | 'reset-vod')}>
           <option value="monthly">ISTGJ2026 import</option>
+          <option value="plan">PLANGJ2026 import (ročný plán)</option>
           <option value="structure-login">Štruktúra GF / VKL / filiálky + loginy</option>
           <option value="reset-ist-vod">Vymazať všetok IST a úpravy VOD</option>
           <option value="reset-vod">Vymazať len úpravy VOD</option>
@@ -74,6 +81,10 @@ export function UploadForm({ adminSecret = '' }: { adminSecret?: string }) {
       {importMode === 'monthly' ? (
         <>
           <p className="upload-help-text">Nahraj jeden workbook alebo CSV pre `ISTGJ2026`. Pri Exceli sa použije sheet `ISTGJ2026` a import vezme všetky mesiace od začiatku obchodného roka po aktuálny mesiac. Budúce mesiace sa ignorujú.</p>
+        </>
+      ) : importMode === 'plan' ? (
+        <>
+          <p className="upload-help-text">Nahraj workbook alebo CSV pre `PLANGJ2026` (ročný plán). Importujú sa všetky mesiace obchodného roka (marec - február). Existujúce PLAN hodnoty pre tieto filiálky a mesiace sa prepíšu.</p>
         </>
       ) : importMode === 'structure-login' ? (
         <>
@@ -97,7 +108,7 @@ export function UploadForm({ adminSecret = '' }: { adminSecret?: string }) {
 
       {importMode !== 'reset-ist-vod' && importMode !== 'reset-vod' ? (
         <label>
-          <span>{importMode === 'structure-login' ? 'Excel workbook' : 'Súbor ISTGJ2026'}</span>
+          <span>{importMode === 'structure-login' ? 'Excel workbook' : importMode === 'plan' ? 'Súbor PLANGJ2026' : 'Súbor ISTGJ2026'}</span>
           <input name="file" type="file" accept={acceptedFileTypes} required />
         </label>
       ) : null}
@@ -118,7 +129,9 @@ export function UploadForm({ adminSecret = '' }: { adminSecret?: string }) {
               ? 'Vymazať IST a VOD'
               : importMode === 'reset-vod'
                 ? 'Vymazať úpravy VOD'
-                : 'Nahrať ISTGJ2026'}
+                : importMode === 'plan'
+                  ? 'Nahrať PLANGJ2026'
+                  : 'Nahrať ISTGJ2026'}
       </button>
 
       <p className="upload-message">{message}</p>

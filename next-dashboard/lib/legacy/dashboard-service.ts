@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { resolveMonthLabel } from '@/lib/months';
 import { computeNetHoursDelta } from '@/lib/legacy/shared';
+import { newId, nowIso, pushBulkReplaceSlice, pushDelete, pushNew, pushUpdate } from '@/lib/sheets/write-through';
 import type {
   DashboardPayload,
   DashboardScope,
@@ -1946,11 +1947,30 @@ export async function saveDashboardChangesToSql(
       }
       const month = resolveDashboardMonth(update.month);
       const metricCode = metricCodeFromName(canonicalMetric);
-      await prisma.metric.upsert({
-        where: { code: metricCode },
-        update: { displayName: canonicalMetric, unit: getMetricFormat(canonicalMetric), aggregation: 'sum' },
-        create: { code: metricCode, displayName: canonicalMetric, unit: getMetricFormat(canonicalMetric), aggregation: 'sum' },
-      });
+      const now = nowIso();
+
+      // Upsert Metric (push first, then mirror to cache)
+      const existingMetric = await prisma.metric.findUnique({ where: { code: metricCode } });
+      const metricRecord = {
+        code: metricCode,
+        displayName: canonicalMetric,
+        unit: getMetricFormat(canonicalMetric),
+        aggregation: 'sum',
+        createdAt: existingMetric ? existingMetric.createdAt.toISOString() : now,
+        updatedAt: now,
+      };
+      if (existingMetric) {
+        await pushUpdate('Metric', metricRecord);
+        await prisma.metric.update({
+          where: { code: metricCode },
+          data: { displayName: canonicalMetric, unit: getMetricFormat(canonicalMetric), aggregation: 'sum', updatedAt: new Date(now) },
+        });
+      } else {
+        await pushNew('Metric', metricRecord);
+        await prisma.metric.create({
+          data: { ...metricRecord, createdAt: new Date(now), updatedAt: new Date(now) },
+        });
+      }
 
       // Read previous value for delta logging
       const previousValueRow = await prisma.monthlyValue.findUnique({
@@ -1966,29 +1986,32 @@ export async function saveDashboardChangesToSql(
       const previousValue = previousValueRow ? Number(previousValueRow.value || 0) : 0;
       const newValue = Number(update.value || 0);
 
-      await prisma.monthlyValue.upsert({
-        where: {
-          source_storeId_metricCode_monthId: {
-            source: 'VOD',
-            storeId: scope.storeIds[0],
-            metricCode,
-            monthId: month.id,
-          },
-        },
-        update: {
-          value: newValue,
-          present: true,
-          importedAt: new Date(),
-        },
-        create: {
-          source: 'VOD',
-          storeId: scope.storeIds[0],
-          metricCode,
-          monthId: month.id,
-          value: newValue,
-          present: true,
-        },
-      });
+      // Upsert MonthlyValue
+      const mvRecord = {
+        id: previousValueRow?.id ?? newId(),
+        source: 'VOD',
+        storeId: scope.storeIds[0],
+        metricCode,
+        monthId: month.id,
+        value: newValue,
+        present: true,
+        importedAt: now,
+        importBatchId: previousValueRow?.importBatchId ?? null,
+        createdAt: previousValueRow ? previousValueRow.createdAt.toISOString() : now,
+        updatedAt: now,
+      };
+      if (previousValueRow) {
+        await pushUpdate('MonthlyValue', mvRecord);
+        await prisma.monthlyValue.update({
+          where: { id: previousValueRow.id },
+          data: { value: newValue, present: true, importedAt: new Date(now), updatedAt: new Date(now) },
+        });
+      } else {
+        await pushNew('MonthlyValue', mvRecord);
+        await prisma.monthlyValue.create({
+          data: { ...mvRecord, importedAt: new Date(now), createdAt: new Date(now), updatedAt: new Date(now) },
+        });
+      }
       result.savedAdjustments += 1;
 
       // Log per-adjustment activity (only when value actually changed)
@@ -1999,8 +2022,9 @@ export async function saveDashboardChangesToSql(
         const detailText = previousValueRow
           ? `${formatMetricForActivity(previousValue, canonicalMetric)} → ${formatMetricForActivity(newValue, canonicalMetric)} (${sign}${formatMetricForActivity(delta, canonicalMetric)})`
           : `Nastavené na ${formatMetricForActivity(newValue, canonicalMetric)}`;
-        await prisma.activityEntry.create({
-          data: {
+        try {
+          const activityRecord = {
+            id: newId(),
             scopeKey: activityScope.key,
             actorRole: user.role,
             actorName: user.displayName,
@@ -2008,23 +2032,32 @@ export async function saveDashboardChangesToSql(
             metricKey: canonicalMetric,
             monthLabel: month.label,
             detail: detailText,
-          },
-        }).catch(() => { /* best effort */ });
+            createdAt: now,
+          };
+          await pushNew('ActivityEntry', activityRecord);
+          await prisma.activityEntry.create({
+            data: { ...activityRecord, createdAt: new Date(now) },
+          });
+        } catch { /* best effort */ }
       }
     }
 
     if (touchedStructureMonths.size) {
       const structureHoursMetricCode = metricCodeFromName(STRUCTURE_HOURS_METRIC);
-      for (const monthId of touchedStructureMonths) {
-        await prisma.monthlyValue.deleteMany({
-          where: {
-            source: 'VOD',
-            storeId: scope.storeIds[0],
-            metricCode: structureHoursMetricCode,
-            monthId,
-          },
-        });
-      }
+      const storeId = scope.storeIds[0];
+      const monthIdsArr = [...touchedStructureMonths];
+      // Drop structure-hours rows for this (store, metric, [months]) slice
+      await pushBulkReplaceSlice(
+        'MonthlyValue',
+        (r) => r.source === 'VOD'
+          && r.storeId === storeId
+          && r.metricCode === structureHoursMetricCode
+          && monthIdsArr.includes(String(r.monthId)),
+        [],
+      );
+      await prisma.monthlyValue.deleteMany({
+        where: { source: 'VOD', storeId, metricCode: structureHoursMetricCode, monthId: { in: monthIdsArr } },
+      });
     }
   }
 
@@ -2049,28 +2082,44 @@ export async function saveDashboardChangesToSql(
       throw new Error('Týždenné úpravy môže zapisovať iba VOD používateľ pre svoju filiálku.');
     }
 
+    // Combine delete-slice + insert in one bulkReplaceSlice round-trip
+    const storeId = scope.storeIds[0];
+    const now = nowIso();
+    const newOverrideRecords = weeklyUpdates.map((update) => ({
+      id: newId(),
+      storeId,
+      metric: canonicalizeMetric(update.metric),
+      monthLabel: normalizeMonthLabel(update.month),
+      weekIndex: Math.max(0, Number(update.weekIndex || 0)),
+      weekLabel: String(update.weekLabel || ''),
+      rangeLabel: String(update.rangeLabel || ''),
+      value: Number(update.value || 0),
+      distributionMode: String(update.distributionMode || ''),
+      updatedBy: user.displayName,
+      createdAt: now,
+      updatedAt: now,
+    }));
+    const touchedPairs = touchedWeeklyPairs;
+    await pushBulkReplaceSlice(
+      'WeeklyVodOverride',
+      (r) => r.storeId === storeId
+        && touchedPairs.has(`${String(r.metric)}|${String(r.monthLabel)}`),
+      newOverrideRecords,
+    );
+    // Mirror to cache
     for (const key of touchedWeeklyPairs) {
       const [metric, monthLabel] = key.split('|');
-      await prisma.weeklyVodOverride.deleteMany({ where: { storeId: scope.storeIds[0], metric, monthLabel } });
+      await prisma.weeklyVodOverride.deleteMany({ where: { storeId, metric, monthLabel } });
     }
-  }
-
-  if (weeklyUpdates.length) {
-    for (const update of weeklyUpdates) {
-      await prisma.weeklyVodOverride.create({
-        data: {
-          storeId: scope.storeIds[0],
-          metric: canonicalizeMetric(update.metric),
-          monthLabel: normalizeMonthLabel(update.month),
-          weekIndex: Math.max(0, Number(update.weekIndex || 0)),
-          weekLabel: String(update.weekLabel || ''),
-          rangeLabel: String(update.rangeLabel || ''),
-          value: Number(update.value || 0),
-          distributionMode: String(update.distributionMode || ''),
-          updatedBy: user.displayName,
-        },
+    if (newOverrideRecords.length) {
+      await prisma.weeklyVodOverride.createMany({
+        data: newOverrideRecords.map(r => ({
+          ...r,
+          createdAt: new Date(r.createdAt),
+          updatedAt: new Date(r.updatedAt),
+        })),
       });
-      result.savedWeeklyAdjustments += 1;
+      result.savedWeeklyAdjustments = newOverrideRecords.length;
     }
   }
 
@@ -2095,51 +2144,57 @@ export async function saveDashboardChangesToSql(
       const noteScope = resolveScopeForUpdate(update.noteScopeMode);
       const metricKey = update.metric === GLOBAL_SCOPE_NOTE_METRIC ? GLOBAL_SCOPE_NOTE_METRIC : canonicalizeMetric(update.metric);
       const noteText = String(update.text == null ? '' : update.text).trim();
+      const now = nowIso();
 
-      // If text is empty, delete the existing note (clearing the textarea = remove note)
+      const existing = await prisma.dashboardNote.findUnique({
+        where: { scopeKey_role_metricKey: { scopeKey: noteScope.key, role: user.role, metricKey } },
+      });
+
+      // If text is empty, delete the existing note
       if (!noteText) {
-        const deleted = await prisma.dashboardNote.deleteMany({
-          where: {
-            scopeKey: noteScope.key,
-            role: user.role,
-            metricKey,
-          },
-        });
-        if (deleted.count > 0) {
+        if (existing) {
+          await pushDelete('DashboardNote', existing.id);
+          await prisma.dashboardNote.delete({ where: { id: existing.id } });
           result.savedNotes += 1;
         }
         continue;
       }
 
-      await prisma.dashboardNote.upsert({
-        where: {
-          scopeKey_role_metricKey: {
-            scopeKey: noteScope.key,
-            role: user.role,
-            metricKey,
+      const noteRecord = {
+        id: existing?.id ?? newId(),
+        scopeKey: noteScope.key,
+        scopeType: noteScope.type,
+        scopeId: noteScope.scopeId,
+        scopeLabel: noteScope.label,
+        metricKey,
+        role: user.role,
+        author: user.displayName,
+        text: noteText,
+        storeId: noteScope.type === 'STORE' ? noteScope.scopeId : null,
+        createdAt: existing ? existing.createdAt.toISOString() : now,
+        updatedAt: now,
+      };
+
+      if (existing) {
+        await pushUpdate('DashboardNote', noteRecord);
+        await prisma.dashboardNote.update({
+          where: { id: existing.id },
+          data: {
+            scopeType: noteScope.type,
+            scopeId: noteScope.scopeId,
+            scopeLabel: noteScope.label,
+            author: user.displayName,
+            text: noteText,
+            storeId: noteScope.type === 'STORE' ? noteScope.scopeId : null,
+            updatedAt: new Date(now),
           },
-        },
-        update: {
-          scopeType: noteScope.type,
-          scopeId: noteScope.scopeId,
-          scopeLabel: noteScope.label,
-          author: user.displayName,
-          text: noteText,
-          storeId: noteScope.type === 'STORE' ? noteScope.scopeId : null,
-          updatedAt: new Date(),
-        },
-        create: {
-          scopeKey: noteScope.key,
-          scopeType: noteScope.type,
-          scopeId: noteScope.scopeId,
-          scopeLabel: noteScope.label,
-          metricKey,
-          role: user.role,
-          author: user.displayName,
-          text: noteText,
-          storeId: noteScope.type === 'STORE' ? noteScope.scopeId : null,
-        },
-      });
+        });
+      } else {
+        await pushNew('DashboardNote', noteRecord);
+        await prisma.dashboardNote.create({
+          data: { ...noteRecord, createdAt: new Date(now), updatedAt: new Date(now) },
+        });
+      }
       result.savedNotes += 1;
     }
   }
@@ -2149,15 +2204,24 @@ export async function saveDashboardChangesToSql(
   // without monthly adjustments.
   if (result.savedWeeklyAdjustments > 0 && result.savedAdjustments === 0) {
     const activityScope = buildNoteScope(user, scope);
-    await prisma.activityEntry.create({
-      data: {
+    try {
+      const now = nowIso();
+      const activityRecord = {
+        id: newId(),
         scopeKey: activityScope.key,
         actorRole: user.role,
         actorName: user.displayName,
         action: 'save',
+        metricKey: null,
+        monthLabel: null,
         detail: `Uložené týždenné úpravy: ${result.savedWeeklyAdjustments}`,
-      },
-    }).catch(() => { /* best effort */ });
+        createdAt: now,
+      };
+      await pushNew('ActivityEntry', activityRecord);
+      await prisma.activityEntry.create({
+        data: { ...activityRecord, createdAt: new Date(now) },
+      });
+    } catch { /* best effort */ }
   }
 
   return result;
