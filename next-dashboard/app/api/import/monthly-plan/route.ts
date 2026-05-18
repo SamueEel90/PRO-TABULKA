@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 
-import { requireAdminSecret } from '@/lib/auth';
 import { ensureCacheFresh } from '@/lib/db/client';
 import { parseWideTableImport, getMetricMetadata } from '@/lib/import-monthly-ist';
 import { prisma } from '@/lib/prisma';
@@ -9,8 +8,6 @@ import { newId, nowIso, pushBulkReplaceSlice, pushNew } from '@/lib/sheets/write
 const PLAN_SHEET_NAME = 'PLANGJ2026';
 
 export async function POST(request: Request) {
-  const denied = requireAdminSecret(request);
-  if (denied) return denied;
   try {
     await ensureCacheFresh();
     const formData = await request.formData();

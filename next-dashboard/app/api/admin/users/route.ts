@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { generateTempPassword, hashPassword } from '@/lib/auth/passwords';
+import { generateTempPassword, hashPassword, MIN_PASSWORD_LENGTH } from '@/lib/auth/passwords';
 import { ensureCacheFresh } from '@/lib/db/client';
 import { prisma } from '@/lib/prisma';
 import { newId, nowIso, pushNew } from '@/lib/sheets/write-through';
@@ -59,8 +59,8 @@ export async function POST(request: Request) {
     if (!['VOD', 'VKL', 'GF', 'GL', 'ADMIN'].includes(role)) {
       return NextResponse.json({ ok: false, error: `Neplatná rola: ${role}.` }, { status: 400 });
     }
-    if (customPassword && customPassword.length < 6) {
-      return NextResponse.json({ ok: false, error: 'Heslo musí mať aspoň 6 znakov.' }, { status: 400 });
+    if (customPassword && customPassword.length < MIN_PASSWORD_LENGTH) {
+      return NextResponse.json({ ok: false, error: `Heslo musí mať aspoň ${MIN_PASSWORD_LENGTH} znakov.` }, { status: 400 });
     }
 
     const existing = await prisma.user.findUnique({ where: { email } });

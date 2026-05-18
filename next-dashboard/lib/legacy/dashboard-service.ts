@@ -1276,24 +1276,30 @@ function buildMetricMonthCell(
   if (normalizeMetricName(metric) === normalizeMetricName(GROSS_HOURS_METRIC)) {
     const structureHoursCell = buildMetricMonthCell(sourceData, STRUCTURE_HOURS_METRIC, month, 'hours', storeAggregatedByStoreId);
     const longAbsenceCell = buildMetricMonthCell(sourceData, LONG_ABSENCE_METRIC, month, 'hours', storeAggregatedByStoreId);
+    // Hodiny Brutto are computed uniformly across past and future months from
+    // Štruktúra hodín minus Dlhodobá neprítomnosť using the forecast/plan
+    // numbers. The IST signal for Štruktúra hodín is derived (working days x
+    // tier hours) and can come out small or zero for some stores, while
+    // Dlhodobá neprítomnosť IST is full — subtracting produced misleading
+    // negatives in closed months. We treat this metric as a plan/forecast
+    // derivative so historical months match the same formula as future ones.
     const plan = structureHoursCell.plan - longAbsenceCell.plan;
-    const real = structureHoursCell.real - longAbsenceCell.real;
     const derivedForecast = structureHoursCell.forecast - longAbsenceCell.forecast;
     const derivedSavedForecast = structureHoursCell.savedForecast - longAbsenceCell.savedForecast;
-    const hasRealData = structureHoursCell.hasRealData || longAbsenceCell.hasRealData;
-    const forecastBase = closedMonth && hasRealData ? real : derivedForecast;
+    const real = derivedForecast;
+    const forecastBase = derivedForecast;
     const variance = forecastBase - plan;
 
     return {
       plan: roundMetric(plan, format),
       real: roundMetric(real, format),
-      adjustment: roundMetric(closedMonth && hasRealData ? 0 : derivedForecast - plan, format),
+      adjustment: roundMetric(derivedForecast - plan, format),
       forecast: roundMetric(forecastBase, format),
       savedForecast: roundMetric(derivedSavedForecast, format),
       variance: roundMetric(variance, format),
       variancePct: plan ? variance / plan : 0,
       closedMonth,
-      hasRealData,
+      hasRealData: false,
     };
   }
 

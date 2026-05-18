@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { generateTempPassword, hashPassword } from '@/lib/auth/passwords';
+import { generateTempPassword, hashPassword, MIN_PASSWORD_LENGTH } from '@/lib/auth/passwords';
 import { ensureCacheFresh } from '@/lib/db/client';
 import { prisma } from '@/lib/prisma';
 import { nowIso, pushUpdate } from '@/lib/sheets/write-through';
@@ -30,8 +30,8 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     const now = nowIso();
 
     if (action === 'reset-password') {
-      if (customPassword && customPassword.length < 6) {
-        return NextResponse.json({ ok: false, error: 'Heslo musí mať aspoň 6 znakov.' }, { status: 400 });
+      if (customPassword && customPassword.length < MIN_PASSWORD_LENGTH) {
+        return NextResponse.json({ ok: false, error: `Heslo musí mať aspoň ${MIN_PASSWORD_LENGTH} znakov.` }, { status: 400 });
       }
       const tempPassword = customPassword || generateTempPassword();
       const passwordHash = await hashPassword(tempPassword);

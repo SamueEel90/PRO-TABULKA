@@ -54,6 +54,22 @@ const INT_COLUMNS: ReadonlySet<string> = new Set([
 
 const BOOL_COLUMNS: ReadonlySet<string> = new Set(['present', 'active']);
 
+/**
+ * Per-tab composite unique keys beyond the primary id column. Sheets has no
+ * enforcement of these — duplicate composites with different ids can slip in
+ * (botched imports, manual edits). Without this dedup, `createMany` fails on
+ * Prisma's @@unique constraints and the whole cache rebuild aborts.
+ *
+ * Keep in sync with @@unique declarations in prisma/schema.prisma.
+ */
+const COMPOSITE_UNIQUE_KEYS: Partial<Record<SheetTabName, ReadonlyArray<ReadonlyArray<string>>>> = {
+  MonthlyValue: [['source', 'storeId', 'metricCode', 'monthId']],
+  DashboardNote: [['scopeKey', 'role', 'metricKey']],
+  UserLastSeen: [['userId', 'scopeKey']],
+  WeeklyVodOverride: [['storeId', 'metric', 'monthLabel', 'weekIndex']],
+  User: [['email']],
+};
+
 type CacheMeta = {
   builtAt: string;
   sourceModifiedTime: string | null;
@@ -234,7 +250,7 @@ export async function rebuildCache(prisma: PrismaClient): Promise<CacheMeta> {
       const records = objects.map(o => coerceRecord(tab, o));
 
       // Defensive: dedupe by id column. If the Sheet has duplicate rows
-      // (from a botched import), the second one wins and createMany doesn't
+      // (from a botched import), the last one wins and createMany doesn't
       // blow up on the unique constraint.
       const idCol = SHEET_TABS[tab].idColumn;
       const dedup = new Map<string, Record<string, unknown>>();
@@ -243,10 +259,27 @@ export async function rebuildCache(prisma: PrismaClient): Promise<CacheMeta> {
         if (!k) continue;
         dedup.set(k, r);
       }
-      const deduped = [...dedup.values()];
+      let deduped = [...dedup.values()];
+
+      // Second-pass dedup against composite @@unique constraints. Two different
+      // ids may share the same composite key (e.g. legacy duplicate MonthlyValue
+      // rows for the same source/store/metric/month). Without this, createMany
+      // fails on P2002.
+      const compositeKeys = COMPOSITE_UNIQUE_KEYS[tab];
+      if (compositeKeys?.length) {
+        for (const cols of compositeKeys) {
+          const seen = new Map<string, Record<string, unknown>>();
+          for (const r of deduped) {
+            const key = cols.map(c => String(r[c] ?? '')).join('::');
+            seen.set(key, r);
+          }
+          deduped = [...seen.values()];
+        }
+      }
+
       const dropped = records.length - deduped.length;
       if (dropped > 0) {
-        log.warn({ tab, dropped }, 'Dropped duplicate-id rows from Sheet before insert');
+        log.warn({ tab, dropped }, 'Dropped duplicate rows from Sheet before insert');
       }
       if (deduped.length === 0) continue;
 

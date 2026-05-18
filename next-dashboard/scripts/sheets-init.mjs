@@ -36,6 +36,17 @@ function loadDotEnv() {
 }
 loadDotEnv();
 
+// Columns that must be Plain Text format in Sheets. Without this, Google Sheets
+// auto-parses text that looks like a date/number — e.g. "2026-03" gets converted
+// to a real date cell, corrupting Month.id and any column referencing it.
+// See memory/project_sheets_migration.md for the original incident.
+const TEXT_COLUMNS = [
+  { tab: 'Month', column: 'id' },
+  { tab: 'MonthlyValue', column: 'monthId' },
+  { tab: 'ImportBatch', column: 'monthId' },
+  { tab: 'IstAdjustmentRequest', column: 'monthId' },
+];
+
 const SHEET_TABS = [
   { name: 'Store', columns: ['id', 'name', 'gfName', 'vklName', 'createdAt', 'updatedAt'] },
   { name: 'User', columns: ['id', 'email', 'passwordHash', 'name', 'role', 'gfName', 'vklName', 'primaryStoreId', 'active', 'lastLoginAt', 'createdAt', 'updatedAt'] },
@@ -116,6 +127,31 @@ async function main() {
     }
   }
   if (repaired === 0) console.log(`   All tabs already have correct headers`);
+
+  console.log('\n3c. Setting Plain Text format on date-sensitive columns...');
+  let formatted = 0;
+  let formatSkipped = false;
+  for (const { tab, column } of TEXT_COLUMNS) {
+    try {
+      await callApi('setTextFormat', { tab, column });
+      console.log(`     ${tab}.${column} → plain text`);
+      formatted++;
+    } catch (err) {
+      const msg = String(err.message || err);
+      if (msg.includes('Unknown op') || msg.includes('setTextFormat')) {
+        formatSkipped = true;
+        break;
+      }
+      throw err;
+    }
+  }
+  if (formatSkipped) {
+    console.log(`   ⚠  Apps Script does not yet expose 'setTextFormat' op.`);
+    console.log(`      Add the snippet from scripts/apps-script-setTextFormat.gs to your`);
+    console.log(`      Apps Script project, re-deploy, then re-run this script.`);
+  } else {
+    console.log(`   OK — ${formatted} column(s) set to plain text`);
+  }
 
   console.log('\n4. Re-listing tabs...');
   const after = await callApi('listTabs');

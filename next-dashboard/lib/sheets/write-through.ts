@@ -104,15 +104,39 @@ export async function pushBulkAppend(
  *
  * Caller passes a predicate over Record<string, unknown> — strings are the
  * raw cell values from Sheets.
+ *
+ * Concurrency: captures the spreadsheet's modifiedTime before reading and
+ * passes it to bulkReplace as expectedModifiedTime. If another writer touched
+ * the spreadsheet between read and write, Apps Script rejects with "Conflict:"
+ * and we retry from scratch (up to 3 attempts). This prevents lost updates
+ * when two admins do bulk operations concurrently.
  */
 export async function pushBulkReplaceSlice(
   tab: SheetTabName,
   predicate: (row: Record<string, unknown>) => boolean,
   newRecords: Record<string, unknown>[],
 ): Promise<void> {
-  const { data } = await sheets.read(tab);
-  const existing = rowsToObjects(tab, data);
-  const kept = existing.filter(r => !predicate(r as Record<string, unknown>));
-  const combined = [...kept, ...newRecords];
-  await pushBulkReplace(tab, combined);
+  const MAX_ATTEMPTS = 3;
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const { modifiedTime } = await sheets.modifiedTime();
+      const { data } = await sheets.read(tab);
+      const existing = rowsToObjects(tab, data);
+      const kept = existing.filter(r => !predicate(r as Record<string, unknown>));
+      const combined = [...kept, ...newRecords];
+      const rows = combined.map(r => objectToRow(tab, r));
+      await sheets.bulkReplace(tab, rows, { expectedModifiedTime: modifiedTime });
+      return;
+    } catch (err) {
+      lastErr = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      // Only retry on conflict; other errors abort immediately.
+      if (!msg.includes('Conflict:')) throw err;
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise(r => setTimeout(r, 200 * attempt));
+      }
+    }
+  }
+  throw lastErr;
 }
