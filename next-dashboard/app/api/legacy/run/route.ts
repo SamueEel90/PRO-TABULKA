@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { ensureCacheFresh } from '@/lib/db/client';
 import {
   getDashboardDataFromSql,
   getSummaryDataFromSql,
@@ -10,6 +11,7 @@ import {
 
 export async function POST(request: Request) {
   try {
+    await ensureCacheFresh();
     const { method, args } = await request.json() as { method?: string; args?: unknown[] };
     const params = Array.isArray(args) ? args : [];
 

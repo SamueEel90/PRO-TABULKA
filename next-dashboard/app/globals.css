@@ -822,6 +822,84 @@ button:hover {
   color: var(--success);
 }
 
+.upload-message.is-error {
+  color: var(--danger, #c44);
+}
+
+.upload-progress {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.upload-progress__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.upload-progress__phase {
+  font-weight: 600;
+  color: var(--text, #222);
+}
+
+.upload-progress__meta {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.upload-progress__track {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.upload-progress__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #4f9bff 0%, #2266ee 100%);
+  border-radius: 999px;
+  transition: width 280ms ease-out;
+}
+
+.upload-progress__fill.is-done {
+  background: linear-gradient(90deg, #3ec48a 0%, #1f9d6a 100%);
+}
+
+.upload-progress__fill.is-error {
+  background: linear-gradient(90deg, #e07070 0%, #c44 100%);
+}
+
+.upload-progress__stripes::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.18) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0.18) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 20px 20px;
+  animation: upload-progress-stripes 900ms linear infinite;
+}
+
+@keyframes upload-progress-stripes {
+  from { background-position: 0 0; }
+  to { background-position: 20px 0; }
+}
+
 .note {
   padding: 14px 16px;
   border-radius: 16px;
