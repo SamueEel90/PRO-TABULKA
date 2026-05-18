@@ -38,6 +38,20 @@ export type DbClient = typeof db;
 export type DbTx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
 
 /**
+ * Ensure the local SQLite cache is fresh against Sheets.
+ * Call once per request before reading. On cold lambdas this rebuilds the
+ * cache from scratch (~5-15s); on warm lambdas within FRESHNESS_TTL_MS it's
+ * a no-op; otherwise a cheap modifiedTime check (~500ms).
+ *
+ * In Fáza 4 this gets wired into the apiRoute wrapper so call sites don't
+ * have to think about it.
+ */
+export async function ensureCacheFresh(): Promise<void> {
+  const { ensureFresh } = await import('./bootstrap');
+  await ensureFresh(db);
+}
+
+/**
  * Wrap a multi-write operation in a transaction.
  * Rolls back automatically if any step throws.
  */

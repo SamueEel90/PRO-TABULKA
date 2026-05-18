@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 
 import { requireAdminSecret } from '@/lib/auth';
+import { ensureCacheFresh } from '@/lib/db/client';
 import { prisma } from '@/lib/prisma';
+import { newId, nowIso, pushBulkReplaceSlice, pushNew, pushUpdate } from '@/lib/sheets/write-through';
 
 const ALLOWED_SOURCES = new Set(['PLAN', 'IST', 'VOD']);
 
@@ -66,6 +68,7 @@ export async function GET(request: Request) {
   const denied = requireAdminSecret(request);
   if (denied) return denied;
   try {
+    await ensureCacheFresh();
     const { searchParams } = new URL(request.url);
     const source = getValidatedSource(searchParams.get('source'));
     const storeId = normalizeText(searchParams.get('storeId'));
@@ -128,6 +131,7 @@ export async function PUT(request: Request) {
   const denied = requireAdminSecret(request);
   if (denied) return denied;
   try {
+    await ensureCacheFresh();
     const payload = await request.json() as {
       source?: string;
       storeId?: string;
@@ -176,53 +180,89 @@ export async function PUT(request: Request) {
       }
     }
 
-    const createPayload: Array<{
+    const now = nowIso();
+
+    // 1. Upsert Metric definitions (per-metric, so the count is small)
+    for (const row of normalizedRows) {
+      const existing = await prisma.metric.findUnique({ where: { code: row.metricCode } });
+      const metricRecord = {
+        code: row.metricCode,
+        displayName: row.metricName,
+        unit: existing?.unit ?? null,
+        aggregation: existing?.aggregation ?? 'sum',
+        createdAt: existing ? existing.createdAt.toISOString() : now,
+        updatedAt: now,
+      };
+      if (existing) {
+        await pushUpdate('Metric', metricRecord);
+        await prisma.metric.update({
+          where: { code: row.metricCode },
+          data: { displayName: row.metricName, updatedAt: new Date(now) },
+        });
+      } else {
+        await pushNew('Metric', metricRecord);
+        await prisma.metric.create({
+          data: { ...metricRecord, createdAt: new Date(now), updatedAt: new Date(now) },
+        });
+      }
+    }
+
+    // 2. Build new MonthlyValue rows
+    const newRecords: Array<{
+      id: string;
       source: string;
       storeId: string;
       metricCode: string;
       monthId: string;
       value: number;
-      present: true;
-      importedAt: Date;
+      present: boolean;
+      importedAt: string;
+      importBatchId: string | null;
+      createdAt: string;
+      updatedAt: string;
     }> = [];
 
     for (const row of normalizedRows) {
-      await prisma.metric.upsert({
-        where: { code: row.metricCode },
-        update: { displayName: row.metricName },
-        create: {
-          code: row.metricCode,
-          displayName: row.metricName,
-          aggregation: 'sum',
-        },
-      });
-
       for (const [monthId, rawValue] of row.values) {
         const value = parseOptionalNumber(rawValue);
-        if (value == null) {
-          continue;
-        }
-        createPayload.push({
+        if (value == null) continue;
+        newRecords.push({
+          id: newId(),
           source,
           storeId,
           metricCode: row.metricCode,
           monthId,
           value,
           present: true,
-          importedAt: new Date(),
+          importedAt: now,
+          importBatchId: null,
+          createdAt: now,
+          updatedAt: now,
         });
       }
     }
 
-    await prisma.monthlyValue.deleteMany({
-      where: { source, storeId },
-    });
+    // 3. Replace the (source, storeId) slice in Sheets in one round-trip
+    await pushBulkReplaceSlice(
+      'MonthlyValue',
+      (r) => r.source === source && r.storeId === storeId,
+      newRecords,
+    );
 
-    if (createPayload.length) {
+    // 4. Mirror into local cache
+    await prisma.monthlyValue.deleteMany({ where: { source, storeId } });
+    if (newRecords.length) {
       await prisma.monthlyValue.createMany({
-        data: createPayload,
+        data: newRecords.map(r => ({
+          ...r,
+          importedAt: new Date(r.importedAt),
+          createdAt: new Date(r.createdAt),
+          updatedAt: new Date(r.updatedAt),
+        })),
       });
     }
+
+    const createPayload = newRecords;
 
     return NextResponse.json({
       ok: true,

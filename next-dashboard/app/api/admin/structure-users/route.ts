@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 
 import { requireAdminSecret } from '@/lib/auth';
+import { ensureCacheFresh } from '@/lib/db/client';
 import { prisma } from '@/lib/prisma';
+import { newId, nowIso, pushBulkReplaceSlice } from '@/lib/sheets/write-through';
 
 type StoreInput = {
   id: string;
@@ -38,6 +40,7 @@ export async function GET(request: Request) {
   const denied = requireAdminSecret(request);
   if (denied) return denied;
   try {
+    await ensureCacheFresh();
     const [stores, users] = await Promise.all([
       prisma.store.findMany({ orderBy: [{ gfName: 'asc' }, { vklName: 'asc' }, { id: 'asc' }] }),
       prisma.user.findMany({ orderBy: [{ role: 'asc' }, { gfName: 'asc' }, { vklName: 'asc' }, { primaryStoreId: 'asc' }, { email: 'asc' }] }),
@@ -70,6 +73,7 @@ export async function PUT(request: Request) {
   const denied = requireAdminSecret(request);
   if (denied) return denied;
   try {
+    await ensureCacheFresh();
     const payload = await request.json() as { stores?: StoreInput[]; users?: UserInput[] };
     const stores = Array.isArray(payload.stores) ? payload.stores : [];
     const users = Array.isArray(payload.users) ? payload.users : [];
@@ -116,49 +120,82 @@ export async function PUT(request: Request) {
       }
     }
 
-    for (const store of normalizedStores) {
+    const now = nowIso();
+
+    // STORES — bulk replace by id. Stores in payload override matching cache rows;
+    // stores not in payload are kept untouched.
+    const existingStores = await prisma.store.findMany();
+    const storeIdsInPayload = new Set(normalizedStores.map(s => s.id));
+    const storeRecords = normalizedStores.map(s => {
+      const ex = existingStores.find(e => e.id === s.id);
+      return {
+        id: s.id,
+        name: s.name,
+        gfName: s.gfName,
+        vklName: s.vklName,
+        createdAt: ex ? ex.createdAt.toISOString() : now,
+        updatedAt: now,
+      };
+    });
+    await pushBulkReplaceSlice(
+      'Store',
+      (r) => storeIdsInPayload.has(String(r.id)),
+      storeRecords,
+    );
+    // Mirror to cache via upsert (FK refs from MonthlyValue prevent delete)
+    for (const s of storeRecords) {
       await prisma.store.upsert({
-        where: { id: store.id },
-        update: {
-          name: store.name,
-          gfName: store.gfName,
-          vklName: store.vklName,
-        },
-        create: {
-          id: store.id,
-          name: store.name,
-          gfName: store.gfName,
-          vklName: store.vklName,
-        },
+        where: { id: s.id },
+        update: { name: s.name, gfName: s.gfName, vklName: s.vklName, updatedAt: new Date(now) },
+        create: { ...s, createdAt: new Date(s.createdAt), updatedAt: new Date(s.updatedAt) },
       });
     }
 
-    for (const user of normalizedUsers) {
-      if (user.markedForDelete) {
-        if (user.id) {
-          await prisma.user.deleteMany({ where: { id: user.id } });
-        } else if (user.email) {
-          await prisma.user.deleteMany({ where: { email: user.email } });
-        }
-        continue;
-      }
+    // USERS — same pattern, keyed by email.
+    const existingUsers = await prisma.user.findMany();
+    const emailToExisting = new Map(existingUsers.map(u => [u.email, u]));
+    const emailsInPayload = new Set(normalizedUsers.map(u => u.email).filter(Boolean));
 
+    const userRecordsToKeep = normalizedUsers
+      .filter(u => !u.markedForDelete && u.email)
+      .map(u => {
+        const ex = emailToExisting.get(u.email);
+        return {
+          id: ex?.id ?? (u.id || newId()),
+          email: u.email,
+          passwordHash: ex?.passwordHash ?? null,
+          name: u.name,
+          role: u.role,
+          gfName: u.gfName,
+          vklName: u.vklName,
+          primaryStoreId: u.primaryStoreId,
+          active: ex?.active ?? true,
+          lastLoginAt: ex?.lastLoginAt ? ex.lastLoginAt.toISOString() : null,
+          createdAt: ex ? ex.createdAt.toISOString() : now,
+          updatedAt: now,
+        };
+      });
+
+    await pushBulkReplaceSlice(
+      'User',
+      (r) => emailsInPayload.has(String(r.email)),
+      userRecordsToKeep,
+    );
+
+    // Mirror to cache via upsert
+    for (const u of userRecordsToKeep) {
       await prisma.user.upsert({
-        where: { email: user.email },
+        where: { email: u.email },
         update: {
-          name: user.name,
-          role: user.role,
-          gfName: user.gfName,
-          vklName: user.vklName,
-          primaryStoreId: user.primaryStoreId,
+          name: u.name, role: u.role,
+          gfName: u.gfName, vklName: u.vklName, primaryStoreId: u.primaryStoreId,
+          updatedAt: new Date(now),
         },
         create: {
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          gfName: user.gfName,
-          vklName: user.vklName,
-          primaryStoreId: user.primaryStoreId,
+          ...u,
+          lastLoginAt: u.lastLoginAt ? new Date(u.lastLoginAt) : null,
+          createdAt: new Date(u.createdAt),
+          updatedAt: new Date(u.updatedAt),
         },
       });
     }

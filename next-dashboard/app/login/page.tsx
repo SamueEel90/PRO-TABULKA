@@ -18,10 +18,6 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const error = typeof params.error === 'string' ? params.error : '';
   const callbackUrl = typeof params.callbackUrl === 'string' ? params.callbackUrl : '/dashboard';
 
-  const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID);
-  const devLoginEnabled =
-    process.env.DEV_LOGIN_ENABLED === 'true' || process.env.NODE_ENV !== 'production';
-
   return (
     <main className={styles.shell}>
       <div className={styles.utilityBar} aria-label="Rýchle akcie prihlásenia">
@@ -39,12 +35,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <p className={styles.subtitle}>Dashboard vývoja 2026.</p>
         </header>
 
-        <LoginForm
-          callbackUrl={callbackUrl}
-          googleEnabled={googleEnabled}
-          devLoginEnabled={devLoginEnabled}
-          initialError={error}
-        />
+        <LoginForm callbackUrl={callbackUrl} initialError={error} />
       </section>
     </main>
   );

@@ -3,47 +3,10 @@ import { NextResponse } from 'next/server';
 import { requireAdminSecret } from '@/lib/auth';
 import { ensureCacheFresh } from '@/lib/db/client';
 import { parseWideTableImport, getMetricMetadata } from '@/lib/import-monthly-ist';
-import { resolveMonthLabel } from '@/lib/months';
 import { prisma } from '@/lib/prisma';
 import { newId, nowIso, pushBulkReplaceSlice, pushNew } from '@/lib/sheets/write-through';
 
-const IST_SHEET_NAME = 'ISTGJ2026';
-
-function filterMeaningfulIstValues<T extends { storeId: string; monthId: string; value: number }>(values: T[]) {
-  const groups = new Map<string, { hasNonZeroValue: boolean; values: T[] }>();
-
-  values.forEach((value) => {
-    const key = `${value.storeId}::${value.monthId}`;
-    const existing = groups.get(key) || { hasNonZeroValue: false, values: [] };
-    existing.values.push(value);
-    if (Math.abs(Number(value.value || 0)) > 0.0001) {
-      existing.hasNonZeroValue = true;
-    }
-    groups.set(key, existing);
-  });
-
-  return Array.from(groups.values()).flatMap((group) => (group.hasNonZeroValue ? group.values : []));
-}
-
-function getCurrentBusinessMonth() {
-  const now = new Date();
-  const skMonthNames = [
-    'január',
-    'február',
-    'marec',
-    'apríl',
-    'máj',
-    'jún',
-    'júl',
-    'august',
-    'september',
-    'október',
-    'november',
-    'december',
-  ];
-
-  return resolveMonthLabel(`${skMonthNames[now.getMonth()]} ${now.getFullYear()}`);
-}
+const PLAN_SHEET_NAME = 'PLANGJ2026';
 
 export async function POST(request: Request) {
   const denied = requireAdminSecret(request);
@@ -53,7 +16,7 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const file = formData.get('file');
     const uploadedBy = String(formData.get('uploadedBy') || '').trim() || null;
-    const source = 'IST' as const;
+    const source = 'PLAN' as const;
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'Chýba importovaný súbor.' }, { status: 400 });
@@ -62,62 +25,18 @@ export async function POST(request: Request) {
     const arrayBuffer = await file.arrayBuffer();
     const parsedImport = parseWideTableImport(Buffer.from(arrayBuffer), {
       fileName: file.name,
-      preferredSheetName: IST_SHEET_NAME,
+      preferredSheetName: PLAN_SHEET_NAME,
     });
-    const currentBusinessMonth = getCurrentBusinessMonth();
-    const filteredValues = filterMeaningfulIstValues(parsedImport.values.filter((value) => (
-      value.businessYear === currentBusinessMonth.businessYear
-      && value.businessOrder <= currentBusinessMonth.businessOrder
-    )));
 
-    const dedupedMap = new Map<string, typeof filteredValues[number]>();
-    for (const value of filteredValues) {
+    // PLAN: import all months of the business year (no current-month cap)
+    const dedupedMap = new Map<string, typeof parsedImport.values[number]>();
+    for (const value of parsedImport.values) {
       dedupedMap.set(`${value.storeId}::${value.metricCode}::${value.monthId}`, value);
     }
-
-    const STRUCTURE_HOURS_CODE = 'struktura-hodin';
-    const WORKING_DAYS_CODE = 'pracovne-dni-zamestnancov';
-    const TIER_HOURS_PER_DAY: Record<string, number> = {
-      'struktura-filialky-100': 7.75,
-      'struktura-filialky-90': 7,
-      'struktura-filialky-77': 6,
-      'struktura-filialky-65': 5,
-      'struktura-filialky-52': 4,
-      'struktura-filialky-39': 3,
-    };
-
-    const groupKey = (storeId: string, monthId: string) => `${storeId}::${monthId}`;
-    const groups = new Map<string, { storeId: string; monthId: string; sample: typeof filteredValues[number]; workingDays: number; tierHours: number }>();
-    for (const value of dedupedMap.values()) {
-      const key = groupKey(value.storeId, value.monthId);
-      const existing = groups.get(key) || { storeId: value.storeId, monthId: value.monthId, sample: value, workingDays: 0, tierHours: 0 };
-      if (value.metricCode === WORKING_DAYS_CODE) {
-        existing.workingDays = value.value;
-      } else if (TIER_HOURS_PER_DAY[value.metricCode] !== undefined) {
-        existing.tierHours += value.value * TIER_HOURS_PER_DAY[value.metricCode];
-      }
-      groups.set(key, existing);
-    }
-
-    for (const group of groups.values()) {
-      if (group.workingDays <= 0 || group.tierHours <= 0) continue;
-      const computed = group.workingDays * group.tierHours;
-      const key = `${group.storeId}::${STRUCTURE_HOURS_CODE}::${group.monthId}`;
-      const existing = dedupedMap.get(key);
-      if (existing && Math.abs(existing.value) > 0.0001) continue;
-      dedupedMap.set(key, {
-        ...group.sample,
-        metricCode: STRUCTURE_HOURS_CODE,
-        metricName: 'Štruktúra hodín',
-        value: computed,
-        present: true,
-      });
-    }
-
     const values = Array.from(dedupedMap.values());
 
     if (!values.length) {
-      return NextResponse.json({ error: `V súbore ${IST_SHEET_NAME} sa nenašli žiadne IST hodnoty do aktuálneho mesiaca ${currentBusinessMonth.label}.` }, { status: 400 });
+      return NextResponse.json({ error: `V súbore ${PLAN_SHEET_NAME} sa nenašli žiadne hodnoty.` }, { status: 400 });
     }
 
     const distinctStores = new Map<string, { id: string; name: string }>();
@@ -142,7 +61,7 @@ export async function POST(request: Request) {
     const importedStoreIds = Array.from(distinctStores.keys());
     const importedMonthIds = new Set(distinctMonths.keys());
 
-    // STORES — bulk replace in Sheets, upsert in cache (FK refs prevent delete)
+    // STORES — bulk replace in Sheets, but upsert in cache (FK refs from MonthlyValue)
     {
       const existing = await prisma.store.findMany({ where: { id: { in: importedStoreIds } } });
       const existingById = new Map(existing.map(e => [e.id, e]));
@@ -221,7 +140,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // IMPORT BATCH — single insert
+    // IMPORT BATCH
     const batchRecord = {
       id: newId(),
       source,
@@ -237,17 +156,9 @@ export async function POST(request: Request) {
       data: { ...batchRecord, createdAt: new Date(now) },
     });
 
-    // MONTHLY VALUES — load existing range from cache to determine slice; replace.
-    const replaceableMonthIds = new Set(
-      (await prisma.month.findMany({
-        where: {
-          businessYear: currentBusinessMonth.businessYear,
-          businessOrder: { lte: currentBusinessMonth.businessOrder },
-        },
-        select: { id: true },
-      })).map(m => m.id),
-    );
+    // MONTHLY VALUES — for PLAN, wipe and re-insert ALL plan rows for these stores+months
     const importedStoreIdSet = new Set(importedStoreIds);
+    const monthIdSet = importedMonthIds;
 
     const newMvRecords = values.map(v => ({
       id: newId(),
@@ -267,14 +178,14 @@ export async function POST(request: Request) {
       'MonthlyValue',
       (r) => r.source === source
         && importedStoreIdSet.has(String(r.storeId))
-        && replaceableMonthIds.has(String(r.monthId)),
+        && monthIdSet.has(String(r.monthId)),
       newMvRecords,
     );
     await prisma.monthlyValue.deleteMany({
       where: {
         source,
         storeId: { in: importedStoreIds },
-        monthId: { in: [...replaceableMonthIds] },
+        monthId: { in: [...monthIdSet] },
       },
     });
     await prisma.monthlyValue.createMany({
@@ -291,7 +202,6 @@ export async function POST(request: Request) {
       source,
       sheetName: parsedImport.sheetName,
       fileName: file.name,
-      importedMonthRange: `marec ${currentBusinessMonth.businessYear} až ${currentBusinessMonth.label}`,
       rowCount: values.length,
       stores: distinctStores.size,
       months: distinctMonths.size,
@@ -299,9 +209,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : 'Import zlyhal.',
-      },
+      { error: error instanceof Error ? error.message : 'PLAN import zlyhal.' },
       { status: 500 },
     );
   }

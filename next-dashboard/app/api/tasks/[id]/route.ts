@@ -1,52 +1,66 @@
 import { NextResponse } from 'next/server';
 
+import { ensureCacheFresh } from '@/lib/db/client';
 import { prisma } from '@/lib/prisma';
+import { newId, nowIso, pushDelete, pushNew, pushUpdate } from '@/lib/sheets/write-through';
 
 /**
  * PATCH /api/tasks/[id]
  * Body: { status: 'open' | 'done' | 'dismissed', completedByName?: string }
- * Updates the status of a task.
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    await ensureCacheFresh();
+
     const { id } = await params;
-    const body = await request.json() as {
-      status?: string;
-      completedByName?: string;
-    };
+    const body = await request.json() as { status?: string; completedByName?: string };
 
     const status = body.status;
     if (!id || !status) {
       return NextResponse.json({ ok: false, error: 'id and status are required.' }, { status: 400 });
     }
-
     if (!['open', 'done', 'dismissed'].includes(status)) {
       return NextResponse.json({ ok: false, error: 'Neplatný status.' }, { status: 400 });
     }
 
-    const updateData: {
-      status: string;
-      completedByName: string | null;
-      completedAt: Date | null;
-    } = {
-      status,
-      completedByName: null,
-      completedAt: null,
-    };
-
-    if (status === 'done' || status === 'dismissed') {
-      updateData.completedByName = body.completedByName || null;
-      updateData.completedAt = new Date();
+    const existing = await prisma.taskItem.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ ok: false, error: 'Úloha neexistuje.' }, { status: 404 });
     }
+
+    const completedAt = (status === 'done' || status === 'dismissed') ? nowIso() : null;
+    const completedByName = (status === 'done' || status === 'dismissed') ? (body.completedByName || null) : null;
+
+    // Build full updated record for Sheets (all columns)
+    const updatedRecord = {
+      id: existing.id,
+      scopeKey: existing.scopeKey,
+      metricKey: existing.metricKey,
+      monthLabel: existing.monthLabel,
+      text: existing.text,
+      status,
+      createdByRole: existing.createdByRole,
+      createdByName: existing.createdByName,
+      createdAt: existing.createdAt.toISOString(),
+      completedByName,
+      completedAt,
+      sourceCommentId: existing.sourceCommentId,
+    };
+    await pushUpdate('TaskItem', updatedRecord);
 
     const task = await prisma.taskItem.update({
       where: { id },
-      data: updateData,
+      data: {
+        status,
+        completedByName,
+        completedAt: completedAt ? new Date(completedAt) : null,
+      },
     });
 
-    // Log activity
-    await prisma.activityEntry.create({
-      data: {
+    try {
+      const now = nowIso();
+      const activityRecord = {
+        id: newId(),
         scopeKey: task.scopeKey,
         actorRole: 'system',
         actorName: body.completedByName || 'Neznámy',
@@ -54,8 +68,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         metricKey: task.metricKey,
         monthLabel: task.monthLabel,
         detail: task.text.slice(0, 200),
-      },
-    }).catch(() => { /* best effort */ });
+        createdAt: now,
+      };
+      await pushNew('ActivityEntry', activityRecord);
+      await prisma.activityEntry.create({
+        data: { ...activityRecord, createdAt: new Date(now) },
+      });
+    } catch {
+      /* best effort */
+    }
 
     return NextResponse.json({ ok: true, task });
   } catch (error) {
@@ -68,7 +89,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
  */
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    await ensureCacheFresh();
     const { id } = await params;
+    await pushDelete('TaskItem', id);
     await prisma.taskItem.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (error) {

@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 
+import { ensureCacheFresh } from '@/lib/db/client';
 import { prisma } from '@/lib/prisma';
 import { getUserFromHeaders } from '@/lib/auth/session';
+import { newId, nowIso, pushNew } from '@/lib/sheets/write-through';
 
 function slugifyMetricLabel(label: string) {
   return label
@@ -26,7 +28,7 @@ async function resolveMetricCode(label: string): Promise<string | null> {
     if (bySlug) return bySlug.code;
   }
   const fuzzy = await prisma.metric.findFirst({
-    where: { displayName: { startsWith: trimmed, mode: 'insensitive' } },
+    where: { displayName: { startsWith: trimmed } },
     orderBy: { displayName: 'asc' },
   });
   return fuzzy?.code ?? null;
@@ -43,6 +45,7 @@ async function resolveMetricCode(label: string): Promise<string | null> {
  */
 export async function GET(request: Request) {
   try {
+    await ensureCacheFresh();
     const user = getUserFromHeaders(request.headers);
     const url = new URL(request.url);
     const storeId = url.searchParams.get('storeId') || '';
@@ -109,6 +112,7 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
+    await ensureCacheFresh();
     const user = getUserFromHeaders(request.headers);
     if (user.role !== 'VOD') {
       return NextResponse.json({ ok: false, error: 'Iba VOD môže žiadať o úpravu IST.' }, { status: 403 });
@@ -150,24 +154,40 @@ export async function POST(request: Request) {
 
     const store = await prisma.store.findUnique({ where: { id: user.primaryStoreId }, select: { vklName: true } });
 
+    const now = nowIso();
+    const requestRecord = {
+      id: newId(),
+      storeId: user.primaryStoreId,
+      metricCode: resolvedCode,
+      monthId,
+      monthLabel: current.month.label,
+      oldValue: current.value,
+      newValue,
+      reason: trimmedReason,
+      status: 'pending',
+      requestedById: user.id,
+      requestedByName: user.email,
+      vklName: store?.vklName ?? null,
+      decidedAt: null,
+      decidedById: null,
+      decidedByName: null,
+      decisionNote: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await pushNew('IstAdjustmentRequest', requestRecord);
     const created = await prisma.istAdjustmentRequest.create({
       data: {
-        storeId: user.primaryStoreId,
-        metricCode: resolvedCode,
-        monthId,
-        monthLabel: current.month.label,
-        oldValue: current.value,
-        newValue,
-        reason: trimmedReason,
-        requestedById: user.id,
-        requestedByName: user.email,
-        vklName: store?.vklName ?? null,
+        ...requestRecord,
+        createdAt: new Date(now),
+        updatedAt: new Date(now),
+        decidedAt: null,
       },
     });
 
-    // Activity log
-    await prisma.activityEntry.create({
-      data: {
+    try {
+      const activityRecord = {
+        id: newId(),
         scopeKey: `STORE|${user.primaryStoreId}`,
         actorRole: 'VOD',
         actorName: user.email,
@@ -175,8 +195,15 @@ export async function POST(request: Request) {
         metricKey: resolvedCode,
         monthLabel: current.month.label,
         detail: `${current.value} → ${newValue} · ${trimmedReason.slice(0, 160)}`,
-      },
-    }).catch(() => { /* best effort */ });
+        createdAt: now,
+      };
+      await pushNew('ActivityEntry', activityRecord);
+      await prisma.activityEntry.create({
+        data: { ...activityRecord, createdAt: new Date(now) },
+      });
+    } catch {
+      /* best effort */
+    }
 
     return NextResponse.json({ ok: true, request: created });
   } catch (error) {

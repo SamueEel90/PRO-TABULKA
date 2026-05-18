@@ -1,30 +1,26 @@
 /**
- * Auth.js v5 configuration.
+ * Auth.js v5 configuration — email + password (bcrypt) only.
  *
- * Two providers:
- *  - Google (production) — only @kaufland.sk emails are accepted, user must
- *    already exist in the User table (admin pre-provisions).
- *  - Credentials "DevLogin" — only enabled when DEV_LOGIN_ENABLED=true.
- *    Lets you sign in by typing any existing user's email — no password.
- *    Used during development/testing while Google OAuth is not configured.
+ * Users are pre-provisioned by ADMIN (no self-register, no Google OAuth).
+ * Password is stored as a bcrypt hash in the User.passwordHash column,
+ * which lives in Google Sheets and is mirrored into the local SQLite cache.
  *
  * Strategy: JWT sessions (stateless, fast, works on edge runtime).
- * The JWT carries role/store info so we don't need a DB lookup per request.
+ * The JWT carries role + scope so no DB lookup is needed per request.
  *
- * Use:
- *   import { auth, signIn, signOut } from '@/auth';
- *   const session = await auth();   // server components / route handlers
+ * To create the first admin:
+ *   1. npm run hash-password -- "yourPassword"
+ *   2. Paste the resulting hash into the User row's passwordHash column in Sheets.
+ *   3. npm run sheets:pull (mirrors it into local cache).
  */
 
+import bcrypt from 'bcryptjs';
 import NextAuth, { type DefaultSession } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-import Google from 'next-auth/providers/google';
 
 import { db } from '@/lib/db/client';
 import { logger } from '@/lib/logger';
-import { secrets } from '@/lib/secrets';
-
-const isDevLoginEnabled = secrets.bool('DEV_LOGIN_ENABLED', process.env.NODE_ENV !== 'production');
+import { nowIso, pushUpdate } from '@/lib/sheets/write-through';
 
 // ── Type augmentation: add our domain fields onto the session/JWT ──────────
 
@@ -51,45 +47,42 @@ declare module '@auth/core/jwt' {
   }
 }
 
-// ── Provider list (conditional) ─────────────────────────────────────────────
+// ── Auth.js exports ─────────────────────────────────────────────────────────
 
-const providers = [];
-
-// Google — only enabled when env vars are set (otherwise dev-only login is enough)
-if (secrets.optional('GOOGLE_CLIENT_ID') && secrets.optional('GOOGLE_CLIENT_SECRET')) {
-  providers.push(
-    Google({
-      clientId: secrets.required('GOOGLE_CLIENT_ID'),
-      clientSecret: secrets.required('GOOGLE_CLIENT_SECRET'),
-      authorization: {
-        params: {
-          prompt: 'select_account',
-        },
-      },
-    }),
-  );
-}
-
-// Dev login — bypass authentication during development
-if (isDevLoginEnabled) {
-  providers.push(
+export const { handlers, signIn, signOut, auth } = NextAuth({
+  providers: [
     Credentials({
-      id: 'dev-login',
-      name: 'Dev Login (development only)',
+      id: 'credentials',
+      name: 'Email + heslo',
       credentials: {
-        email: { label: 'Email', type: 'email', placeholder: 'sk1020hl@kaufland.sk' },
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Heslo', type: 'password' },
       },
       async authorize(credentials) {
         const email = String(credentials?.email || '').trim().toLowerCase();
-        if (!email) return null;
+        const password = String(credentials?.password || '');
+
+        if (!email || !password) {
+          return null;
+        }
 
         const user = await db.user.findUnique({ where: { email } });
         if (!user) {
-          logger.warn({ email }, 'dev login: user not in DB');
+          logger.warn({ email }, 'login rejected: user not found');
           return null;
         }
         if (!user.active) {
-          logger.warn({ email }, 'dev login: user inactive');
+          logger.warn({ email }, 'login rejected: user inactive');
+          return null;
+        }
+        if (!user.passwordHash) {
+          logger.warn({ email }, 'login rejected: no passwordHash set');
+          return null;
+        }
+
+        const ok = await bcrypt.compare(password, user.passwordHash);
+        if (!ok) {
+          logger.warn({ email }, 'login rejected: bad password');
           return null;
         }
 
@@ -100,13 +93,7 @@ if (isDevLoginEnabled) {
         };
       },
     }),
-  );
-}
-
-// ── Auth.js exports ─────────────────────────────────────────────────────────
-
-export const { handlers, signIn, signOut, auth } = NextAuth({
-  providers,
+  ],
   session: { strategy: 'jwt' },
   pages: {
     signIn: '/login',
@@ -114,38 +101,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   callbacks: {
     /**
-     * signIn callback — runs every time someone tries to authenticate.
-     * Reject anyone not in the User table (admin pre-provisions accounts).
-     */
-    async signIn({ user, account }) {
-      const email = (user.email || '').toLowerCase().trim();
-      if (!email) return false;
-
-      const dbUser = await db.user.findUnique({ where: { email } });
-      if (!dbUser) {
-        logger.warn({ email }, 'sign in rejected: user not pre-provisioned');
-        return false;
-      }
-      if (!dbUser.active) {
-        logger.warn({ email }, 'sign in rejected: user inactive');
-        return false;
-      }
-
-      // Track last login timestamp
-      await db.user.update({
-        where: { id: dbUser.id },
-        data: { lastLoginAt: new Date() },
-      }).catch(() => { /* best effort */ });
-
-      return true;
-    },
-
-    /**
      * jwt callback — runs whenever a JWT is created or updated.
      * On first sign-in we enrich the token with role + scope from DB.
      */
     async jwt({ token, user }) {
-      // First sign-in: `user` is set, look up DB row to enrich token
       if (user?.email) {
         const dbUser = await db.user.findUnique({ where: { email: user.email } });
         if (dbUser) {
@@ -156,6 +115,31 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.gfName = dbUser.gfName;
           token.email = dbUser.email;
           token.name = dbUser.name;
+
+          // Track last login (best-effort, both Sheets and cache)
+          const now = nowIso();
+          try {
+            await pushUpdate('User', {
+              id: dbUser.id,
+              email: dbUser.email,
+              passwordHash: dbUser.passwordHash,
+              name: dbUser.name,
+              role: dbUser.role,
+              gfName: dbUser.gfName,
+              vklName: dbUser.vklName,
+              primaryStoreId: dbUser.primaryStoreId,
+              active: dbUser.active,
+              lastLoginAt: now,
+              createdAt: dbUser.createdAt.toISOString(),
+              updatedAt: now,
+            });
+            await db.user.update({
+              where: { id: dbUser.id },
+              data: { lastLoginAt: new Date(now), updatedAt: new Date(now) },
+            });
+          } catch (err) {
+            logger.warn({ err, email: dbUser.email }, 'failed to update lastLoginAt');
+          }
         }
       }
       return token;
@@ -178,3 +162,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   trustHost: true,
 });
+

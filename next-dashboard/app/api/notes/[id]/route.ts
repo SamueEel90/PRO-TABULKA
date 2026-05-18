@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 
+import { ensureCacheFresh } from '@/lib/db/client';
 import { prisma } from '@/lib/prisma';
+import { pushDelete } from '@/lib/sheets/write-through';
 
 /**
  * DELETE /api/notes/[id]
@@ -8,6 +10,7 @@ import { prisma } from '@/lib/prisma';
  */
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    await ensureCacheFresh();
     const { id } = await params;
 
     const comment = await prisma.noteComment.findUnique({
@@ -20,9 +23,11 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     }
 
     if (comment.task) {
+      await pushDelete('TaskItem', comment.task.id);
       await prisma.taskItem.delete({ where: { id: comment.task.id } });
     }
 
+    await pushDelete('NoteComment', id);
     await prisma.noteComment.delete({ where: { id } });
 
     return NextResponse.json({ ok: true });
