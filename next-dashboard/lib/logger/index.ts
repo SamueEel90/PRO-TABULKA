@@ -18,23 +18,17 @@ import pino from 'pino';
 
 const isProd = process.env.NODE_ENV === 'production';
 
+// NOTE: We intentionally do NOT use pino's `transport` option (e.g. pino-pretty).
+// pino-pretty spawns a worker thread via `thread-stream`, and Next.js's bundler
+// does not include the worker source in `.next/server/vendor-chunks/lib/worker.js`,
+// which causes MODULE_NOT_FOUND + "the worker has exited" crashes on every log
+// call. JSON to stdout is safe in both dev and prod (Vercel Log Drains parse JSON).
 export const logger = pino({
   level: process.env.LOG_LEVEL || (isProd ? 'info' : 'debug'),
   base: {
     env: process.env.NODE_ENV,
     service: 'pro-dashboard',
   },
-  // Pretty-print only in dev; production stays JSON for log aggregators
-  transport: !isProd
-    ? {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'HH:MM:ss',
-          ignore: 'pid,hostname,service,env',
-        },
-      }
-    : undefined,
   // Redact sensitive fields automatically
   redact: {
     paths: [
