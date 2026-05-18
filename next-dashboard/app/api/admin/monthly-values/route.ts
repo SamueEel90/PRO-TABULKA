@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 
-import { requireAdminSecret } from '@/lib/auth';
 import { ensureCacheFresh } from '@/lib/db/client';
 import { prisma } from '@/lib/prisma';
 import { newId, nowIso, pushBulkReplaceSlice, pushNew, pushUpdate } from '@/lib/sheets/write-through';
@@ -65,8 +64,6 @@ function getValidatedSource(value: string | null) {
 }
 
 export async function GET(request: Request) {
-  const denied = requireAdminSecret(request);
-  if (denied) return denied;
   try {
     await ensureCacheFresh();
     const { searchParams } = new URL(request.url);
@@ -128,8 +125,6 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const denied = requireAdminSecret(request);
-  if (denied) return denied;
   try {
     await ensureCacheFresh();
     const payload = await request.json() as {

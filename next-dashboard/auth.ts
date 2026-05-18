@@ -22,6 +22,47 @@ import { db } from '@/lib/db/client';
 import { logger } from '@/lib/logger';
 import { nowIso, pushUpdate } from '@/lib/sheets/write-through';
 
+// ── Login rate limiting ────────────────────────────────────────────────────
+//
+// In-memory per-email throttle. Lives at module scope so it persists across
+// requests within the same lambda. Lossy across cold starts and multiple
+// concurrent lambdas — an attacker hitting many cold lambdas can bypass it,
+// but raises the bar significantly vs. no limit at all. Combined with
+// bcrypt cost 12, brute-force becomes impractical.
+//
+// For stronger guarantees, persist failed attempts to the User row
+// (failedLoginAttempts + lockedUntil columns) — see CLAUDE.md TODOs.
+
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
+type AttemptRecord = { count: number; firstAt: number };
+const loginAttempts = new Map<string, AttemptRecord>();
+
+function isRateLimited(email: string): boolean {
+  const rec = loginAttempts.get(email);
+  if (!rec) return false;
+  if (Date.now() - rec.firstAt > LOGIN_WINDOW_MS) {
+    loginAttempts.delete(email);
+    return false;
+  }
+  return rec.count >= LOGIN_MAX_ATTEMPTS;
+}
+
+function recordFailedAttempt(email: string): void {
+  const now = Date.now();
+  const rec = loginAttempts.get(email);
+  if (!rec || now - rec.firstAt > LOGIN_WINDOW_MS) {
+    loginAttempts.set(email, { count: 1, firstAt: now });
+    return;
+  }
+  rec.count += 1;
+}
+
+function clearAttempts(email: string): void {
+  loginAttempts.delete(email);
+}
+
 // ── Type augmentation: add our domain fields onto the session/JWT ──────────
 
 declare module 'next-auth' {
@@ -66,26 +107,37 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
+        if (isRateLimited(email)) {
+          logger.warn({ email, max: LOGIN_MAX_ATTEMPTS, windowMs: LOGIN_WINDOW_MS },
+            'login rejected: rate limit exceeded');
+          return null;
+        }
+
         const user = await db.user.findUnique({ where: { email } });
         if (!user) {
+          recordFailedAttempt(email);
           logger.warn({ email }, 'login rejected: user not found');
           return null;
         }
         if (!user.active) {
+          recordFailedAttempt(email);
           logger.warn({ email }, 'login rejected: user inactive');
           return null;
         }
         if (!user.passwordHash) {
+          recordFailedAttempt(email);
           logger.warn({ email }, 'login rejected: no passwordHash set');
           return null;
         }
 
         const ok = await bcrypt.compare(password, user.passwordHash);
         if (!ok) {
+          recordFailedAttempt(email);
           logger.warn({ email }, 'login rejected: bad password');
           return null;
         }
 
+        clearAttempts(email);
         return {
           id: user.id,
           email: user.email,

@@ -106,11 +106,26 @@ export const sheets = {
       .then(() => undefined);
   },
 
-  /** Replace all rows in a tab. Use sparingly — full rewrite. */
-  bulkReplace(tab: SheetTabName, rows: SheetRow[]): Promise<void> {
+  /**
+   * Replace all rows in a tab. Use sparingly — full rewrite.
+   *
+   * If `expectedModifiedTime` is passed, Apps Script will reject the write
+   * (throwing SheetsApiError with "Conflict:" prefix) when the spreadsheet
+   * was modified by another writer since that timestamp. Use this for
+   * read-modify-write flows like pushBulkReplaceSlice to avoid lost updates.
+   */
+  bulkReplace(
+    tab: SheetTabName,
+    rows: SheetRow[],
+    opts?: { expectedModifiedTime?: string },
+  ): Promise<{ modifiedTime: string }> {
     const def = SHEET_TABS[tab];
-    return call('bulkReplace', { tab: def.tab, headers: def.columns, rows })
-      .then(() => undefined);
+    return call<{ modifiedTime: string }>('bulkReplace', {
+      tab: def.tab,
+      headers: def.columns,
+      rows,
+      expectedModifiedTime: opts?.expectedModifiedTime,
+    });
   },
 };
 

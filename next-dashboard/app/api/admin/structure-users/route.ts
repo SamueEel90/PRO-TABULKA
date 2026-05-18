@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 
-import { requireAdminSecret } from '@/lib/auth';
 import { ensureCacheFresh } from '@/lib/db/client';
 import { prisma } from '@/lib/prisma';
 import { newId, nowIso, pushBulkReplaceSlice } from '@/lib/sheets/write-through';
@@ -37,8 +36,6 @@ function normalizeNullable(value: unknown) {
 }
 
 export async function GET(request: Request) {
-  const denied = requireAdminSecret(request);
-  if (denied) return denied;
   try {
     await ensureCacheFresh();
     const [stores, users] = await Promise.all([
@@ -70,8 +67,6 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const denied = requireAdminSecret(request);
-  if (denied) return denied;
   try {
     await ensureCacheFresh();
     const payload = await request.json() as { stores?: StoreInput[]; users?: UserInput[] };

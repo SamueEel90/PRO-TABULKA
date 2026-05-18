@@ -287,10 +287,40 @@ LOG_LEVEL                     # trace|debug|info|warn|error|fatal
 ## Známe obmedzenia
 
 - **Cold start ~5-15s na Verceli** (cache rebuild zo Sheets)
-- **Concurrent writes:** Sheets nemá transakcie → last-write-wins
+- **Concurrent writes:** chránené cez Apps Script `LockService` (serializuje všetky write ops) + optimistic locking cez `expectedModifiedTime` pre `pushBulkReplaceSlice` (retry pri konflikte, 3 pokusy)
 - **Sheets kvóty:** ~300 reads/min, ~60 writes/min — IST/PLAN importy môžu škrtiť
 - **SQLite FK off** — referenčné chyby sú silent v cache
 - **ActivityEntry rast** — bez auto-purge časom narastie; treba občas archivovať
+- **Login rate limit je in-memory** (per-lambda, lossy cez cold starts) — útočník hitujúci veľa lambdas obíde. Plus bcrypt(12) robí útok prakticky neefektívny.
+
+## TODOs — Code review backlog
+
+Vychádza z [review z 2026-05-18]. Položky usporiadané podľa priority. Hotové: #1 concurrent writes guard, #2 login rate limit + tighter passwords, #5 odstránený `requireAdminSecret` shim.
+
+### High priority
+
+- **JWT sa nikdy nerefreshuje** — role/scope zapečené v JWT na 30 dní. Ak admin zmení rolu / deaktivuje usera, prístup zostáva platný. Fix: `session: { maxAge: 8h }` alebo cheap `findUnique({ active: true })` v `session` callbacku.
+- **Dva paralelné API patterny** — moderné routes (`/api/admin/*`) idú cez `apiRoute` wrapper (Zod, requestId, role check); legacy (`/api/notes`, `/tasks`, `/activity`, `/import/*`) parsujú body manuálne a nekontrolujú že `author` v body zodpovedá session userovi (spoofovateľné). Migrovať na `apiRoute` + brať `author/role` z `ctx.user`.
+- **Žiadne retries na Sheets API** — 429 z Apps Script kvóty padne celý import. Pridať expo back-off retry (3 pokusy, 500ms/1s/2s) v `lib/sheets/client.ts:call()` pre transient (429, 5xx, network).
+- **`auth.ts` jwt callback rewrituje celý User row pri každom logine** — kvôli `lastLoginAt` posiela aj `passwordHash`. Race condition ak admin zmenil heslo medzi `findUnique` a `pushUpdate`. Fix: nový Apps Script op `updateColumn(tab, id, column, value)` ktorý zmení iba 1 stĺpec.
+- **Import endpoint je 309 riadkov** ([app/api/import/monthly-ist/route.ts](next-dashboard/app/api/import/monthly-ist/route.ts)) — extrahovať do `lib/services/import-ist.service.ts` (parseAndValidate, upsertCatalogs, replaceMonthlyValues).
+- **Bootstrap back-off bez jitter** — 50 cold lambdas po Sheet update môžu rebuildiť súčasne. Pridať `backoff + random(0..10s)`.
+- **"Best-effort" silent catches** — `notes/route.ts:162`, activity log: `catch {}` skrýva chyby. Aspoň `logger.error({ err })`.
+
+### Medium priority
+
+- **Magic numbers v route handleri** — `TIER_HOURS_PER_DAY` v monthly-ist/route.ts patrí do `lib/metrics/constants.ts`.
+- **Duplikované Slovak month names** — `lib/months.ts` ich má, ale duplikujú sa v `monthly-ist/route.ts`, `bootstrap.ts`, `scripts/sheets-pull.mjs`, `scripts/sheets-migrate-month-ids.mjs` (4x ten istý array).
+- **`coerceValue` swallowne neplatné dáta** — `bootstrap.ts:131` vráti `0` pri NaN. Tichá strata. Lepšie warn + null + skip row.
+- **CASCADE delete chýba** — zmazanie Store/Month/Metric nechá MonthlyValue rows ako zombies. Explicitne mazať child rows v delete endpointoch.
+- **`lib/legacy/dashboard-service.ts`** — v `lib/legacy/` ale stále aktívny. Buď migrovať, alebo premenovať priečinok.
+
+### Low / nice to have
+
+- **Žiadne testy** — pridať aspoň smoke testy pre importy.
+- **Žiadny CI** — GitHub Actions: `npm run lint && tsc --noEmit`.
+- **`prisma.ts` deprecated shim** — väčšina kódu stále importuje odtiaľ. Codemod by to vyriešil.
+- **Error tracking** (Sentry) — momentálne len Vercel logy.
 
 ## Migration history
 

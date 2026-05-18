@@ -7,7 +7,13 @@
 import { randomBytes } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 
-const BCRYPT_ROUNDS = 10;
+// Cost factor 12 ≈ 250ms per hash on a modern server — significantly slower
+// brute force without making interactive login feel sluggish. Existing hashes
+// at cost 10 keep working (bcrypt.compare reads cost from the hash itself).
+const BCRYPT_ROUNDS = 12;
+
+/** Minimum password length enforced by admin endpoints when setting passwords. */
+export const MIN_PASSWORD_LENGTH = 10;
 
 /** Hash a plaintext password for storage in User.passwordHash. */
 export function hashPassword(password: string): Promise<string> {

@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
 
-import { requireAdminSecret } from '@/lib/auth';
 import { ensureCacheFresh } from '@/lib/db/client';
 import { prisma } from '@/lib/prisma';
 import { newId, nowIso, pushBulkReplaceSlice, pushBulkReplace, pushNew } from '@/lib/sheets/write-through';
 
 export async function POST(request: Request) {
-  const denied = requireAdminSecret(request);
-  if (denied) return denied;
   try {
     await ensureCacheFresh();
 

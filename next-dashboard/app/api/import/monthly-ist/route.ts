@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 
-import { requireAdminSecret } from '@/lib/auth';
 import { ensureCacheFresh } from '@/lib/db/client';
 import { parseWideTableImport, getMetricMetadata } from '@/lib/import-monthly-ist';
 import { resolveMonthLabel } from '@/lib/months';
@@ -46,8 +45,6 @@ function getCurrentBusinessMonth() {
 }
 
 export async function POST(request: Request) {
-  const denied = requireAdminSecret(request);
-  if (denied) return denied;
   try {
     await ensureCacheFresh();
     const formData = await request.formData();
