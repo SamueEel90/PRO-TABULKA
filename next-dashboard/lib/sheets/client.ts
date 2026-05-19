@@ -7,6 +7,7 @@
  * Do not import this from React client components. Server-side only.
  */
 
+import { logger } from '@/lib/logger';
 import { secrets } from '@/lib/secrets';
 import { ALL_TABS, SHEET_TABS, type SheetTabName } from './schema';
 
@@ -24,29 +25,89 @@ class SheetsApiError extends Error {
   }
 }
 
+/**
+ * Ops safe to retry without risking duplicate side-effects.
+ *
+ * Read ops are obviously idempotent. `bulkReplace` rewrites the whole tab so
+ * a retry just lands the same final state (and the `expectedModifiedTime`
+ * guard further protects against lost concurrent writes).
+ *
+ * `append`, `updateById`, `deleteById`, `ensureTabs` are NOT in this set:
+ *   - `append` would create duplicates if the first attempt actually landed
+ *     in Sheets but its response was lost on the network.
+ *   - `updateById`/`deleteById` are theoretically idempotent on the row state
+ *     but a retry that races with a concurrent write could clobber it.
+ *   - `ensureTabs` is idempotent but called once at boot, retry not critical.
+ */
+const RETRYABLE_OPS: ReadonlySet<string> = new Set([
+  'ping', 'modifiedTime', 'modifiedTimes', 'listTabs', 'read', 'readAll', 'bulkReplace',
+]);
+
+/** Status codes worth retrying — quota throttle and server-side hiccups. */
+const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([408, 429, 500, 502, 503, 504]);
+
+const MAX_RETRIES = 3;
+const BASE_BACKOFF_MS = 500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function isRetryableError(err: unknown): boolean {
+  // `fetch` throws TypeError on network failures (ENOTFOUND, socket reset, etc.)
+  if (err instanceof TypeError) return true;
+  if (err instanceof SheetsApiError && typeof err.status === 'number') {
+    return RETRYABLE_STATUSES.has(err.status);
+  }
+  return false;
+}
+
 async function call<T>(op: string, payload: Record<string, unknown> = {}): Promise<T> {
   const url = secrets.required('SHEETS_APPS_SCRIPT_URL');
   const secret = secrets.required('SHEETS_APPS_SCRIPT_SECRET');
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ secret, op, ...payload }),
-    redirect: 'follow',
-    cache: 'no-store',
-  });
+  const canRetry = RETRYABLE_OPS.has(op);
+  let lastErr: unknown;
 
-  if (!res.ok) {
-    throw new SheetsApiError(`HTTP ${res.status}`, op, res.status);
+  for (let attempt = 0; attempt <= (canRetry ? MAX_RETRIES : 0); attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret, op, ...payload }),
+        redirect: 'follow',
+        cache: 'no-store',
+      });
+
+      if (!res.ok) {
+        throw new SheetsApiError(`HTTP ${res.status}`, op, res.status);
+      }
+
+      const data = (await res.json()) as ApiResponse<T>;
+      if (!data.ok) {
+        throw new SheetsApiError(data.error, op);
+      }
+      // Strip the `ok: true` field for ergonomics
+      const { ok: _ok, ...rest } = data;
+      return rest as T;
+    } catch (err) {
+      lastErr = err;
+      if (!canRetry || attempt === MAX_RETRIES || !isRetryableError(err)) {
+        throw err;
+      }
+      // Exponential back-off with jitter: 500ms, 1s, 2s (+ up to 50% random)
+      const backoff = BASE_BACKOFF_MS * 2 ** attempt;
+      const jitter = Math.random() * backoff * 0.5;
+      const delayMs = Math.round(backoff + jitter);
+      logger.warn(
+        { op, attempt: attempt + 1, delayMs, err: err instanceof Error ? err.message : String(err) },
+        'Sheets API call failed — retrying',
+      );
+      await sleep(delayMs);
+    }
   }
 
-  const data = (await res.json()) as ApiResponse<T>;
-  if (!data.ok) {
-    throw new SheetsApiError(data.error, op);
-  }
-  // Strip the `ok: true` field for ergonomics
-  const { ok: _ok, ...rest } = data;
-  return rest as T;
+  throw lastErr;
 }
 
 export const sheets = {
@@ -58,6 +119,18 @@ export const sheets = {
   /** Spreadsheet last-modified timestamp (ISO). Used for cache freshness. */
   modifiedTime(): Promise<{ modifiedTime: string }> {
     return call('modifiedTime');
+  },
+
+  /**
+   * Per-tab last-modified timestamps (ISO). Each write op bumps only the
+   * affected tab's timestamp in Apps Script's `__meta` tab, so the client
+   * can rebuild only changed tabs instead of the full spreadsheet.
+   *
+   * Returns a map of `{ [tabName]: isoString }`. Tabs missing from the map
+   * should be treated as never-tracked (rebuild defensively).
+   */
+  modifiedTimes(): Promise<{ modifiedTimes: Record<string, string> }> {
+    return call('modifiedTimes');
   },
 
   /** List of existing tab names in the spreadsheet */
@@ -90,6 +163,20 @@ export const sheets = {
     const def = SHEET_TABS[tab];
     return call('append', { tab: def.tab, headers: def.columns, row })
       .then(() => undefined);
+  },
+
+  /**
+   * Append N rows in a single round-trip. Each row's values must be in
+   * column order. Use when inserting many rows at once (e.g. activity log
+   * entries from a batch save) — N×500ms HTTP calls collapse into one.
+   */
+  bulkAppend(tab: SheetTabName, rows: SheetRow[]): Promise<{ inserted: number }> {
+    const def = SHEET_TABS[tab];
+    return call<{ inserted: number }>('bulkAppend', {
+      tab: def.tab,
+      headers: def.columns,
+      rows,
+    });
   },
 
   /** Update row by id. Row must contain all columns in order. */

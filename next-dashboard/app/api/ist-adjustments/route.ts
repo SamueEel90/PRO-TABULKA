@@ -45,7 +45,7 @@ async function resolveMetricCode(label: string): Promise<string | null> {
  */
 export async function GET(request: Request) {
   try {
-    await ensureCacheFresh();
+    await ensureCacheFresh({ force: true });
     const user = getUserFromHeaders(request.headers);
     const url = new URL(request.url);
     const storeId = url.searchParams.get('storeId') || '';
@@ -112,7 +112,7 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
-    await ensureCacheFresh();
+    await ensureCacheFresh({ force: true });
     const user = getUserFromHeaders(request.headers);
     if (user.role !== 'VOD') {
       return NextResponse.json({ ok: false, error: 'Iba VOD môže žiadať o úpravu IST.' }, { status: 403 });

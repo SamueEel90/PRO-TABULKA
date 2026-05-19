@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { resolveMonthLabel } from '@/lib/months';
 import { computeNetHoursDelta } from '@/lib/legacy/shared';
-import { newId, nowIso, pushBulkReplaceSlice, pushDelete, pushNew, pushUpdate } from '@/lib/sheets/write-through';
+import { newId, nowIso, pushBulkAppend, pushBulkReplaceSlice, pushDelete, pushNew, pushUpdate } from '@/lib/sheets/write-through';
 import type {
   DashboardPayload,
   DashboardScope,
@@ -1939,112 +1939,192 @@ export async function saveDashboardChangesToSql(
       throw new Error('Úpravy VOD môže zapisovať iba VOD používateľ pre svoju filiálku.');
     }
 
+    const storeId = scope.storeIds[0];
+    const now = nowIso();
     const touchedStructureMonths = new Set<string>();
+
+    // 1. Pre-process all updates into a flat list, skipping metrics that
+    //    are derived/computed elsewhere (STRUCTURE_HOURS, GROSS_HOURS).
+    type PreparedUpdate = {
+      canonicalMetric: string;
+      metricCode: string;
+      monthId: string;
+      monthLabel: string;
+      value: number;
+    };
+    const prepared: PreparedUpdate[] = [];
+    const metricsByCode = new Map<string, { displayName: string; unit: string }>();
+
     for (const update of adjustmentUpdates) {
       const canonicalMetric = canonicalizeMetric(update.metric);
-      if (canonicalMetric === STRUCTURE_HOURS_METRIC) {
-        continue;
-      }
+      if (canonicalMetric === STRUCTURE_HOURS_METRIC) continue;
       if (isWorkforceStructureSaveMetric(canonicalMetric)) {
         touchedStructureMonths.add(resolveDashboardMonth(update.month).id);
       }
-      if (canonicalMetric === GROSS_HOURS_METRIC) {
-        continue;
-      }
+      if (canonicalMetric === GROSS_HOURS_METRIC) continue;
+
       const month = resolveDashboardMonth(update.month);
       const metricCode = metricCodeFromName(canonicalMetric);
-      const now = nowIso();
-
-      // Upsert Metric (push first, then mirror to cache)
-      const existingMetric = await prisma.metric.findUnique({ where: { code: metricCode } });
-      const metricRecord = {
-        code: metricCode,
-        displayName: canonicalMetric,
-        unit: getMetricFormat(canonicalMetric),
-        aggregation: 'sum',
-        createdAt: existingMetric ? existingMetric.createdAt.toISOString() : now,
-        updatedAt: now,
-      };
-      if (existingMetric) {
-        await pushUpdate('Metric', metricRecord);
-        await prisma.metric.update({
-          where: { code: metricCode },
-          data: { displayName: canonicalMetric, unit: getMetricFormat(canonicalMetric), aggregation: 'sum', updatedAt: new Date(now) },
-        });
-      } else {
-        await pushNew('Metric', metricRecord);
-        await prisma.metric.create({
-          data: { ...metricRecord, createdAt: new Date(now), updatedAt: new Date(now) },
-        });
-      }
-
-      // Read previous value for delta logging
-      const previousValueRow = await prisma.monthlyValue.findUnique({
-        where: {
-          source_storeId_metricCode_monthId: {
-            source: 'VOD',
-            storeId: scope.storeIds[0],
-            metricCode,
-            monthId: month.id,
-          },
-        },
-      });
-      const previousValue = previousValueRow ? Number(previousValueRow.value || 0) : 0;
-      const newValue = Number(update.value || 0);
-
-      // Upsert MonthlyValue
-      const mvRecord = {
-        id: previousValueRow?.id ?? newId(),
-        source: 'VOD',
-        storeId: scope.storeIds[0],
+      prepared.push({
+        canonicalMetric,
         metricCode,
         monthId: month.id,
-        value: newValue,
-        present: true,
-        importedAt: now,
-        importBatchId: previousValueRow?.importBatchId ?? null,
-        createdAt: previousValueRow ? previousValueRow.createdAt.toISOString() : now,
-        updatedAt: now,
-      };
-      if (previousValueRow) {
-        await pushUpdate('MonthlyValue', mvRecord);
-        await prisma.monthlyValue.update({
-          where: { id: previousValueRow.id },
-          data: { value: newValue, present: true, importedAt: new Date(now), updatedAt: new Date(now) },
-        });
-      } else {
-        await pushNew('MonthlyValue', mvRecord);
-        await prisma.monthlyValue.create({
-          data: { ...mvRecord, importedAt: new Date(now), createdAt: new Date(now), updatedAt: new Date(now) },
+        monthLabel: month.label,
+        value: Number(update.value || 0),
+      });
+      if (!metricsByCode.has(metricCode)) {
+        metricsByCode.set(metricCode, {
+          displayName: canonicalMetric,
+          unit: getMetricFormat(canonicalMetric) ?? '',
         });
       }
-      result.savedAdjustments += 1;
+    }
 
-      // Log per-adjustment activity (only when value actually changed)
-      if (Math.abs(newValue - previousValue) > 0.0001) {
-        const activityScope = buildNoteScope(user, scope);
-        const delta = newValue - previousValue;
-        const sign = delta > 0 ? '+' : '';
-        const detailText = previousValueRow
-          ? `${formatMetricForActivity(previousValue, canonicalMetric)} → ${formatMetricForActivity(newValue, canonicalMetric)} (${sign}${formatMetricForActivity(delta, canonicalMetric)})`
-          : `Nastavené na ${formatMetricForActivity(newValue, canonicalMetric)}`;
-        try {
-          const activityRecord = {
-            id: newId(),
-            scopeKey: activityScope.key,
-            actorRole: user.role,
-            actorName: user.displayName,
-            action: 'adjustment',
-            metricKey: canonicalMetric,
-            monthLabel: month.label,
-            detail: detailText,
-            createdAt: now,
-          };
-          await pushNew('ActivityEntry', activityRecord);
-          await prisma.activityEntry.create({
-            data: { ...activityRecord, createdAt: new Date(now) },
+    if (prepared.length > 0) {
+      // 2. Bulk-load all touched Metric defs + previous MonthlyValue rows in
+      //    two queries (instead of 2N inside the loop). Lets us decide updates
+      //    vs inserts up front and assemble the final write payload.
+      const codes = [...metricsByCode.keys()];
+      const monthIds = [...new Set(prepared.map(p => p.monthId))];
+
+      const [existingMetrics, existingMvRows] = await Promise.all([
+        prisma.metric.findMany({ where: { code: { in: codes } } }),
+        prisma.monthlyValue.findMany({
+          where: {
+            source: 'VOD',
+            storeId,
+            metricCode: { in: codes },
+            monthId: { in: monthIds },
+          },
+        }),
+      ]);
+      const existingMetricByCode = new Map(existingMetrics.map(m => [m.code, m]));
+      const existingMvByKey = new Map(
+        existingMvRows.map(r => [`${r.metricCode}::${r.monthId}`, r]),
+      );
+
+      // 3. Push Metric upserts — once per unique metric instead of per update.
+      //    Skip Sheets round-trip when displayName/unit already match cache.
+      for (const [code, def] of metricsByCode) {
+        const existing = existingMetricByCode.get(code);
+        const metricRecord = {
+          code,
+          displayName: def.displayName,
+          unit: def.unit || null,
+          aggregation: 'sum',
+          createdAt: existing ? existing.createdAt.toISOString() : now,
+          updatedAt: now,
+        };
+        if (existing) {
+          const unchanged =
+            existing.displayName === def.displayName
+            && (existing.unit || '') === (def.unit || '')
+            && (existing.aggregation || '') === 'sum';
+          if (!unchanged) {
+            await pushUpdate('Metric', metricRecord);
+            await prisma.metric.update({
+              where: { code },
+              data: { displayName: def.displayName, unit: def.unit || null, aggregation: 'sum', updatedAt: new Date(now) },
+            });
+          }
+        } else {
+          await pushNew('Metric', metricRecord);
+          await prisma.metric.create({
+            data: { ...metricRecord, createdAt: new Date(now), updatedAt: new Date(now) },
           });
-        } catch { /* best effort */ }
+        }
+      }
+
+      // 4. Build all MonthlyValue records (preserving ids for updates).
+      const mvRecords = prepared.map(p => {
+        const existing = existingMvByKey.get(`${p.metricCode}::${p.monthId}`);
+        return {
+          id: existing?.id ?? newId(),
+          source: 'VOD',
+          storeId,
+          metricCode: p.metricCode,
+          monthId: p.monthId,
+          value: p.value,
+          present: true,
+          importedAt: now,
+          importBatchId: existing?.importBatchId ?? null,
+          createdAt: existing ? existing.createdAt.toISOString() : now,
+          updatedAt: now,
+        };
+      });
+
+      // 5. Single bulk push for ALL MonthlyValue changes. Replaces N×~500ms
+      //    pushUpdate/pushNew round-trips (which user reported taking ~5min
+      //    for a structure save) with one read+rewrite of the affected slice.
+      const touchedKeys = new Set(prepared.map(p => `${p.metricCode}::${p.monthId}`));
+      await pushBulkReplaceSlice(
+        'MonthlyValue',
+        (r) => r.source === 'VOD'
+          && String(r.storeId) === storeId
+          && touchedKeys.has(`${String(r.metricCode)}::${String(r.monthId)}`),
+        mvRecords,
+      );
+
+      // 6. Mirror to cache: deleteMany + createMany (Prisma has no upsertMany).
+      await prisma.monthlyValue.deleteMany({
+        where: {
+          source: 'VOD',
+          storeId,
+          OR: prepared.map(p => ({ metricCode: p.metricCode, monthId: p.monthId })),
+        },
+      });
+      await prisma.monthlyValue.createMany({
+        data: mvRecords.map(r => ({
+          ...r,
+          importedAt: new Date(r.importedAt),
+          createdAt: new Date(r.createdAt),
+          updatedAt: new Date(r.updatedAt),
+        })),
+      });
+      result.savedAdjustments = mvRecords.length;
+
+      // 7. Activity log: collect entries for changed values only, push as
+      //    one bulkAppend (1 round-trip vs N individual pushNew calls).
+      const activityRecords: Array<{
+        id: string;
+        scopeKey: string;
+        actorRole: string;
+        actorName: string;
+        action: string;
+        metricKey: string;
+        monthLabel: string;
+        detail: string;
+        createdAt: string;
+      }> = [];
+      const activityScope = buildNoteScope(user, scope);
+      for (const p of prepared) {
+        const existing = existingMvByKey.get(`${p.metricCode}::${p.monthId}`);
+        const previousValue = existing ? Number(existing.value || 0) : 0;
+        if (Math.abs(p.value - previousValue) <= 0.0001) continue;
+        const delta = p.value - previousValue;
+        const sign = delta > 0 ? '+' : '';
+        const detailText = existing
+          ? `${formatMetricForActivity(previousValue, p.canonicalMetric)} → ${formatMetricForActivity(p.value, p.canonicalMetric)} (${sign}${formatMetricForActivity(delta, p.canonicalMetric)})`
+          : `Nastavené na ${formatMetricForActivity(p.value, p.canonicalMetric)}`;
+        activityRecords.push({
+          id: newId(),
+          scopeKey: activityScope.key,
+          actorRole: user.role,
+          actorName: user.displayName,
+          action: 'adjustment',
+          metricKey: p.canonicalMetric,
+          monthLabel: p.monthLabel,
+          detail: detailText,
+          createdAt: now,
+        });
+      }
+      if (activityRecords.length) {
+        try {
+          await pushBulkAppend('ActivityEntry', activityRecords);
+          await prisma.activityEntry.createMany({
+            data: activityRecords.map(r => ({ ...r, createdAt: new Date(r.createdAt) })),
+          });
+        } catch { /* best effort — activity log shouldn't break the save */ }
       }
     }
 

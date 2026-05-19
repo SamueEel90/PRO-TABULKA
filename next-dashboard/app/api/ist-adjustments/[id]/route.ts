@@ -11,7 +11,7 @@ import { newId, nowIso, pushDelete, pushNew, pushUpdate } from '@/lib/sheets/wri
  */
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCacheFresh();
+    await ensureCacheFresh({ force: true });
 
     const user = getUserFromHeaders(request.headers);
     const { id } = await ctx.params;
@@ -137,7 +137,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
  */
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCacheFresh();
+    await ensureCacheFresh({ force: true });
     const user = getUserFromHeaders(request.headers);
     const { id } = await ctx.params;
 

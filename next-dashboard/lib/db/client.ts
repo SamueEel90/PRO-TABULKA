@@ -43,12 +43,16 @@ export type DbTx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
  * cache from scratch (~5-15s); on warm lambdas within FRESHNESS_TTL_MS it's
  * a no-op; otherwise a cheap modifiedTime check (~500ms).
  *
+ * Pass `{ force: true }` to skip the TTL and always re-check upstream.
+ * Use for routes serving user-generated content (notes, tasks, activity)
+ * where cross-lambda cache divergence causes visible flicker after writes.
+ *
  * In Fáza 4 this gets wired into the apiRoute wrapper so call sites don't
  * have to think about it.
  */
-export async function ensureCacheFresh(): Promise<void> {
+export async function ensureCacheFresh(opts?: { force?: boolean }): Promise<void> {
   const { ensureFresh } = await import('./bootstrap');
-  await ensureFresh(db);
+  await ensureFresh(db, opts);
 }
 
 /**

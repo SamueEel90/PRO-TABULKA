@@ -10,7 +10,7 @@ import { newId, nowIso, pushDelete, pushNew, pushUpdate } from '@/lib/sheets/wri
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCacheFresh();
+    await ensureCacheFresh({ force: true });
 
     const { id } = await params;
     const body = await request.json() as { status?: string; completedByName?: string };
@@ -89,7 +89,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
  */
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCacheFresh();
+    await ensureCacheFresh({ force: true });
     const { id } = await params;
     await pushDelete('TaskItem', id);
     await prisma.taskItem.delete({ where: { id } });

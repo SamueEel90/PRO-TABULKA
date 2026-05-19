@@ -10,7 +10,7 @@ import { pushDelete } from '@/lib/sheets/write-through';
  */
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCacheFresh();
+    await ensureCacheFresh({ force: true });
     const { id } = await params;
 
     const comment = await prisma.noteComment.findUnique({
