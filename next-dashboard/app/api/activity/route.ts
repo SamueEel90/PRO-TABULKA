@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { ensureCacheFresh } from '@/lib/db/client';
+import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { nowIso, pushNew, pushUpdate } from '@/lib/sheets/write-through';
 
@@ -10,12 +11,24 @@ function lastSeenId(userId: string, scopeKey: string): string {
 }
 
 /**
+ * How stale local lastSeen must be before we bother pushing the new value to
+ * Sheets. UI re-polls activity on every dashboard render — without throttling
+ * we'd flood the Apps Script LockService and serialize behind every save.
+ *
+ * 5 minutes is plenty: the only thing lastSeen drives is the "new since last
+ * visit" dot — even if Sheets lags by 5 min, users barely notice. Local Prisma
+ * is updated synchronously every time, so within a single lambda the value is
+ * always fresh.
+ */
+const LASTSEEN_SHEETS_PUSH_INTERVAL_MS = 5 * 60 * 1000;
+
+/**
  * GET /api/activity?scopeKey=...&userId=...
  * Returns activity entries since user's last visit, and updates lastSeen.
  */
 export async function GET(request: Request) {
   try {
-    await ensureCacheFresh({ force: true });
+    await ensureCacheFresh();
 
     const url = new URL(request.url);
     const scopeKey = url.searchParams.get('scopeKey') || '';
@@ -45,22 +58,44 @@ export async function GET(request: Request) {
 
     const newCount = entries.filter((entry) => entry.createdAt > lastSeenAt).length;
 
-    // Upsert lastSeen with a deterministic id so concurrent requests can't
-    // create duplicates. Try update first; if the row doesn't exist in Sheets,
-    // fall back to insert.
     const now = nowIso();
+    const nowDate = new Date(now);
     const id = lastSeenId(userId, scopeKey);
     const record = { id, userId, scopeKey, lastSeenAt: now };
-    try {
-      await pushUpdate('UserLastSeen', record);
-    } catch {
-      await pushNew('UserLastSeen', record);
-    }
+
+    // Local SQLite update — always synchronous, cheap, gives the user a
+    // consistent newCount within this lambda.
     await prisma.userLastSeen.upsert({
       where: { id },
-      update: { lastSeenAt: new Date(now) },
-      create: { ...record, lastSeenAt: new Date(now) },
+      update: { lastSeenAt: nowDate },
+      create: { ...record, lastSeenAt: nowDate },
     });
+
+    // Sheets push throttle: every dashboard render hits this endpoint many
+    // times (once per metric note thread). Pushing every call serialized
+    // dozens of writes behind every save in Apps Script's LockService.
+    //
+    // Only push when local lastSeen is older than the interval. The Prisma
+    // upsert above already updated local state, so this is purely about
+    // keeping Sheets eventually consistent for cross-lambda visibility.
+    const previousLastSeen = lastSeenRecord?.lastSeenAt?.getTime() ?? 0;
+    const shouldPush = nowDate.getTime() - previousLastSeen >= LASTSEEN_SHEETS_PUSH_INTERVAL_MS;
+
+    if (shouldPush) {
+      // Fire-and-forget: the response doesn't wait for Sheets. If the push
+      // fails the next call (5+ min from now) retries it.
+      void (async () => {
+        try {
+          await pushUpdate('UserLastSeen', record);
+        } catch {
+          try {
+            await pushNew('UserLastSeen', record);
+          } catch (err) {
+            logger.warn({ err, id }, 'background UserLastSeen push failed');
+          }
+        }
+      })();
+    }
 
     return NextResponse.json({
       ok: true,
