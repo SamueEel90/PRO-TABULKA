@@ -82,17 +82,27 @@ export async function pushBulkReplace(
 }
 
 /**
- * Append many rows. Calls Sheets append in sequence — Apps Script doesn't
- * expose a batch append op, so this is N round trips. For large batches
- * (>50 rows) prefer pushBulkReplace if it makes sense to wipe the tab first.
+ * Append many rows in a single Apps Script call. Backed by the `bulkAppend`
+ * op which uses one `setValues` to write all rows — orders of magnitude
+ * faster than per-row appends when inserting large batches (activity log
+ * entries from a batch save, etc.).
+ *
+ * Each record MUST contain every schema column (id included) just like
+ * `pushNew`.
  */
 export async function pushBulkAppend(
   tab: SheetTabName,
   records: Record<string, unknown>[],
 ): Promise<void> {
+  if (records.length === 0) return;
+  const def = SHEET_TABS[tab];
   for (const r of records) {
-    await pushNew(tab, r);
+    if (r[def.idColumn] === undefined || r[def.idColumn] === null || r[def.idColumn] === '') {
+      throw new Error(`pushBulkAppend(${tab}): record is missing required id column "${def.idColumn}"`);
+    }
   }
+  const rows = records.map(r => objectToRow(tab, r));
+  await sheets.bulkAppend(tab, rows);
 }
 
 /**

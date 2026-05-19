@@ -15,7 +15,7 @@ function lastSeenId(userId: string, scopeKey: string): string {
  */
 export async function GET(request: Request) {
   try {
-    await ensureCacheFresh();
+    await ensureCacheFresh({ force: true });
 
     const url = new URL(request.url);
     const scopeKey = url.searchParams.get('scopeKey') || '';

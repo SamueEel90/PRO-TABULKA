@@ -1,6 +1,21 @@
 {
-  "builtAt": "2026-05-18T20:48:49.758Z",
-  "sourceModifiedTime": "2026-05-18T20:47:22.113Z",
-  "schemaVersion": 1,
-  "lastAttemptAt": "2026-05-18T20:48:49.758Z"
+  "builtAt": "2026-05-19T11:03:15.863Z",
+  "sourceModifiedTime": "2026-05-19T09:22:25.601Z",
+  "tabModifiedTimes": {
+    "Store": "2026-05-19T09:23:26.228Z",
+    "User": "2026-05-19T11:02:41.413Z",
+    "Metric": "2026-05-19T10:43:46.531Z",
+    "Month": "2026-05-19T09:23:26.228Z",
+    "ImportBatch": "2026-05-19T10:38:46.095Z",
+    "MonthlyValue": "2026-05-19T10:56:08.500Z",
+    "DashboardNote": "2026-05-19T10:54:33.921Z",
+    "NoteComment": "2026-05-19T10:55:14.329Z",
+    "TaskItem": "2026-05-19T09:23:26.228Z",
+    "ActivityEntry": "2026-05-19T10:56:11.542Z",
+    "UserLastSeen": "2026-05-19T11:03:08.343Z",
+    "IstAdjustmentRequest": "2026-05-19T09:23:26.228Z",
+    "WeeklyVodOverride": "2026-05-19T10:56:24.048Z"
+  },
+  "schemaVersion": 2,
+  "lastAttemptAt": "2026-05-19T11:03:15.863Z"
 }
