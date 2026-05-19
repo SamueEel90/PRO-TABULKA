@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { resolveMonthLabel } from '@/lib/months';
 import { computeNetHoursDelta } from '@/lib/legacy/shared';
-import { newId, nowIso, pushBulkAppend, pushBulkReplaceSlice, pushDelete, pushNew, pushUpdate } from '@/lib/sheets/write-through';
+import { newId, nowIso, pushBulkAppend, pushBulkDelete, pushBulkReplaceSlice, pushBulkUpsert, pushDelete, pushNew, pushUpdate } from '@/lib/sheets/write-through';
 import type {
   DashboardPayload,
   DashboardScope,
@@ -2053,17 +2053,12 @@ export async function saveDashboardChangesToSql(
         };
       });
 
-      // 5. Single bulk push for ALL MonthlyValue changes. Replaces N×~500ms
-      //    pushUpdate/pushNew round-trips (which user reported taking ~5min
-      //    for a structure save) with one read+rewrite of the affected slice.
-      const touchedKeys = new Set(prepared.map(p => `${p.metricCode}::${p.monthId}`));
-      await pushBulkReplaceSlice(
-        'MonthlyValue',
-        (r) => r.source === 'VOD'
-          && String(r.storeId) === storeId
-          && touchedKeys.has(`${String(r.metricCode)}::${String(r.monthId)}`),
-        mvRecords,
-      );
+      // 5. Single bulk push for ALL MonthlyValue changes. `bulkUpsertById`
+      //    only touches the affected rows (in-place updates by id, plus
+      //    appends for new rows). Beats `pushBulkReplaceSlice` which would
+      //    re-read and re-write the entire 27k-row tab. ~5× faster save
+      //    and shorter LockService hold → better under concurrent load.
+      await pushBulkUpsert('MonthlyValue', mvRecords);
 
       // 6. Mirror to cache: deleteMany + createMany (Prisma has no upsertMany).
       await prisma.monthlyValue.deleteMany({
@@ -2132,18 +2127,21 @@ export async function saveDashboardChangesToSql(
       const structureHoursMetricCode = metricCodeFromName(STRUCTURE_HOURS_METRIC);
       const storeId = scope.storeIds[0];
       const monthIdsArr = [...touchedStructureMonths];
-      // Drop structure-hours rows for this (store, metric, [months]) slice
-      await pushBulkReplaceSlice(
-        'MonthlyValue',
-        (r) => r.source === 'VOD'
-          && r.storeId === storeId
-          && r.metricCode === structureHoursMetricCode
-          && monthIdsArr.includes(String(r.monthId)),
-        [],
-      );
-      await prisma.monthlyValue.deleteMany({
+      // Resolve the ids of structure-hours rows we need to drop FROM CACHE
+      // (the local mirror is up-to-date for our store after the upsert above).
+      // Sending a small list of ids to `bulkDeleteByIds` is way faster than
+      // `pushBulkReplaceSlice` which would clear+rewrite the entire 27k-row
+      // MonthlyValue tab — and avoids the live-Sheets flicker users see.
+      const idsToDrop = await prisma.monthlyValue.findMany({
         where: { source: 'VOD', storeId, metricCode: structureHoursMetricCode, monthId: { in: monthIdsArr } },
+        select: { id: true },
       });
+      if (idsToDrop.length > 0) {
+        await pushBulkDelete('MonthlyValue', idsToDrop.map(r => r.id));
+        await prisma.monthlyValue.deleteMany({
+          where: { source: 'VOD', storeId, metricCode: structureHoursMetricCode, monthId: { in: monthIdsArr } },
+        });
+      }
     }
   }
 

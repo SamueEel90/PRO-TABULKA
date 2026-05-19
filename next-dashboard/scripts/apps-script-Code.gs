@@ -41,7 +41,7 @@ function doPost(e) {
     // interleave (Sheets has no transactions). Reads stay lock-free.
     // bumpMeta is technically a write but takes the lock itself; only listed
     // here so callers can't accidentally bypass the serialization.
-    var WRITE_OPS = { ensureTabs: 1, append: 1, bulkAppend: 1, updateById: 1, deleteById: 1, bulkReplace: 1, setTextFormat: 1 };
+    var WRITE_OPS = { ensureTabs: 1, append: 1, bulkAppend: 1, bulkUpsertById: 1, updateById: 1, deleteById: 1, bulkDeleteByIds: 1, bulkReplace: 1, setTextFormat: 1 };
     if (WRITE_OPS[op]) {
       var lock = LockService.getScriptLock();
       if (!lock.tryLock(30000)) {
@@ -68,10 +68,12 @@ function dispatchOp(op, payload) {
     case 'ensureTabs':     handleEnsureTabs(payload); return jsonOut({ ok: true });
     case 'read':           return jsonOut({ ok: true, data: handleRead(payload) });
     case 'readAll':        return jsonOut({ ok: true, data: handleReadAll(payload) });
-    case 'append':         handleAppend(payload); return jsonOut({ ok: true });
+    case 'append':         return jsonOut({ ok: true, tabTime: handleAppend(payload) });
     case 'bulkAppend':     return jsonOut(Object.assign({ ok: true }, handleBulkAppend(payload)));
-    case 'updateById':     handleUpdateById(payload); return jsonOut({ ok: true });
-    case 'deleteById':     handleDeleteById(payload); return jsonOut({ ok: true });
+    case 'bulkUpsertById': return jsonOut(Object.assign({ ok: true }, handleBulkUpsertById(payload)));
+    case 'updateById':     return jsonOut({ ok: true, tabTime: handleUpdateById(payload) });
+    case 'deleteById':     return jsonOut({ ok: true, tabTime: handleDeleteById(payload) });
+    case 'bulkDeleteByIds':return jsonOut(Object.assign({ ok: true }, handleBulkDeleteByIds(payload)));
     case 'bulkReplace':    return jsonOut(Object.assign({ ok: true }, handleBulkReplace(payload)));
     case 'setTextFormat':  return jsonOut(Object.assign({ ok: true }, handleSetTextFormat(payload)));
     default:               return jsonOut({ ok: false, error: 'Unknown op: ' + op });
@@ -214,8 +216,11 @@ function coerceDateValuesToMonthIds(values, tabName) {
   return values;
 }
 
+// Returns the ISO timestamp it wrote (or null for the META_TAB no-op).
+// Callers include this in their response so the client can update its
+// local tabModifiedTimes tracker without an extra modifiedTimes round-trip.
 function bumpTabModifiedTime(tabName) {
-  if (!tabName || tabName === META_TAB) return;
+  if (!tabName || tabName === META_TAB) return null;
   var sheet = getOrCreateMetaSheet();
   var now = new Date().toISOString();
   var lastRow = sheet.getLastRow();
@@ -224,11 +229,12 @@ function bumpTabModifiedTime(tabName) {
     for (var i = 0; i < names.length; i++) {
       if (String(names[i][0]) === tabName) {
         sheet.getRange(i + 2, 2).setValue(now);
-        return;
+        return now;
       }
     }
   }
   sheet.appendRow([tabName, now]);
+  return now;
 }
 
 function handleListTabs() {
@@ -289,7 +295,7 @@ function handleAppend(payload) {
   var sheet = mustGetSheet(payload.tab);
   ensureTextColumnsFormatted(sheet, payload.tab);
   sheet.appendRow(payload.row);
-  bumpTabModifiedTime(payload.tab);
+  return bumpTabModifiedTime(payload.tab);
 }
 
 // Append N rows in a single API call. Caller passes rows in column order.
@@ -300,15 +306,93 @@ function handleBulkAppend(payload) {
   var sheet = mustGetSheet(payload.tab);
   var rows = payload.rows || [];
   if (rows.length === 0) {
-    return { inserted: 0 };
+    return { inserted: 0, tabTime: null };
   }
   ensureTextColumnsFormatted(sheet, payload.tab);
   var width = (payload.headers && payload.headers.length) || sheet.getLastColumn();
   var startRow = sheet.getLastRow() + 1;
   if (startRow < 2) startRow = 2; // skip header row
   sheet.getRange(startRow, 1, rows.length, width).setValues(rows);
-  bumpTabModifiedTime(payload.tab);
-  return { inserted: rows.length };
+  var tabTime = bumpTabModifiedTime(payload.tab);
+  return { inserted: rows.length, tabTime: tabTime };
+}
+
+// Upsert N rows by id in a single API call.
+//
+// For each row, looks up its id in the sheet. If found → setValues at that
+// row number (update). If not found → buffered into a single bulk-append at
+// the end (insert). Idempotent — re-sending the same payload produces the
+// same final state, so the client is free to retry on network/lock errors.
+//
+// Massive speedup over read-everything + write-everything (bulkReplaceSlice):
+// only touches the affected rows, not the whole tab. For 50 row updates in
+// a 27 000-row MonthlyValue tab this drops save latency from ~6-10s to ~1-2s
+// and shortens the LockService hold proportionally — critical when many VOD
+// users save at once.
+function handleBulkUpsertById(payload) {
+  var sheet = mustGetSheet(payload.tab);
+  var idColumn = payload.idColumn;
+  var rows = payload.rows || [];
+  if (rows.length === 0) {
+    return { updated: 0, inserted: 0 };
+  }
+
+  ensureTextColumnsFormatted(sheet, payload.tab);
+
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var idColIndex = headers.indexOf(idColumn);
+  if (idColIndex === -1) throw new Error('idColumn not found: ' + idColumn);
+  var width = headers.length;
+
+  // Dedupe payload by id — last occurrence wins. Protects against a caller
+  // accidentally including the same id twice.
+  var byId = {};
+  for (var p = 0; p < rows.length; p++) {
+    var pid = String(rows[p][idColIndex] || '');
+    if (!pid) throw new Error('bulkUpsertById: row at index ' + p + ' has empty id');
+    byId[pid] = rows[p];
+  }
+
+  // Index existing rows: id → sheet row number (1-indexed, header is row 1).
+  var lastRow = sheet.getLastRow();
+  var idToRowNum = {};
+  if (lastRow >= 2) {
+    var ids = sheet.getRange(2, idColIndex + 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      var k = String(ids[i][0] || '');
+      if (k) idToRowNum[k] = i + 2;
+    }
+  }
+
+  // Partition payload into updates (existing) vs inserts (new).
+  var updates = [];
+  var inserts = [];
+  for (var id in byId) {
+    if (!Object.prototype.hasOwnProperty.call(byId, id)) continue;
+    var rowNum = idToRowNum[id];
+    if (rowNum) {
+      updates.push({ rowNum: rowNum, row: byId[id] });
+    } else {
+      inserts.push(byId[id]);
+    }
+  }
+
+  // Apply updates — per-row setValues. Cheap (in-process inside Apps Script),
+  // no extra HTTP round-trips. For very large N (~1000+) we could group
+  // contiguous rows but our typical save is ~50 scattered rows.
+  for (var u = 0; u < updates.length; u++) {
+    sheet.getRange(updates[u].rowNum, 1, 1, width).setValues([updates[u].row]);
+  }
+
+  // Apply inserts as one contiguous block at the bottom.
+  if (inserts.length > 0) {
+    var startRow = sheet.getLastRow() + 1;
+    if (startRow < 2) startRow = 2;
+    sheet.getRange(startRow, 1, inserts.length, width).setValues(inserts);
+  }
+
+  var tabTime = bumpTabModifiedTime(payload.tab);
+  return { updated: updates.length, inserted: inserts.length, tabTime: tabTime };
 }
 
 function handleUpdateById(payload) {
@@ -330,8 +414,7 @@ function handleUpdateById(payload) {
   for (var i = 0; i < ids.length; i++) {
     if (String(ids[i][0]) === String(id)) {
       sheet.getRange(i + 2, 1, 1, row.length).setValues([row]);
-      bumpTabModifiedTime(payload.tab);
-      return;
+      return bumpTabModifiedTime(payload.tab);
     }
   }
   throw new Error('Row not found: ' + id);
@@ -347,17 +430,73 @@ function handleDeleteById(payload) {
   if (idColIndex === -1) throw new Error('idColumn not found: ' + idColumn);
 
   var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return;
+  if (lastRow < 2) return null;
 
   var ids = sheet.getRange(2, idColIndex + 1, lastRow - 1, 1).getValues();
   for (var i = 0; i < ids.length; i++) {
     if (String(ids[i][0]) === String(id)) {
       sheet.deleteRow(i + 2);
-      bumpTabModifiedTime(payload.tab);
-      return;
+      return bumpTabModifiedTime(payload.tab);
     }
   }
   // Idempotent: deleting a non-existent id is OK
+  return null;
+}
+
+// Delete N rows by id in a single API call.
+//
+// Reads the id column once to build id→rowNum map, then deleteRow for each
+// target from bottom to top (so earlier deletes don't shift later indices).
+// O(N + sheet_size) — vastly cheaper than bulkReplaceSlice (which rewrites
+// the whole tab) when N is small relative to the tab size.
+//
+// Used by saveDashboardChangesToSql to drop old structure-hours rows on
+// VOD save without flickering the entire 27k-row MonthlyValue tab in the
+// live Sheets UI.
+//
+// Idempotent: ids that don't exist are silently skipped, so client retries
+// on transient errors are safe.
+function handleBulkDeleteByIds(payload) {
+  var sheet = mustGetSheet(payload.tab);
+  var idColumn = payload.idColumn;
+  var idsToDelete = payload.ids || [];
+  if (idsToDelete.length === 0) {
+    return { deleted: 0, tabTime: null };
+  }
+
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var idColIndex = headers.indexOf(idColumn);
+  if (idColIndex === -1) throw new Error('idColumn not found: ' + idColumn);
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { deleted: 0, tabTime: null };
+
+  // Set for O(1) lookup.
+  var idSet = {};
+  for (var i = 0; i < idsToDelete.length; i++) {
+    idSet[String(idsToDelete[i])] = true;
+  }
+
+  // Find sheet row numbers (1-indexed) to drop.
+  var existingIds = sheet.getRange(2, idColIndex + 1, lastRow - 1, 1).getValues();
+  var rowsToDelete = [];
+  for (var j = 0; j < existingIds.length; j++) {
+    if (idSet[String(existingIds[j][0])]) {
+      rowsToDelete.push(j + 2);
+    }
+  }
+  if (rowsToDelete.length === 0) {
+    return { deleted: 0, tabTime: null };
+  }
+
+  // Delete from BOTTOM to TOP so earlier deletes don't shift later indices.
+  rowsToDelete.sort(function(a, b) { return b - a; });
+  for (var k = 0; k < rowsToDelete.length; k++) {
+    sheet.deleteRow(rowsToDelete[k]);
+  }
+
+  var tabTime = bumpTabModifiedTime(payload.tab);
+  return { deleted: rowsToDelete.length, tabTime: tabTime };
 }
 
 function handleBulkReplace(payload) {
@@ -391,9 +530,9 @@ function handleBulkReplace(payload) {
     sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
   }
 
-  bumpTabModifiedTime(payload.tab);
+  var tabTime = bumpTabModifiedTime(payload.tab);
   // Return the new modifiedTime so caller can chain further conditional writes.
-  return { modifiedTime: handleModifiedTime() };
+  return { modifiedTime: handleModifiedTime(), tabTime: tabTime };
 }
 
 function handleSetTextFormat(payload) {
