@@ -42,6 +42,10 @@ class SheetsApiError extends Error {
 const RETRYABLE_OPS: ReadonlySet<string> = new Set([
   'ping', 'modifiedTime', 'modifiedTimes', 'listTabs', 'read', 'readAll',
   'bulkReplace', 'bulkUpsertById', 'bulkDeleteByIds',
+  // `batch` is intentionally NOT here for transient-error retries: if it
+  // contains a non-idempotent sub-op like `bulkAppend`, a retry after a
+  // post-write network failure would duplicate those rows. Lock-busy retry
+  // still applies separately (the op never ran in that case → safe).
 ]);
 
 /** Status codes worth retrying — quota throttle and server-side hiccups. */
@@ -59,6 +63,7 @@ const BASE_BACKOFF_MS = 500;
 const WRITE_OPS_SET: ReadonlySet<string> = new Set([
   'ensureTabs', 'append', 'bulkAppend', 'bulkUpsertById',
   'updateById', 'deleteById', 'bulkDeleteByIds', 'bulkReplace', 'setTextFormat',
+  'batch',
 ]);
 
 /**
@@ -108,6 +113,7 @@ async function call<T>(op: string, payload: Record<string, unknown> = {}): Promi
   let lastErr: unknown;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const tCall = Date.now();
     try {
       const res = await fetch(url, {
         method: 'POST',
@@ -124,6 +130,12 @@ async function call<T>(op: string, payload: Record<string, unknown> = {}): Promi
       const data = (await res.json()) as ApiResponse<T>;
       if (!data.ok) {
         throw new SheetsApiError(data.error, op);
+      }
+      const callMs = Date.now() - tCall;
+      // Log slow calls. Apps Script normally responds 500ms-3s; anything
+      // above 5s signals contention or cold-start.
+      if (callMs > 1000) {
+        logger.info({ op, callMs, attempt }, '[sheets] slow call');
       }
       // Successful write → invalidate the modifiedTimes mini-cache so the
       // next ensureFresh sees the upstream bump we just caused.
@@ -165,6 +177,25 @@ async function call<T>(op: string, payload: Record<string, unknown> = {}): Promi
 
   throw lastErr;
 }
+
+/**
+ * Wire shape of one sub-op inside a `batch` request. Each variant matches
+ * the payload the equivalent individual op (e.g. `bulkUpsertById`) sends to
+ * Apps Script, with an extra `op` discriminator. Constructed by the
+ * `pushBatch` helper in write-through.ts.
+ */
+export type BatchSubOpPayload =
+  | { op: 'bulkUpsertById'; tab: string; idColumn: string; headers: readonly string[]; rows: SheetRow[] }
+  | { op: 'bulkAppend'; tab: string; headers: readonly string[]; rows: SheetRow[] }
+  | { op: 'bulkDeleteByIds'; tab: string; idColumn: string; ids: string[] }
+  | { op: 'append'; tab: string; headers: readonly string[]; row: SheetRow }
+  | { op: 'updateById'; tab: string; idColumn: string; id: string; row: SheetRow }
+  | { op: 'deleteById'; tab: string; idColumn: string; id: string };
+
+/** Wire shape of one sub-op result in a `batch` response. */
+export type BatchSubOpResult =
+  | { ok: true; tabTime: string | null; [k: string]: unknown }
+  | { ok: false; error: string; index: number; op: string; tab?: string };
 
 export const sheets = {
   /** Cheap health check — round-trip to Apps Script */
@@ -311,6 +342,21 @@ export const sheets = {
    * was modified by another writer since that timestamp. Use this for
    * read-modify-write flows like pushBulkReplaceSlice to avoid lost updates.
    */
+  /**
+   * Run N sub-ops under a single LockService acquisition + HTTP round-trip.
+   *
+   * Each sub-op is a self-contained Apps Script call payload (the same shape
+   * the individual sheets methods would send). Apps Script runs them in
+   * order under one lock; if any throws, the rest are skipped. The response
+   * `results` array has one entry per executed sub-op (truncated on abort).
+   *
+   * `pushBatch` in write-through wraps this with type-safe op constructors
+   * and records local writes for each successful sub-op.
+   */
+  batch(ops: BatchSubOpPayload[]): Promise<{ results: BatchSubOpResult[] }> {
+    return call<{ results: BatchSubOpResult[] }>('batch', { ops });
+  },
+
   bulkReplace(
     tab: SheetTabName,
     rows: SheetRow[],

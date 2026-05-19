@@ -11,7 +11,7 @@ import { newId, nowIso, pushNew } from '@/lib/sheets/write-through';
  */
 export async function GET(request: Request) {
   try {
-    await ensureCacheFresh({ force: true });
+    await ensureCacheFresh();
     const url = new URL(request.url);
     const scopeKey = url.searchParams.get('scopeKey') || '';
     const broadcastScopeKey = url.searchParams.get('broadcastScopeKey') || '';

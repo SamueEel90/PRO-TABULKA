@@ -5054,11 +5054,16 @@
 
 			function saveAdjustments() {
 				hideSaveStatus();
+				// autoSave: true → non-blocking save status indicator + optimistic
+				// UI apply + silent dashboard reload, instead of a blocking modal.
+				// Sheets save still runs (often 5-15s due to Apps Script overhead)
+				// but the user can keep working while it completes in the
+				// background. Failure still surfaces via alert (silent: false).
 				saveDashboardChanges_({
 					silent: false,
 					includeAdjustments: true,
 					includeNotes: true,
-					autoSave: false,
+					autoSave: true,
 				});
 			}
 

@@ -18,7 +18,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { recordLocalWrite } from '@/lib/db/bootstrap';
-import { sheets } from './client';
+import { sheets, type BatchSubOpPayload } from './client';
 import { objectToRow, rowsToObjects } from './rows';
 import { SHEET_TABS, type SheetTabName } from './schema';
 
@@ -204,4 +204,90 @@ export async function pushBulkReplaceSlice(
     }
   }
   throw lastErr;
+}
+
+/**
+ * High-level batch op. Caller builds a list of sub-ops in record form
+ * (e.g. `{ op: 'bulkUpsertById', tab: 'MonthlyValue', records: [...] }`)
+ * and `pushBatch` translates each into the wire payload, validates ids,
+ * sends them as ONE `sheets.batch` call, and records local writes for
+ * every successful sub-op.
+ *
+ * Use this to collapse a save flow that would otherwise do 4-8 separate
+ * Apps Script calls into a single round-trip + a single LockService
+ * acquisition — typically ~5× faster end-to-end, dramatically better
+ * under concurrent load.
+ */
+export type BatchOp =
+  | { op: 'bulkUpsertById'; tab: SheetTabName; records: Record<string, unknown>[] }
+  | { op: 'bulkAppend'; tab: SheetTabName; records: Record<string, unknown>[] }
+  | { op: 'bulkDeleteByIds'; tab: SheetTabName; ids: string[] };
+
+export async function pushBatch(ops: BatchOp[]): Promise<void> {
+  // Skip empty ops (no records / no ids) — they're free no-ops, no point
+  // burdening the batch.
+  const nonEmpty = ops.filter(op => {
+    if (op.op === 'bulkDeleteByIds') return op.ids.length > 0;
+    return op.records.length > 0;
+  });
+  if (nonEmpty.length === 0) return;
+
+  // Translate to wire payloads + validate ids in upsert/append records.
+  const apiOps: BatchSubOpPayload[] = nonEmpty.map(op => {
+    const def = SHEET_TABS[op.tab];
+    switch (op.op) {
+      case 'bulkUpsertById': {
+        for (const r of op.records) {
+          if (r[def.idColumn] === undefined || r[def.idColumn] === null || r[def.idColumn] === '') {
+            throw new Error(`pushBatch(${op.op}, ${op.tab}): record missing id column "${def.idColumn}"`);
+          }
+        }
+        return {
+          op: 'bulkUpsertById',
+          tab: def.tab,
+          idColumn: def.idColumn,
+          headers: def.columns,
+          rows: op.records.map(r => objectToRow(op.tab, r)),
+        };
+      }
+      case 'bulkAppend': {
+        for (const r of op.records) {
+          if (r[def.idColumn] === undefined || r[def.idColumn] === null || r[def.idColumn] === '') {
+            throw new Error(`pushBatch(${op.op}, ${op.tab}): record missing id column "${def.idColumn}"`);
+          }
+        }
+        return {
+          op: 'bulkAppend',
+          tab: def.tab,
+          headers: def.columns,
+          rows: op.records.map(r => objectToRow(op.tab, r)),
+        };
+      }
+      case 'bulkDeleteByIds':
+        return {
+          op: 'bulkDeleteByIds',
+          tab: def.tab,
+          idColumn: def.idColumn,
+          ids: op.ids,
+        };
+    }
+  });
+
+  const { results } = await sheets.batch(apiOps);
+
+  // Each successful result: record the localWrite so our same-lambda
+  // ensureFresh diff sees the upstream timestamp we already know about.
+  // First failure (if any): throw with context.
+  for (let i = 0; i < apiOps.length; i++) {
+    const result = results[i];
+    if (!result) {
+      throw new Error(`pushBatch: sub-op ${i} (${nonEmpty[i].op} on ${nonEmpty[i].tab}) was not executed`);
+    }
+    if (!result.ok) {
+      throw new Error(
+        `pushBatch: sub-op ${i} (${nonEmpty[i].op} on ${nonEmpty[i].tab}) failed: ${result.error}`,
+      );
+    }
+    if (result.tabTime) recordLocalWrite(nonEmpty[i].tab, result.tabTime);
+  }
 }

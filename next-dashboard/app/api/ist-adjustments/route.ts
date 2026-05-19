@@ -45,7 +45,7 @@ async function resolveMetricCode(label: string): Promise<string | null> {
  */
 export async function GET(request: Request) {
   try {
-    await ensureCacheFresh({ force: true });
+    await ensureCacheFresh();
     const user = getUserFromHeaders(request.headers);
     const url = new URL(request.url);
     const storeId = url.searchParams.get('storeId') || '';

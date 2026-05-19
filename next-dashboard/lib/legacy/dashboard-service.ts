@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/logger';
 import { resolveMonthLabel } from '@/lib/months';
 import { computeNetHoursDelta } from '@/lib/legacy/shared';
-import { newId, nowIso, pushBulkAppend, pushBulkDelete, pushBulkReplaceSlice, pushBulkUpsert, pushDelete, pushNew, pushUpdate } from '@/lib/sheets/write-through';
+import { newId, nowIso, pushBatch, pushBulkReplaceSlice, pushDelete, pushNew, pushUpdate, type BatchOp } from '@/lib/sheets/write-through';
 import type {
   DashboardPayload,
   DashboardScope,
@@ -1785,10 +1786,17 @@ async function loadLatestNote(scopeKey: string, role: 'VOD' | 'VKL', metricKey: 
 }
 
 export async function getDashboardDataFromSql(loginValue: string, selectedScope: string): Promise<DashboardPayload> {
+  const loadLog = logger.child({ component: 'load-dashboard' });
+  const tStart = Date.now();
+  const tPre = Date.now();
   const [structure, storeNames] = await Promise.all([getStructureData(), getStoreNames()]);
   const user = await authenticateUser(loginValue, 'dashboard');
   const scope = resolveScope(user, selectedScope, structure, storeNames);
+  loadLog.info({ ms: Date.now() - tPre, scopeType: scope.type, storeCount: scope.storeIds.length }, '[load] preflight');
+
+  const tMonthly = Date.now();
   const { aggregated, months, metricMeta, storeAggregatedByStoreId } = await loadMonthlyDataset(scope.storeIds);
+  loadLog.info({ ms: Date.now() - tMonthly, months: months.length }, '[load] loadMonthlyDataset');
 
   if (!months.length) {
     if (scope.type === 'STORE') {
@@ -1798,7 +1806,10 @@ export async function getDashboardDataFromSql(loginValue: string, selectedScope:
     throw new Error(`Pre scope ${scope.label} zatiaľ nie sú v SQL naimportované mesačné dáta.`);
   }
 
+  const tTable = Date.now();
   const table = await buildMetricBreakdowns(user, scope, months, buildTable(aggregated, months, metricMeta, storeAggregatedByStoreId));
+  loadLog.info({ ms: Date.now() - tTable }, '[load] buildTable+buildMetricBreakdowns');
+
   const noteScope = buildNoteScope(user, scope);
 
   const gfVklOptions = user.role === 'GF' && user.gfName
@@ -1810,7 +1821,11 @@ export async function getDashboardDataFromSql(loginValue: string, selectedScope:
       )).sort()
     : [];
 
-  return {
+  const tStores = Date.now();
+  const stores = await buildStoresSummary(scope, months);
+  loadLog.info({ ms: Date.now() - tStores, stores: stores.length }, '[load] buildStoresSummary');
+
+  const payload = {
     generatedAt: new Intl.DateTimeFormat('sk-SK', { dateStyle: 'short', timeStyle: 'short' }).format(new Date()),
     user: { ...user, gfVklOptions },
     scope: { ...scope, noteScopeKey: noteScope.key },
@@ -1819,8 +1834,10 @@ export async function getDashboardDataFromSql(loginValue: string, selectedScope:
     cards: buildCards(table),
     charts: buildCharts(table, months.map((month) => month.label)),
     table,
-    stores: await buildStoresSummary(scope, months),
+    stores,
   };
+  loadLog.info({ totalMs: Date.now() - tStart }, '[load] DONE');
+  return payload;
 }
 
 export async function getScopeNotesFromSql(loginValue: string, selectedScope: string, requestedVklNoteTarget?: string, requestedMetric?: string) {
@@ -1924,6 +1941,9 @@ export async function saveDashboardChangesToSql(
   weeklyUpdates: Array<{ metric: string; month: string; weekIndex: number; weekLabel?: string; rangeLabel?: string; value: number; distributionMode?: string }>,
   requestedVklNoteTarget?: string,
 ) {
+  const saveLog = logger.child({ component: 'save-dashboard' });
+  const tSaveStart = Date.now();
+  const tPrepStart = Date.now();
   const [structure, storeNames] = await Promise.all([getStructureData(), getStoreNames()]);
   const user = await authenticateUser(loginValue, 'dashboard');
   const scope = resolveScope(user, selectedScope, structure, storeNames);
@@ -1933,6 +1953,12 @@ export async function saveDashboardChangesToSql(
     savedNotes: 0,
     updatedAt: new Intl.DateTimeFormat('sk-SK', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date()),
   };
+  saveLog.info({
+    ms: Date.now() - tPrepStart,
+    adjustments: adjustmentUpdates.length,
+    notes: noteUpdates.length,
+    weekly: weeklyUpdates.length,
+  }, '[save] preflight (structure/user/scope)');
 
   if (adjustmentUpdates.length) {
     if (user.role !== 'VOD' || scope.type !== 'STORE' || scope.storeIds[0] !== user.primaryStoreId) {
@@ -1986,8 +2012,14 @@ export async function saveDashboardChangesToSql(
       //    vs inserts up front and assemble the final write payload.
       const codes = [...metricsByCode.keys()];
       const monthIds = [...new Set(prepared.map(p => p.monthId))];
+      const structureHoursMetricCode = metricCodeFromName(STRUCTURE_HOURS_METRIC);
+      const structureMonthIds = [...touchedStructureMonths];
 
-      const [existingMetrics, existingMvRows] = await Promise.all([
+      // 2. Bulk-load EVERYTHING we need to read from cache in parallel —
+      //    existing Metric defs, existing MonthlyValue rows we'll upsert,
+      //    AND existing structure-hours rows we'll need to drop. Three
+      //    queries in parallel, all hit local SQLite (sub-ms each).
+      const [existingMetrics, existingMvRows, structureHoursToDrop] = await Promise.all([
         prisma.metric.findMany({ where: { code: { in: codes } } }),
         prisma.monthlyValue.findMany({
           where: {
@@ -1997,42 +2029,39 @@ export async function saveDashboardChangesToSql(
             monthId: { in: monthIds },
           },
         }),
+        structureMonthIds.length > 0
+          ? prisma.monthlyValue.findMany({
+              where: { source: 'VOD', storeId, metricCode: structureHoursMetricCode, monthId: { in: structureMonthIds } },
+              select: { id: true },
+            })
+          : Promise.resolve([] as { id: string }[]),
       ]);
       const existingMetricByCode = new Map(existingMetrics.map(m => [m.code, m]));
       const existingMvByKey = new Map(
         existingMvRows.map(r => [`${r.metricCode}::${r.monthId}`, r]),
       );
 
-      // 3. Push Metric upserts — once per unique metric instead of per update.
-      //    Skip Sheets round-trip when displayName/unit already match cache.
+      // 3. Build Metric records that actually need a write — skip ones whose
+      //    displayName/unit/aggregation already match cache. For new metrics
+      //    bulkUpsertById appends; for changed ones it updates in place.
+      const metricRecordsToWrite: Record<string, unknown>[] = [];
+      const metricUpdatesForCache: Array<{ code: string; def: { displayName: string; unit: string }; existing: typeof existingMetrics[number] | undefined }> = [];
       for (const [code, def] of metricsByCode) {
         const existing = existingMetricByCode.get(code);
-        const metricRecord = {
+        const unchanged = existing
+          && existing.displayName === def.displayName
+          && (existing.unit || '') === (def.unit || '')
+          && (existing.aggregation || '') === 'sum';
+        if (unchanged) continue;
+        metricRecordsToWrite.push({
           code,
           displayName: def.displayName,
           unit: def.unit || null,
           aggregation: 'sum',
           createdAt: existing ? existing.createdAt.toISOString() : now,
           updatedAt: now,
-        };
-        if (existing) {
-          const unchanged =
-            existing.displayName === def.displayName
-            && (existing.unit || '') === (def.unit || '')
-            && (existing.aggregation || '') === 'sum';
-          if (!unchanged) {
-            await pushUpdate('Metric', metricRecord);
-            await prisma.metric.update({
-              where: { code },
-              data: { displayName: def.displayName, unit: def.unit || null, aggregation: 'sum', updatedAt: new Date(now) },
-            });
-          }
-        } else {
-          await pushNew('Metric', metricRecord);
-          await prisma.metric.create({
-            data: { ...metricRecord, createdAt: new Date(now), updatedAt: new Date(now) },
-          });
-        }
+        });
+        metricUpdatesForCache.push({ code, def, existing });
       }
 
       // 4. Build all MonthlyValue records (preserving ids for updates).
@@ -2053,34 +2082,8 @@ export async function saveDashboardChangesToSql(
         };
       });
 
-      // 5. Single bulk push for ALL MonthlyValue changes. `bulkUpsertById`
-      //    only touches the affected rows (in-place updates by id, plus
-      //    appends for new rows). Beats `pushBulkReplaceSlice` which would
-      //    re-read and re-write the entire 27k-row tab. ~5× faster save
-      //    and shorter LockService hold → better under concurrent load.
-      await pushBulkUpsert('MonthlyValue', mvRecords);
-
-      // 6. Mirror to cache: deleteMany + createMany (Prisma has no upsertMany).
-      await prisma.monthlyValue.deleteMany({
-        where: {
-          source: 'VOD',
-          storeId,
-          OR: prepared.map(p => ({ metricCode: p.metricCode, monthId: p.monthId })),
-        },
-      });
-      await prisma.monthlyValue.createMany({
-        data: mvRecords.map(r => ({
-          ...r,
-          importedAt: new Date(r.importedAt),
-          createdAt: new Date(r.createdAt),
-          updatedAt: new Date(r.updatedAt),
-        })),
-      });
-      result.savedAdjustments = mvRecords.length;
-
-      // 7. Activity log: collect entries for changed values only, push as
-      //    one bulkAppend (1 round-trip vs N individual pushNew calls).
-      const activityRecords: Array<{
+      // 5. Build activity log records for values that actually changed.
+      type ActivityRecord = {
         id: string;
         scopeKey: string;
         actorRole: string;
@@ -2090,7 +2093,8 @@ export async function saveDashboardChangesToSql(
         monthLabel: string;
         detail: string;
         createdAt: string;
-      }> = [];
+      };
+      const activityRecords: ActivityRecord[] = [];
       const activityScope = buildNoteScope(user, scope);
       for (const p of prepared) {
         const existing = existingMvByKey.get(`${p.metricCode}::${p.monthId}`);
@@ -2113,33 +2117,98 @@ export async function saveDashboardChangesToSql(
           createdAt: now,
         });
       }
-      if (activityRecords.length) {
+
+      // 6. ONE batch call replaces what used to be 3-8 separate Apps Script
+      //    calls (Metric × K + MonthlyValue + structure-hours delete +
+      //    ActivityEntry). Single HTTP round-trip + single LockService
+      //    acquisition. Critical under concurrent load.
+      const batchOps: BatchOp[] = [];
+      if (metricRecordsToWrite.length > 0) {
+        batchOps.push({ op: 'bulkUpsertById', tab: 'Metric', records: metricRecordsToWrite });
+      }
+      batchOps.push({ op: 'bulkUpsertById', tab: 'MonthlyValue', records: mvRecords });
+      if (structureHoursToDrop.length > 0) {
+        batchOps.push({ op: 'bulkDeleteByIds', tab: 'MonthlyValue', ids: structureHoursToDrop.map(r => r.id) });
+      }
+      if (activityRecords.length > 0) {
+        batchOps.push({ op: 'bulkAppend', tab: 'ActivityEntry', records: activityRecords });
+      }
+      const tAdjBatch = Date.now();
+      await pushBatch(batchOps);
+      saveLog.info({
+        ms: Date.now() - tAdjBatch,
+        ops: batchOps.length,
+        mv: mvRecords.length,
+        metrics: metricRecordsToWrite.length,
+        structureDelete: structureHoursToDrop.length,
+        activity: activityRecords.length,
+      }, '[save] adjustments pushBatch → Sheets');
+
+      // 7. Mirror everything to the local Prisma cache. Order matches the
+      //    Sheets batch so the cache ends up identical to what's in Sheets.
+      const tAdjMirror = Date.now();
+      for (const { code, def, existing } of metricUpdatesForCache) {
+        if (existing) {
+          await prisma.metric.update({
+            where: { code },
+            data: { displayName: def.displayName, unit: def.unit || null, aggregation: 'sum', updatedAt: new Date(now) },
+          });
+        } else {
+          await prisma.metric.create({
+            data: {
+              code,
+              displayName: def.displayName,
+              unit: def.unit || null,
+              aggregation: 'sum',
+              createdAt: new Date(now),
+              updatedAt: new Date(now),
+            },
+          });
+        }
+      }
+      await prisma.monthlyValue.deleteMany({
+        where: {
+          source: 'VOD',
+          storeId,
+          OR: prepared.map(p => ({ metricCode: p.metricCode, monthId: p.monthId })),
+        },
+      });
+      await prisma.monthlyValue.createMany({
+        data: mvRecords.map(r => ({
+          ...r,
+          importedAt: new Date(r.importedAt),
+          createdAt: new Date(r.createdAt),
+          updatedAt: new Date(r.updatedAt),
+        })),
+      });
+      if (structureHoursToDrop.length > 0) {
+        await prisma.monthlyValue.deleteMany({
+          where: { source: 'VOD', storeId, metricCode: structureHoursMetricCode, monthId: { in: structureMonthIds } },
+        });
+      }
+      if (activityRecords.length > 0) {
         try {
-          await pushBulkAppend('ActivityEntry', activityRecords);
           await prisma.activityEntry.createMany({
             data: activityRecords.map(r => ({ ...r, createdAt: new Date(r.createdAt) })),
           });
         } catch { /* best effort — activity log shouldn't break the save */ }
       }
-    }
-
-    if (touchedStructureMonths.size) {
+      result.savedAdjustments = mvRecords.length;
+      saveLog.info({ ms: Date.now() - tAdjMirror }, '[save] adjustments Prisma mirror');
+    } else if (touchedStructureMonths.size > 0) {
+      // Edge case: user edited only GROSS_HOURS-style metrics (which are
+      // computed, not stored), so prepared is empty — but we still need
+      // to drop stale structure-hours rows for the touched months.
       const structureHoursMetricCode = metricCodeFromName(STRUCTURE_HOURS_METRIC);
-      const storeId = scope.storeIds[0];
-      const monthIdsArr = [...touchedStructureMonths];
-      // Resolve the ids of structure-hours rows we need to drop FROM CACHE
-      // (the local mirror is up-to-date for our store after the upsert above).
-      // Sending a small list of ids to `bulkDeleteByIds` is way faster than
-      // `pushBulkReplaceSlice` which would clear+rewrite the entire 27k-row
-      // MonthlyValue tab — and avoids the live-Sheets flicker users see.
+      const structureMonthIds = [...touchedStructureMonths];
       const idsToDrop = await prisma.monthlyValue.findMany({
-        where: { source: 'VOD', storeId, metricCode: structureHoursMetricCode, monthId: { in: monthIdsArr } },
+        where: { source: 'VOD', storeId, metricCode: structureHoursMetricCode, monthId: { in: structureMonthIds } },
         select: { id: true },
       });
       if (idsToDrop.length > 0) {
-        await pushBulkDelete('MonthlyValue', idsToDrop.map(r => r.id));
+        await pushBatch([{ op: 'bulkDeleteByIds', tab: 'MonthlyValue', ids: idsToDrop.map(r => r.id) }]);
         await prisma.monthlyValue.deleteMany({
-          where: { source: 'VOD', storeId, metricCode: structureHoursMetricCode, monthId: { in: monthIdsArr } },
+          where: { source: 'VOD', storeId, metricCode: structureHoursMetricCode, monthId: { in: structureMonthIds } },
         });
       }
     }
@@ -2183,13 +2252,45 @@ export async function saveDashboardChangesToSql(
       createdAt: now,
       updatedAt: now,
     }));
-    const touchedPairs = touchedWeeklyPairs;
-    await pushBulkReplaceSlice(
-      'WeeklyVodOverride',
-      (r) => r.storeId === storeId
-        && touchedPairs.has(`${String(r.metric)}|${String(r.monthLabel)}`),
-      newOverrideRecords,
-    );
+    // Resolve which existing weekly rows actually need deletion using the
+    // local cache (fast, no Sheets round-trip). If there's nothing to delete
+    // AND nothing to insert, skip the Sheets call entirely.
+    //
+    // Without this short-circuit, editing a monthly value auto-adds the
+    // (metric, month) pair to touchedWeeklyPairs to clear any stale weekly
+    // override — even when no override actually exists. Previously that
+    // triggered a 3-round-trip pushBulkReplaceSlice on every monthly save:
+    // ~13s of pure overhead.
+    const tWeekly = Date.now();
+    const touchedConds = [...touchedWeeklyPairs].map(key => {
+      const [metric, monthLabel] = key.split('|');
+      return { metric, monthLabel };
+    });
+    const existingIdsToDrop = await prisma.weeklyVodOverride.findMany({
+      where: { storeId, OR: touchedConds },
+      select: { id: true },
+    });
+    const weeklyBatchOps: BatchOp[] = [];
+    if (existingIdsToDrop.length > 0) {
+      weeklyBatchOps.push({ op: 'bulkDeleteByIds', tab: 'WeeklyVodOverride', ids: existingIdsToDrop.map(r => r.id) });
+    }
+    if (newOverrideRecords.length > 0) {
+      weeklyBatchOps.push({ op: 'bulkAppend', tab: 'WeeklyVodOverride', records: newOverrideRecords });
+    }
+    if (weeklyBatchOps.length > 0) {
+      // ONE batch call: collapse delete + append into a single Apps Script
+      // round-trip with one LockService acquisition. Cheaper than
+      // pushBulkReplaceSlice (which rewrote the whole tab) and doesn't
+      // require an optimistic-locking re-read.
+      await pushBatch(weeklyBatchOps);
+    }
+    saveLog.info({
+      ms: Date.now() - tWeekly,
+      newRecords: newOverrideRecords.length,
+      droppedIds: existingIdsToDrop.length,
+      touchedPairs: touchedWeeklyPairs.size,
+      sheetsCall: weeklyBatchOps.length > 0,
+    }, '[save] weekly batch → Sheets');
     // Mirror to cache
     for (const key of touchedWeeklyPairs) {
       const [metric, monthLabel] = key.split('|');
@@ -2224,21 +2325,62 @@ export async function saveDashboardChangesToSql(
       return baseNoteScope;
     }
 
+    // Pre-process notes: resolve scope + key + text, look up existing rows
+    // in cache, partition into upserts vs deletes. One Prisma findMany loads
+    // all the existing rows we'd otherwise look up one by one inside the loop.
+    const now = nowIso();
+    type PreparedNote = {
+      scopeKey: string;
+      scopeType: string;
+      scopeId: string;
+      scopeLabel: string;
+      metricKey: string;
+      noteText: string;
+    };
+    const noteKeys: Array<{ scopeKey: string; metricKey: string }> = [];
+    const preparedNotes: PreparedNote[] = [];
     for (const update of noteUpdates) {
       const noteScope = resolveScopeForUpdate(update.noteScopeMode);
       const metricKey = update.metric === GLOBAL_SCOPE_NOTE_METRIC ? GLOBAL_SCOPE_NOTE_METRIC : canonicalizeMetric(update.metric);
       const noteText = String(update.text == null ? '' : update.text).trim();
-      const now = nowIso();
-
-      const existing = await prisma.dashboardNote.findUnique({
-        where: { scopeKey_role_metricKey: { scopeKey: noteScope.key, role: user.role, metricKey } },
+      preparedNotes.push({
+        scopeKey: noteScope.key,
+        scopeType: noteScope.type,
+        scopeId: noteScope.scopeId,
+        scopeLabel: noteScope.label,
+        metricKey,
+        noteText,
       });
+      noteKeys.push({ scopeKey: noteScope.key, metricKey });
+    }
 
-      // If text is empty, delete the existing note
-      if (!noteText) {
+    // Bulk-load existing notes for ALL touched (scopeKey, role, metricKey)
+    // tuples. The DashboardNote schema has @@unique on [scopeKey, role, metricKey].
+    const existingNotes = await prisma.dashboardNote.findMany({
+      where: {
+        role: user.role,
+        OR: noteKeys.map(k => ({ scopeKey: k.scopeKey, metricKey: k.metricKey })),
+      },
+    });
+    const existingByKey = new Map(
+      existingNotes.map(n => [`${n.scopeKey}::${n.metricKey}`, n]),
+    );
+
+    // Build batch ops + queue local Prisma mirror work.
+    const notesToUpsert: Record<string, unknown>[] = [];
+    const noteIdsToDelete: string[] = [];
+    const mirrorOps: Array<() => Promise<void>> = [];
+
+    for (const note of preparedNotes) {
+      const existing = existingByKey.get(`${note.scopeKey}::${note.metricKey}`);
+
+      if (!note.noteText) {
+        // Empty text → delete
         if (existing) {
-          await pushDelete('DashboardNote', existing.id);
-          await prisma.dashboardNote.delete({ where: { id: existing.id } });
+          noteIdsToDelete.push(existing.id);
+          mirrorOps.push(async () => {
+            await prisma.dashboardNote.delete({ where: { id: existing.id } });
+          });
           result.savedNotes += 1;
         }
         continue;
@@ -2246,40 +2388,65 @@ export async function saveDashboardChangesToSql(
 
       const noteRecord = {
         id: existing?.id ?? newId(),
-        scopeKey: noteScope.key,
-        scopeType: noteScope.type,
-        scopeId: noteScope.scopeId,
-        scopeLabel: noteScope.label,
-        metricKey,
+        scopeKey: note.scopeKey,
+        scopeType: note.scopeType,
+        scopeId: note.scopeId,
+        scopeLabel: note.scopeLabel,
+        metricKey: note.metricKey,
         role: user.role,
         author: user.displayName,
-        text: noteText,
-        storeId: noteScope.type === 'STORE' ? noteScope.scopeId : null,
+        text: note.noteText,
+        storeId: note.scopeType === 'STORE' ? note.scopeId : null,
         createdAt: existing ? existing.createdAt.toISOString() : now,
         updatedAt: now,
       };
+      notesToUpsert.push(noteRecord);
 
       if (existing) {
-        await pushUpdate('DashboardNote', noteRecord);
-        await prisma.dashboardNote.update({
-          where: { id: existing.id },
-          data: {
-            scopeType: noteScope.type,
-            scopeId: noteScope.scopeId,
-            scopeLabel: noteScope.label,
-            author: user.displayName,
-            text: noteText,
-            storeId: noteScope.type === 'STORE' ? noteScope.scopeId : null,
-            updatedAt: new Date(now),
-          },
+        mirrorOps.push(async () => {
+          await prisma.dashboardNote.update({
+            where: { id: existing.id },
+            data: {
+              scopeType: note.scopeType,
+              scopeId: note.scopeId,
+              scopeLabel: note.scopeLabel,
+              author: user.displayName,
+              text: note.noteText,
+              storeId: note.scopeType === 'STORE' ? note.scopeId : null,
+              updatedAt: new Date(now),
+            },
+          });
         });
       } else {
-        await pushNew('DashboardNote', noteRecord);
-        await prisma.dashboardNote.create({
-          data: { ...noteRecord, createdAt: new Date(now), updatedAt: new Date(now) },
+        mirrorOps.push(async () => {
+          await prisma.dashboardNote.create({
+            data: { ...noteRecord, createdAt: new Date(now), updatedAt: new Date(now) },
+          });
         });
       }
       result.savedNotes += 1;
+    }
+
+    // ONE batch call replaces N×(pushUpdate|pushNew|pushDelete) round-trips.
+    const noteBatchOps: BatchOp[] = [];
+    if (notesToUpsert.length > 0) {
+      noteBatchOps.push({ op: 'bulkUpsertById', tab: 'DashboardNote', records: notesToUpsert });
+    }
+    if (noteIdsToDelete.length > 0) {
+      noteBatchOps.push({ op: 'bulkDeleteByIds', tab: 'DashboardNote', ids: noteIdsToDelete });
+    }
+    if (noteBatchOps.length > 0) {
+      const tNotes = Date.now();
+      await pushBatch(noteBatchOps);
+      saveLog.info({
+        ms: Date.now() - tNotes,
+        ops: noteBatchOps.length,
+        upsert: notesToUpsert.length,
+        delete: noteIdsToDelete.length,
+      }, '[save] notes pushBatch → Sheets');
+      const tNotesMirror = Date.now();
+      for (const fn of mirrorOps) await fn();
+      saveLog.info({ ms: Date.now() - tNotesMirror }, '[save] notes Prisma mirror');
     }
   }
 
@@ -2308,5 +2475,11 @@ export async function saveDashboardChangesToSql(
     } catch { /* best effort */ }
   }
 
+  saveLog.info({
+    totalMs: Date.now() - tSaveStart,
+    savedAdjustments: result.savedAdjustments,
+    savedWeekly: result.savedWeeklyAdjustments,
+    savedNotes: result.savedNotes,
+  }, '[save] DONE');
   return result;
 }

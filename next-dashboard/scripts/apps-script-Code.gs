@@ -41,7 +41,7 @@ function doPost(e) {
     // interleave (Sheets has no transactions). Reads stay lock-free.
     // bumpMeta is technically a write but takes the lock itself; only listed
     // here so callers can't accidentally bypass the serialization.
-    var WRITE_OPS = { ensureTabs: 1, append: 1, bulkAppend: 1, bulkUpsertById: 1, updateById: 1, deleteById: 1, bulkDeleteByIds: 1, bulkReplace: 1, setTextFormat: 1 };
+    var WRITE_OPS = { ensureTabs: 1, append: 1, bulkAppend: 1, bulkUpsertById: 1, updateById: 1, deleteById: 1, bulkDeleteByIds: 1, bulkReplace: 1, setTextFormat: 1, batch: 1 };
     if (WRITE_OPS[op]) {
       var lock = LockService.getScriptLock();
       if (!lock.tryLock(30000)) {
@@ -75,6 +75,7 @@ function dispatchOp(op, payload) {
     case 'deleteById':     return jsonOut({ ok: true, tabTime: handleDeleteById(payload) });
     case 'bulkDeleteByIds':return jsonOut(Object.assign({ ok: true }, handleBulkDeleteByIds(payload)));
     case 'bulkReplace':    return jsonOut(Object.assign({ ok: true }, handleBulkReplace(payload)));
+    case 'batch':          return jsonOut(Object.assign({ ok: true }, handleBatch(payload)));
     case 'setTextFormat':  return jsonOut(Object.assign({ ok: true }, handleSetTextFormat(payload)));
     default:               return jsonOut({ ok: false, error: 'Unknown op: ' + op });
   }
@@ -533,6 +534,53 @@ function handleBulkReplace(payload) {
   var tabTime = bumpTabModifiedTime(payload.tab);
   // Return the new modifiedTime so caller can chain further conditional writes.
   return { modifiedTime: handleModifiedTime(), tabTime: tabTime };
+}
+
+// Run N sub-ops under a single LockService acquisition + HTTP round-trip.
+//
+// Caller sends `{ ops: [{op:'bulkUpsertById', tab, ...}, {op:'bulkAppend', ...}, ...] }`.
+// Each op runs sequentially, returns its own result (with tabTime). If any
+// op throws, the batch aborts and the error result is returned (along with
+// results for ops that already ran).
+//
+// HUGE perf win: a save flow that previously did 4-8 separate HTTP calls
+// + 4-8 LockService acquires now does 1 of each. Per-call ~400ms overhead
+// → ~400ms total. Critical under concurrent load: 20 users × 1 batch each
+// queue on the lock for ~2s each = 40s for the last vs 20×8×2=320s with
+// per-op calls.
+function handleBatch(payload) {
+  var ops = payload.ops || [];
+  var results = [];
+  for (var i = 0; i < ops.length; i++) {
+    var op = ops[i];
+    try {
+      var result;
+      switch (op.op) {
+        case 'bulkUpsertById':  result = handleBulkUpsertById(op); break;
+        case 'bulkAppend':      result = handleBulkAppend(op); break;
+        case 'bulkDeleteByIds': result = handleBulkDeleteByIds(op); break;
+        case 'append':          result = { tabTime: handleAppend(op) }; break;
+        case 'updateById':      result = { tabTime: handleUpdateById(op) }; break;
+        case 'deleteById':      result = { tabTime: handleDeleteById(op) }; break;
+        case 'bulkReplace':     result = handleBulkReplace(op); break;
+        default: throw new Error('Unsupported batch sub-op: ' + op.op);
+      }
+      results.push(Object.assign({ ok: true }, result));
+    } catch (err) {
+      results.push({
+        ok: false,
+        error: String((err && err.message) || err),
+        index: i,
+        op: op.op,
+        tab: op.tab,
+      });
+      // Abort on first failure — Sheets state is now partially written; the
+      // caller must surface this to the user and trigger a cache rebuild
+      // to reconcile.
+      break;
+    }
+  }
+  return { results: results };
 }
 
 function handleSetTextFormat(payload) {
