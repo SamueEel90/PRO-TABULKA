@@ -18,7 +18,7 @@ import bcrypt from 'bcryptjs';
 import NextAuth, { type DefaultSession } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 
-import { db } from '@/lib/db/client';
+import { db, ensureCacheFresh } from '@/lib/db/client';
 import { logger } from '@/lib/logger';
 import { nowIso, pushUpdate } from '@/lib/sheets/write-through';
 
@@ -113,6 +113,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
+        // Cold lambdas have no SQLite cache yet — rebuild from Sheets before
+        // any DB read. Without this the findUnique below throws and NextAuth
+        // surfaces it as a `Configuration` error on the login page.
+        try {
+          await ensureCacheFresh();
+        } catch (err) {
+          logger.error({ err, email }, 'login failed: cache rebuild error');
+          return null;
+        }
+
         const user = await db.user.findUnique({ where: { email } });
         if (!user) {
           recordFailedAttempt(email);
@@ -158,6 +168,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
      */
     async jwt({ token, user }) {
       if (user?.email) {
+        try {
+          await ensureCacheFresh();
+        } catch (err) {
+          logger.warn({ err, email: user.email }, 'jwt callback: cache refresh failed');
+        }
         const dbUser = await db.user.findUnique({ where: { email: user.email } });
         if (dbUser) {
           token.userId = dbUser.id;
