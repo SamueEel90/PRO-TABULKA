@@ -40,7 +40,8 @@ class SheetsApiError extends Error {
  *   - `ensureTabs` is idempotent but called once at boot, retry not critical.
  */
 const RETRYABLE_OPS: ReadonlySet<string> = new Set([
-  'ping', 'modifiedTime', 'modifiedTimes', 'listTabs', 'read', 'readAll', 'bulkReplace',
+  'ping', 'modifiedTime', 'modifiedTimes', 'listTabs', 'read', 'readAll',
+  'bulkReplace', 'bulkUpsertById', 'bulkDeleteByIds',
 ]);
 
 /** Status codes worth retrying — quota throttle and server-side hiccups. */
@@ -48,6 +49,32 @@ const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([408, 429, 500, 502, 503
 
 const MAX_RETRIES = 3;
 const BASE_BACKOFF_MS = 500;
+
+/**
+ * Set of ops that mutate Sheets state. After a successful write the local
+ * `__metaTimes` cache below is invalidated so the next `modifiedTimes()`
+ * call returns fresh data — otherwise the next `ensureFresh` would see a
+ * cached pre-write snapshot and skip rebuilding the tabs we just changed.
+ */
+const WRITE_OPS_SET: ReadonlySet<string> = new Set([
+  'ensureTabs', 'append', 'bulkAppend', 'bulkUpsertById',
+  'updateById', 'deleteById', 'bulkDeleteByIds', 'bulkReplace', 'setTextFormat',
+]);
+
+/**
+ * Per-lambda mini-cache for `modifiedTimes()`. A dashboard render fires
+ * many force-validating API calls in the same second; without this, each
+ * one pays ~500ms for the same upstream read. 3s window collapses them
+ * into one call while keeping cross-lambda staleness bounded.
+ *
+ * Stored on globalThis so Next.js HMR doesn't reset it across hot reloads.
+ */
+type ModTimesCacheHolder = { at: number; data: Record<string, string> } | null;
+const globalForModTimes = globalThis as unknown as { __modTimesCache?: ModTimesCacheHolder };
+if (globalForModTimes.__modTimesCache === undefined) {
+  globalForModTimes.__modTimesCache = null;
+}
+const MOD_TIMES_CACHE_TTL_MS = 3_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -62,14 +89,25 @@ function isRetryableError(err: unknown): boolean {
   return false;
 }
 
+/**
+ * Apps Script returns this exact string when LockService.tryLock(30000) fails.
+ * The op NEVER ran server-side in this case, so retry is unconditionally safe
+ * — even for non-idempotent ops like `append` (no duplicate risk).
+ */
+function isLockBusyError(err: unknown): boolean {
+  if (!(err instanceof SheetsApiError)) return false;
+  const msg = err.message.toLowerCase();
+  return msg.includes('lock timeout') || msg.includes('sheets is busy');
+}
+
 async function call<T>(op: string, payload: Record<string, unknown> = {}): Promise<T> {
   const url = secrets.required('SHEETS_APPS_SCRIPT_URL');
   const secret = secrets.required('SHEETS_APPS_SCRIPT_SECRET');
 
-  const canRetry = RETRYABLE_OPS.has(op);
+  const opIsRetryable = RETRYABLE_OPS.has(op);
   let lastErr: unknown;
 
-  for (let attempt = 0; attempt <= (canRetry ? MAX_RETRIES : 0); attempt++) {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       const res = await fetch(url, {
         method: 'POST',
@@ -87,12 +125,24 @@ async function call<T>(op: string, payload: Record<string, unknown> = {}): Promi
       if (!data.ok) {
         throw new SheetsApiError(data.error, op);
       }
+      // Successful write → invalidate the modifiedTimes mini-cache so the
+      // next ensureFresh sees the upstream bump we just caused.
+      if (WRITE_OPS_SET.has(op)) {
+        globalForModTimes.__modTimesCache = null;
+      }
       // Strip the `ok: true` field for ergonomics
       const { ok: _ok, ...rest } = data;
       return rest as T;
     } catch (err) {
       lastErr = err;
-      if (!canRetry || attempt === MAX_RETRIES || !isRetryableError(err)) {
+
+      // Lock-busy is always retryable: the op didn't actually run server-side
+      // (LockService rejected before dispatch), so there's no duplicate-write
+      // risk even for non-idempotent ops like `append`.
+      const lockBusy = isLockBusyError(err);
+      const canRetryThis = lockBusy || (opIsRetryable && isRetryableError(err));
+
+      if (!canRetryThis || attempt === MAX_RETRIES) {
         throw err;
       }
       // Exponential back-off with jitter: 500ms, 1s, 2s (+ up to 50% random)
@@ -100,7 +150,13 @@ async function call<T>(op: string, payload: Record<string, unknown> = {}): Promi
       const jitter = Math.random() * backoff * 0.5;
       const delayMs = Math.round(backoff + jitter);
       logger.warn(
-        { op, attempt: attempt + 1, delayMs, err: err instanceof Error ? err.message : String(err) },
+        {
+          op,
+          attempt: attempt + 1,
+          delayMs,
+          reason: lockBusy ? 'lock-busy' : 'transient',
+          err: err instanceof Error ? err.message : String(err),
+        },
         'Sheets API call failed — retrying',
       );
       await sleep(delayMs);
@@ -128,9 +184,19 @@ export const sheets = {
    *
    * Returns a map of `{ [tabName]: isoString }`. Tabs missing from the map
    * should be treated as never-tracked (rebuild defensively).
+   *
+   * Result is mini-cached for MOD_TIMES_CACHE_TTL_MS so that a burst of
+   * `ensureFresh` calls within the same dashboard render collapses to one
+   * upstream read. Cache is auto-invalidated by any write op in this client.
    */
-  modifiedTimes(): Promise<{ modifiedTimes: Record<string, string> }> {
-    return call('modifiedTimes');
+  async modifiedTimes(): Promise<{ modifiedTimes: Record<string, string> }> {
+    const cached = globalForModTimes.__modTimesCache;
+    if (cached && Date.now() - cached.at < MOD_TIMES_CACHE_TTL_MS) {
+      return { modifiedTimes: cached.data };
+    }
+    const result = await call<{ modifiedTimes: Record<string, string> }>('modifiedTimes');
+    globalForModTimes.__modTimesCache = { at: Date.now(), data: result.modifiedTimes };
+    return result;
   },
 
   /** List of existing tab names in the spreadsheet */
@@ -158,11 +224,14 @@ export const sheets = {
     return call('readAll', { tabs: tabs.map(t => SHEET_TABS[t].tab) });
   },
 
-  /** Append one row. Row values must be in column order. */
-  append(tab: SheetTabName, row: SheetRow): Promise<void> {
+  /**
+   * Append one row. Row values must be in column order.
+   * Returns the timestamp Apps Script wrote to `__meta` for this tab so
+   * the caller can update its local tabModifiedTimes tracker.
+   */
+  append(tab: SheetTabName, row: SheetRow): Promise<{ tabTime: string | null }> {
     const def = SHEET_TABS[tab];
-    return call('append', { tab: def.tab, headers: def.columns, row })
-      .then(() => undefined);
+    return call<{ tabTime: string | null }>('append', { tab: def.tab, headers: def.columns, row });
   },
 
   /**
@@ -170,9 +239,9 @@ export const sheets = {
    * column order. Use when inserting many rows at once (e.g. activity log
    * entries from a batch save) — N×500ms HTTP calls collapse into one.
    */
-  bulkAppend(tab: SheetTabName, rows: SheetRow[]): Promise<{ inserted: number }> {
+  bulkAppend(tab: SheetTabName, rows: SheetRow[]): Promise<{ inserted: number; tabTime: string | null }> {
     const def = SHEET_TABS[tab];
-    return call<{ inserted: number }>('bulkAppend', {
+    return call<{ inserted: number; tabTime: string | null }>('bulkAppend', {
       tab: def.tab,
       headers: def.columns,
       rows,
@@ -180,17 +249,58 @@ export const sheets = {
   },
 
   /** Update row by id. Row must contain all columns in order. */
-  updateById(tab: SheetTabName, id: string, row: SheetRow): Promise<void> {
+  updateById(tab: SheetTabName, id: string, row: SheetRow): Promise<{ tabTime: string | null }> {
     const def = SHEET_TABS[tab];
-    return call('updateById', { tab: def.tab, idColumn: def.idColumn, id, row })
-      .then(() => undefined);
+    return call<{ tabTime: string | null }>('updateById', { tab: def.tab, idColumn: def.idColumn, id, row });
+  },
+
+  /**
+   * Upsert N rows by id in a single round-trip. Rows whose id already exists
+   * get updated in place; new ids are appended. Idempotent — safe to retry.
+   *
+   * Drop-in replacement for `pushBulkReplaceSlice` when the write target is
+   * a fixed set of (storeId, metricCode, monthId)-keyed rows: avoids the
+   * full-tab read+rewrite that bulkReplaceSlice does and only touches the
+   * affected rows. ~5× faster on the MonthlyValue tab.
+   */
+  bulkUpsertById(
+    tab: SheetTabName,
+    rows: SheetRow[],
+  ): Promise<{ updated: number; inserted: number; tabTime: string | null }> {
+    const def = SHEET_TABS[tab];
+    return call<{ updated: number; inserted: number; tabTime: string | null }>('bulkUpsertById', {
+      tab: def.tab,
+      idColumn: def.idColumn,
+      headers: def.columns,
+      rows,
+    });
   },
 
   /** Delete row by id. */
-  deleteById(tab: SheetTabName, id: string): Promise<void> {
+  deleteById(tab: SheetTabName, id: string): Promise<{ tabTime: string | null }> {
     const def = SHEET_TABS[tab];
-    return call('deleteById', { tab: def.tab, idColumn: def.idColumn, id })
-      .then(() => undefined);
+    return call<{ tabTime: string | null }>('deleteById', { tab: def.tab, idColumn: def.idColumn, id });
+  },
+
+  /**
+   * Delete N rows by id in a single round-trip.
+   *
+   * Use this for delete-slice patterns (drop rows matching some predicate)
+   * when the caller can resolve the matching ids upfront from the local
+   * cache — dramatically cheaper than `pushBulkReplaceSlice` for small N
+   * because it doesn't rewrite the whole tab. Idempotent: missing ids are
+   * silently skipped, so safe to retry.
+   */
+  bulkDeleteByIds(
+    tab: SheetTabName,
+    ids: string[],
+  ): Promise<{ deleted: number; tabTime: string | null }> {
+    const def = SHEET_TABS[tab];
+    return call<{ deleted: number; tabTime: string | null }>('bulkDeleteByIds', {
+      tab: def.tab,
+      idColumn: def.idColumn,
+      ids,
+    });
   },
 
   /**
@@ -205,9 +315,9 @@ export const sheets = {
     tab: SheetTabName,
     rows: SheetRow[],
     opts?: { expectedModifiedTime?: string },
-  ): Promise<{ modifiedTime: string }> {
+  ): Promise<{ modifiedTime: string; tabTime: string | null }> {
     const def = SHEET_TABS[tab];
-    return call<{ modifiedTime: string }>('bulkReplace', {
+    return call<{ modifiedTime: string; tabTime: string | null }>('bulkReplace', {
       tab: def.tab,
       headers: def.columns,
       rows,

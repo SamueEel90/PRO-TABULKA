@@ -17,6 +17,7 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { recordLocalWrite } from '@/lib/db/bootstrap';
 import { sheets } from './client';
 import { objectToRow, rowsToObjects } from './rows';
 import { SHEET_TABS, type SheetTabName } from './schema';
@@ -44,7 +45,8 @@ export async function pushNew(
   if (record[def.idColumn] === undefined || record[def.idColumn] === null || record[def.idColumn] === '') {
     throw new Error(`pushNew(${tab}): record is missing required id column "${def.idColumn}"`);
   }
-  await sheets.append(tab, objectToRow(tab, record));
+  const { tabTime } = await sheets.append(tab, objectToRow(tab, record));
+  recordLocalWrite(tab, tabTime);
 }
 
 /** Update an existing row by id. Pass the full updated record. */
@@ -57,7 +59,8 @@ export async function pushUpdate(
   if (id === undefined || id === null || id === '') {
     throw new Error(`pushUpdate(${tab}): record is missing id column "${def.idColumn}"`);
   }
-  await sheets.updateById(tab, String(id), objectToRow(tab, record));
+  const { tabTime } = await sheets.updateById(tab, String(id), objectToRow(tab, record));
+  recordLocalWrite(tab, tabTime);
 }
 
 /** Delete a row by id. */
@@ -65,7 +68,28 @@ export async function pushDelete(
   tab: SheetTabName,
   id: string,
 ): Promise<void> {
-  await sheets.deleteById(tab, id);
+  const { tabTime } = await sheets.deleteById(tab, id);
+  recordLocalWrite(tab, tabTime);
+}
+
+/**
+ * Delete N rows by id in a single Apps Script call.
+ *
+ * Use this for delete-slice patterns when the caller can resolve the
+ * matching ids upfront (e.g. by querying the local Prisma cache). Way
+ * cheaper than `pushBulkReplaceSlice` for small N because it doesn't
+ * rewrite the whole tab — no full-tab clearContents flicker either.
+ *
+ * Idempotent: ids not present in the sheet are silently skipped.
+ */
+export async function pushBulkDelete(
+  tab: SheetTabName,
+  ids: string[],
+): Promise<{ deleted: number }> {
+  if (ids.length === 0) return { deleted: 0 };
+  const { tabTime, ...rest } = await sheets.bulkDeleteByIds(tab, ids);
+  recordLocalWrite(tab, tabTime);
+  return rest;
 }
 
 /**
@@ -78,7 +102,8 @@ export async function pushBulkReplace(
   records: Record<string, unknown>[],
 ): Promise<void> {
   const rows = records.map(r => objectToRow(tab, r));
-  await sheets.bulkReplace(tab, rows);
+  const { tabTime } = await sheets.bulkReplace(tab, rows);
+  recordLocalWrite(tab, tabTime);
 }
 
 /**
@@ -102,7 +127,36 @@ export async function pushBulkAppend(
     }
   }
   const rows = records.map(r => objectToRow(tab, r));
-  await sheets.bulkAppend(tab, rows);
+  const { tabTime } = await sheets.bulkAppend(tab, rows);
+  recordLocalWrite(tab, tabTime);
+}
+
+/**
+ * Upsert many rows by id in a single Apps Script call.
+ *
+ * Backed by the `bulkUpsertById` op: existing ids are updated in place,
+ * new ids are appended. Idempotent — safe to retry on network/lock errors.
+ *
+ * Use this instead of `pushBulkReplaceSlice` when the write target is a
+ * fixed set of id-keyed rows. bulkReplaceSlice reads + rewrites the entire
+ * tab (slow for big tabs like MonthlyValue with 27k rows); bulkUpsertById
+ * only touches the affected rows.
+ */
+export async function pushBulkUpsert(
+  tab: SheetTabName,
+  records: Record<string, unknown>[],
+): Promise<{ updated: number; inserted: number }> {
+  if (records.length === 0) return { updated: 0, inserted: 0 };
+  const def = SHEET_TABS[tab];
+  for (const r of records) {
+    if (r[def.idColumn] === undefined || r[def.idColumn] === null || r[def.idColumn] === '') {
+      throw new Error(`pushBulkUpsert(${tab}): record is missing required id column "${def.idColumn}"`);
+    }
+  }
+  const rows = records.map(r => objectToRow(tab, r));
+  const { tabTime, ...rest } = await sheets.bulkUpsertById(tab, rows);
+  recordLocalWrite(tab, tabTime);
+  return rest;
 }
 
 /**
@@ -136,7 +190,8 @@ export async function pushBulkReplaceSlice(
       const kept = existing.filter(r => !predicate(r as Record<string, unknown>));
       const combined = [...kept, ...newRecords];
       const rows = combined.map(r => objectToRow(tab, r));
-      await sheets.bulkReplace(tab, rows, { expectedModifiedTime: modifiedTime });
+      const { tabTime } = await sheets.bulkReplace(tab, rows, { expectedModifiedTime: modifiedTime });
+      recordLocalWrite(tab, tabTime);
       return;
     } catch (err) {
       lastErr = err;

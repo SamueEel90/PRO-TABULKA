@@ -209,6 +209,45 @@ async function withRebuildLock<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Per-lambda tracker of writes WE just performed. Maps tab → ISO timestamp
+ * that Apps Script wrote to `__meta` in response to our own write.
+ *
+ * The save flow already mirrors the new data into local SQLite via
+ * write-through, so the cache is correct right after the save. But
+ * `meta.tabModifiedTimes` (in dev.cache.meta.json) still has the OLD
+ * timestamp — only a cache rebuild updates it. Without this tracker,
+ * the post-save dashboard refresh would trigger a full re-pull of the
+ * affected tabs from Sheets (~10-15s), just to overwrite cache that's
+ * already correct.
+ *
+ * By merging these tracked timestamps into `localTabTimes` before the
+ * dirty-diff in `ensureFresh`, our own lambda recognizes "I just wrote
+ * this tab; my cache matches upstream" and skips the rebuild entirely.
+ *
+ * Cross-lambda: lambda B doesn't have OUR localWrites entry → still
+ * sees dirty and rebuilds correctly. That's intentional.
+ *
+ * Stored on globalThis so Next.js HMR doesn't reset it across hot reloads.
+ */
+type LocalWritesTracker = Record<string, string>;
+const globalForLocalWrites = globalThis as unknown as { __localWrites?: LocalWritesTracker };
+if (!globalForLocalWrites.__localWrites) {
+  globalForLocalWrites.__localWrites = {};
+}
+
+/**
+ * Record a tab write that this lambda just performed. The `tabTime` should
+ * be the value Apps Script returned from `bumpTabModifiedTime` — i.e. the
+ * exact timestamp written to `__meta`. That way the next ensureFresh diff
+ * matches and skips the unneeded rebuild.
+ */
+export function recordLocalWrite(tab: SheetTabName, tabTime: string | null | undefined): void {
+  if (!tabTime) return;
+  globalForLocalWrites.__localWrites![tab] = tabTime;
+}
+
+
 function getCacheDbPath(): string {
   if (process.env.VERCEL) return '/tmp/cache.db';
   // Dev/CI — colocated with Prisma
@@ -648,13 +687,32 @@ export async function ensureFresh(
   const localTabTimes = meta.tabModifiedTimes ?? {};
   const { modifiedTimes: upstreamTabTimes } = await sheets.modifiedTimes();
 
+  // Layer recent same-lambda writes on top of the file meta. If we just
+  // wrote to a tab, our cache is already fresh — the file meta hasn't been
+  // updated yet (only a rebuild updates it) but the tracker has the exact
+  // timestamp Apps Script wrote, so the diff will match upstream and skip
+  // the unneeded rebuild.
+  //
+  // Conflict resolution: take the NEWER of (file meta, tracker). ISO 8601
+  // strings sort lexicographically. Without this, a stale tracker entry
+  // (e.g. another lambda already wrote to the same tab after us, rebuild
+  // updated the file meta but tracker still has our older value) would
+  // mask the real change and miss a needed rebuild.
+  const localWrites = globalForLocalWrites.__localWrites ?? {};
+  const effectiveLocalTabTimes: Record<string, string> = { ...localTabTimes };
+  for (const [tab, t] of Object.entries(localWrites)) {
+    if (!effectiveLocalTabTimes[tab] || t > effectiveLocalTabTimes[tab]) {
+      effectiveLocalTabTimes[tab] = t;
+    }
+  }
+
   // Diff per tab. Tabs missing upstream are treated as unchanged — Apps Script
   // self-heals __meta on read, so missing entries only occur transiently.
   const dirty = new Set<SheetTabName>();
   for (const tab of TAB_LOAD_ORDER) {
     const remote = upstreamTabTimes[tab];
     if (!remote) continue;
-    if (localTabTimes[tab] !== remote) dirty.add(tab);
+    if (effectiveLocalTabTimes[tab] !== remote) dirty.add(tab);
   }
 
   if (dirty.size === 0) {
