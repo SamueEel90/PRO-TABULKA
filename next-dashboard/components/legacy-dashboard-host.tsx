@@ -374,6 +374,7 @@ export function LegacyDashboardHost({ asset, bodyMode = 'full' }: { asset: Legac
           host.replaceChildren();
           document.body.classList.remove('legacy-dashboard-page');
           document.body.classList.remove('legacy-sumar-page');
+          document.body.classList.remove('sidebar-open');
         };
 
         setLoadState({ status: 'ready' });

@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import { LegacyIndexAdminLink } from './legacy-index-admin-link';
 
 type LegacyIndexLoginShellProps = {
@@ -25,7 +27,7 @@ export function LegacyIndexLoginShell({ initialLogin = '' }: LegacyIndexLoginShe
           <input type="hidden" id="loginInput" defaultValue={initialLogin} />
           <div className="login-action-row">
             <button className="primary-btn" id="loginButton" type="button">Filiálky</button>
-            <button className="secondary-btn" id="summaryButton" type="button">Sumár</button>
+            <Link className="secondary-btn" href="/sumar" prefetch>Sumár</Link>
           </div>
           <LegacyIndexAdminLink />
         </div>

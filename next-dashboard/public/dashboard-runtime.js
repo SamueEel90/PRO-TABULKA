@@ -513,7 +513,7 @@
 			state.dotFieldController = initializeDotFieldBackground();
 
 			document.getElementById('loginButton').addEventListener('click', handleLogin);
-			document.getElementById('summaryButton').addEventListener('click', openSummaryView);
+			document.getElementById('summaryButton')?.addEventListener('click', openSummaryView);
 			document.getElementById('loginInput').addEventListener('keydown', function(event) {
 				if (event.key === 'Enter') {
 					handleLogin();
