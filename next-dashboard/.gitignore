@@ -4,3 +4,9 @@ node_modules
 .env.local
 prisma/dev.db
 prisma/dev.db-journal
+# Runtime cache freshness metadata — written by lib/db/bootstrap.ts on every
+# request, mirrors local SQLite cache state. Not source-of-truth.
+prisma/dev.cache.meta.json
+# Prisma migrate preview output / error dumps (e.g. "Error: Could not load
+# --to-schema..."). Created when a Prisma command runs from the wrong CWD.
+prisma/init.sql.preview

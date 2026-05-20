@@ -335,18 +335,24 @@ function StructureMixCell({
               {(compareMode === 'plan' || compareMode === 'ist' || compareMode === 'both') ? (
                 <div className="structure-mix-compare">
                   {(compareMode === 'plan' || compareMode === 'both') ? (
-                    <span className={`structure-compare-chip structure-compare-chip--plan${planDelta > 0 ? ' positive' : planDelta < 0 ? ' negative' : ''}`}>
-                      {`Pl\u00e1n ${formatSignedMetric(planDelta, 'number')}`}
+                    <span
+                      className={`structure-compare-chip structure-compare-chip--plan${planDelta > 0 ? ' positive' : planDelta < 0 ? ' negative' : ''}`}
+                      title={`Pl\u00e1n ${formatMetric(Number(band.planCount || 0), 'number')} \u00b7 rozdiel ${formatSignedMetric(planDelta, 'number')}`}
+                    >
+                      {`Pl\u00e1n ${formatMetric(Number(band.planCount || 0), 'number')}`}
                     </span>
                   ) : null}
                   {(compareMode === 'ist' || compareMode === 'both') ? (
                     band.hasRealCount ? (
-                      <span className={`structure-compare-chip structure-compare-chip--ist${realDelta > 0 ? ' positive' : realDelta < 0 ? ' negative' : ''}`}>
-                        {`IST ${formatSignedMetric(realDelta, 'number')}`}
+                      <span
+                        className={`structure-compare-chip structure-compare-chip--ist${realDelta > 0 ? ' positive' : realDelta < 0 ? ' negative' : ''}`}
+                        title={`IST ${formatMetric(Number(band.realCount || 0), 'number')} \u00b7 rozdiel ${formatSignedMetric(realDelta, 'number')}`}
+                      >
+                        {`IST ${formatMetric(Number(band.realCount || 0), 'number')}`}
                       </span>
                     ) : (
                       <span className="structure-compare-chip structure-compare-chip--ist is-empty" title="IST e\u0161te nie je k dispoz\u00edcii">
-                        IST {formatSignedMetric(0, 'number')}
+                        IST 0
                       </span>
                     )
                   ) : null}

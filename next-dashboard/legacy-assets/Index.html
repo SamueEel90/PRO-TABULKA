@@ -1246,43 +1246,65 @@
 
 			.save-status-toast {
 				position: fixed;
-				right: 1.125rem;
-				background: linear-gradient(180deg, rgba(37, 99, 235, 0.06), rgba(37, 99, 235, 0.02));
+				top: 1.25rem;
+				right: 1.25rem;
 				z-index: 170;
 				display: inline-flex;
 				align-items: center;
-				padding: 0.625em 0.875em;
+				gap: 0.55rem;
+				padding: 0.9em 1.4em;
 				border-radius: var(--radius-pill);
-				background: rgba(255, 255, 255, 0.96);
-				border: 1px solid rgba(19, 32, 51, 0.08);
-				box-shadow: var(--shadow);
-				font-size: 0.8125rem;
+				background: rgba(255, 255, 255, 0.98);
+				border: 1px solid rgba(19, 32, 51, 0.12);
+				box-shadow: 0 18px 38px rgba(15, 32, 60, 0.18), 0 4px 12px rgba(15, 32, 60, 0.08);
+				font-size: 1rem;
 				font-weight: 800;
+				letter-spacing: 0.01em;
 				color: var(--navy);
 				opacity: 0;
-				transform: translateY(12px);
+				transform: translateY(-12px) scale(0.96);
 				pointer-events: none;
-				transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease, color 0.2s ease;
+				transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 			}
 
 			.save-status-toast.is-visible {
 				opacity: 1;
-				transform: translateY(0);
+				transform: translateY(0) scale(1);
 			}
 
 			.save-status-toast.is-saving {
-				background: rgba(22, 54, 95, 0.1);
-				color: var(--navy);
+				background: linear-gradient(180deg, #1f3a6b 0%, #16365f 100%);
+				border-color: rgba(22, 54, 95, 0.6);
+				color: #ffffff;
+				box-shadow: 0 18px 38px rgba(22, 54, 95, 0.32), 0 4px 12px rgba(22, 54, 95, 0.18);
+			}
+
+			.save-status-toast.is-saving::before {
+				content: '';
+				width: 14px;
+				height: 14px;
+				border-radius: 50%;
+				border: 2px solid rgba(255, 255, 255, 0.4);
+				border-top-color: #ffffff;
+				animation: save-toast-spin 0.8s linear infinite;
+			}
+
+			@keyframes save-toast-spin {
+				to { transform: rotate(360deg); }
 			}
 
 			.save-status-toast.is-success {
-				background: rgba(27, 143, 90, 0.14);
-				color: var(--green);
+				background: linear-gradient(180deg, #1f9758 0%, #167a47 100%);
+				border-color: rgba(27, 143, 90, 0.6);
+				color: #ffffff;
+				box-shadow: 0 18px 38px rgba(27, 143, 90, 0.32), 0 4px 12px rgba(27, 143, 90, 0.18);
 			}
 
 			.save-status-toast.is-error {
-				background: rgba(215, 25, 32, 0.12);
-				color: var(--brand);
+				background: linear-gradient(180deg, #e02430 0%, #b8131c 100%);
+				border-color: rgba(215, 25, 32, 0.6);
+				color: #ffffff;
+				box-shadow: 0 18px 38px rgba(215, 25, 32, 0.32), 0 4px 12px rgba(215, 25, 32, 0.18);
 			}
 
 			.fab-tray {
@@ -4876,7 +4898,7 @@
 			state.dotFieldController = initializeDotFieldBackground();
 
 			document.getElementById('loginButton').addEventListener('click', handleLogin);
-			document.getElementById('summaryButton').addEventListener('click', openSummaryView);
+			document.getElementById('summaryButton')?.addEventListener('click', openSummaryView);
 			document.getElementById('loginInput').addEventListener('keydown', function(event) {
 				if (event.key === 'Enter') {
 					handleLogin();
@@ -5000,6 +5022,10 @@
 					updateTopBarState();
 				}
 			});
+
+			// Sync DOM with state on init — defends against stale body.sidebar-open
+			// surviving an SPA navigation back to /dashboard.
+			updateTopBarState();
 
 			const initialLogin = new URLSearchParams(window.location.search).get('login') || '';
 			if (initialLogin) {
@@ -5173,6 +5199,12 @@
 			}
 
 			function renderDashboard(payload) {
+				// Async callbacks (loadDashboard, weekly overrides, notes) can fire after the
+				// React shell has been unmounted by a client-side route change. Bail early
+				// instead of crashing on null DOM nodes.
+				if (!document.getElementById('appShell') || !document.getElementById('monthSelect')) {
+					return;
+				}
 				document.getElementById('loginShell').classList.add('hidden');
 				document.getElementById('appShell').style.display = 'grid';
 
@@ -7828,11 +7860,8 @@
 					return;
 				}
 
-				const noteScopeText = state.dashboard.scope.type === 'STORE'
-					? 'Spoločný priestor pre VKL a VOD pre túto filiálku: ' + state.dashboard.scope.label
-					: 'Spoločný priestor pre VKL a VOD v scope: ' + state.dashboard.scope.label;
 				document.getElementById('noteModalTitle').textContent = 'Poznámky pre ' + state.dashboard.scope.label;
-				document.getElementById('noteModalMeta').textContent = noteScopeText;
+				document.getElementById('noteModalMeta').textContent = '';
 				document.getElementById('noteModalContent').innerHTML = renderNoteModalCards(state.dashboard, getCachedMetricNotes(GLOBAL_SCOPE_NOTE_KEY), isMetricNotesLoading(GLOBAL_SCOPE_NOTE_KEY));
 
 				document.querySelectorAll('.note-textarea').forEach(function(input) {
@@ -7855,11 +7884,9 @@
 				const isStoreScope = payload.scope.type === 'STORE';
 				const isVklStoreScope = userRole === 'VKL' && isStoreScope;
 				const isVklAggregateScope = userRole === 'VKL' && !isStoreScope;
-				const vodPlaceholder = isStoreScope
-					? 'Sem si VOD zapisuje body, kontext a follow-upy pre túto filiálku.'
-					: 'Sem si VOD zapisuje body, kontext a follow-upy pre aktuálny agregát.';
-				const vklStorePlaceholder = 'Poznámka pre túto jednu filiálku — uvidí ju len jej VOD.';
-				const vklBroadcastPlaceholder = 'Poznámka pre VŠETKY filiálky tohto VKL — uvidia ju všetci VOD pod týmto VKL.';
+				const vodPlaceholder = 'Poznámka VOD';
+				const vklStorePlaceholder = 'Poznámka VKL';
+				const vklBroadcastPlaceholder = 'Poznámka VKL';
 
 				// === Top: VKL broadcast card (full-width) ===
 				const broadcastNote = resolvedNotes.VKL_BROADCAST || {};
@@ -7874,17 +7901,13 @@
 				let broadcastCard = '';
 				if (isVklStoreScope) {
 					broadcastCard = '<div class="note-card note-card--broadcast note-card--vkl-broadcast note-card--full">'
-						+ '<h4>Poznámka VKL — <span class="note-card-mode-tag">pre celú oblasť</span></h4>'
-						+ '<div class="note-broadcast-banner" role="status">'
-						+ '<span class="note-broadcast-banner-icon" aria-hidden="true">📢</span>'
-						+ '<span class="note-broadcast-banner-text">Píšete poznámku pre <strong>VŠETKY filiálky</strong> tohto VKL — všetci VOD pod vami ju uvidia.</span>'
-						+ '</div>'
+						+ '<h4>Poznámky pre celú oblasť</h4>'
 						+ '<div class="note-meta">' + broadcastMeta + '</div>'
 						+ '<textarea class="note-textarea" data-role="VKL" data-metric="' + escapeHtml(GLOBAL_SCOPE_NOTE_KEY) + '" data-note-scope-mode="vkl" placeholder="' + escapeHtml(vklBroadcastPlaceholder) + '">' + escapeHtml(broadcastTextValue) + '</textarea>'
 						+ '</div>';
 				} else if (userRole === 'VOD' && isStoreScope && String(broadcastNote.text || '').trim()) {
 					broadcastCard = '<div class="note-card note-card--broadcast note-card--full">'
-						+ '<h4>Poznámka VKL — pre celú oblasť</h4>'
+						+ '<h4>Poznámky pre celú oblasť</h4>'
 						+ '<div class="note-meta">' + broadcastMeta + '</div>'
 						+ '<div class="note-readonly">' + escapeHtml(broadcastNote.text || 'Bez textu') + '</div>'
 						+ '</div>';
@@ -7895,9 +7918,7 @@
 				// For VKL@AGGREGATE: editable at scope level (mode='scope').
 				const vklMode = isVklAggregateScope ? 'scope' : 'store';
 				const vklCanEdit = userRole === 'VKL';
-				const vklPlaceholderForCard = isVklAggregateScope
-					? 'Poznámka pre celý aktuálny VKL scope.'
-					: vklStorePlaceholder;
+				const vklPlaceholderForCard = 'Poznámka VKL';
 
 				return broadcastCard
 					+ renderSingleNoteCard('VOD', GLOBAL_SCOPE_NOTE_KEY, resolvedNotes.VOD || {}, canEditVod, vodPlaceholder, '', 'scope', renderMetricNoteRows('VOD', metrics, 'scope'))
@@ -8064,7 +8085,7 @@
 							: metricNote.updatedAt
 							? 'Naposledy upravil ' + escapeHtml(metricNote.author || role) + ' • ' + escapeHtml(metricNote.updatedAt)
 							: 'Pripravený riadok pre poznámku k metrike.';
-						const placeholder = 'Doplň stručnú poznámku ku metrike ' + metric + '.';
+						const placeholder = 'Poznámka ' + role;
 
 						return '<label class="note-metric-row">'
 							+ '<span class="note-metric-name">' + escapeHtml(metric) + '</span>'
@@ -10156,6 +10177,21 @@
 				toast.textContent = message || '';
 				toast.classList.remove('hidden', 'is-saving', 'is-success', 'is-error');
 				toast.classList.add('is-' + status);
+				// CSS keeps the toast at opacity 0 / translateY(12px) by default —
+				// `is-visible` triggers the fade-in. Without it the toast is in the
+				// DOM but invisible (this was the "save indicator disappeared" bug).
+				toast.classList.add('is-visible');
+
+				// Mirror the thin top progress bar during async saves so the user
+				// has at-a-glance feedback even though the save is non-blocking.
+				const activityBar = document.getElementById('activityBar');
+				if (activityBar) {
+					if (status === 'saving') {
+						activityBar.classList.remove('hidden');
+					} else {
+						activityBar.classList.add('hidden');
+					}
+				}
 
 				if (status === 'success' || status === 'error') {
 					state.saveStatusTimer = setTimeout(function() {
@@ -10176,7 +10212,11 @@
 				}
 
 				toast.classList.add('hidden');
-				toast.classList.remove('is-saving', 'is-success', 'is-error');
+				toast.classList.remove('is-visible', 'is-saving', 'is-success', 'is-error');
+				const activityBar = document.getElementById('activityBar');
+				if (activityBar) {
+					activityBar.classList.add('hidden');
+				}
 			}
 
 			function setLoadingState(isLoading, options) {

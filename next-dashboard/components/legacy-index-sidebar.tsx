@@ -1,3 +1,4 @@
+import { DashboardSumarSwitch } from './dashboard-sumar-switch';
 import { MetricLayoutPanel } from './metric-layout-panel';
 import { SessionIndicator } from './session-indicator';
 
@@ -34,6 +35,7 @@ export function LegacyIndexSidebar() {
           <div className="side-card">
             <h3>Prihlásený používateľ</h3>
             <SessionIndicator />
+            <DashboardSumarSwitch />
             {/* Legacy slots — still populated by inline scripts for compatibility */}
             <div className="identity-name" id="identityName" hidden />
             <div className="identity-meta" id="identityMeta" hidden />

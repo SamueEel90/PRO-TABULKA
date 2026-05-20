@@ -2642,7 +2642,7 @@
 					</div>
 					<div class="side-card side-card--actions">
 						<button class="secondary-btn" id="refreshButton" type="button">Obnoviť dáta</button>
-						<button class="secondary-btn" id="openDashboardButton" type="button">Dashboard</button>
+						<a class="secondary-btn" id="openDashboardButton" href="/dashboard">Filiálky</a>
 						<button class="secondary-btn" id="logoutButton" type="button">Odhlásiť</button>
 					</div>
 				</div>
@@ -2896,7 +2896,7 @@
 				btn.addEventListener('click', toggleThemeMode);
 			});
 			document.getElementById('refreshButton').addEventListener('click', refreshSummaryCacheAndReload);
-			document.getElementById('openDashboardButton').addEventListener('click', function() { navigateToView(''); });
+			document.getElementById('openDashboardButton').addEventListener('click', function() { window.top.location.href = '/dashboard'; });
 			document.getElementById('logoutButton').addEventListener('click', handleLogout);
 			document.getElementById('metricSelect').addEventListener('change', function() {
 				state.selectedMetric = this.value;
