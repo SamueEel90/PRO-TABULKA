@@ -388,18 +388,18 @@
   align-items: center;
   justify-content: center;
   gap: 1.2rem;
-  background: rgba(15, 23, 42, 0.62);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  color: #fff;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.88), rgba(238, 242, 247, 0.85));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #16365f;
 }
 
 .loadingSpinner {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.22);
-  border-top-color: #fff;
+  border: 3px solid rgba(215, 25, 32, 0.18);
+  border-top-color: #d71920;
   animation: loginSpin 0.8s linear infinite;
 }
 

@@ -491,7 +491,6 @@ export function IndexDashboardChartSection() {
             </div>
           </div>
           <div className="chart-control-group">
-            <div className="field-label chart-control-label">Výrez grafu</div>
             <div className="chart-mode-tabs" id="chartMonthFilterControls">
               {Object.entries(chartMonthFilters).map(([filterKey, filter]) => (
                 <button
