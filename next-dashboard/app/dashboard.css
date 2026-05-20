@@ -2897,23 +2897,36 @@ body.theme-dark .metric-section {
 				background: linear-gradient(180deg, rgba(215, 25, 32, 0.06), rgba(215, 25, 32, 0.02));
 			}
 
-			/* Weekly view sticky pin bar: holds a duplicate weekly-compact-table for pinned
-			   metrics so they stay visible while the rest of the page scrolls. */
-			.weekly-pinned-bar {
+			/* Weekly view sticky pinned section: a standalone <section class="metric-section">
+			   for pinned weekly metrics. Sticky is applied to the section itself because the
+			   shared .metric-section uses overflow:hidden + clip-path, which would clip any
+			   nested sticky child. Section sticks to the top of the page scroll. */
+			.weekly-pinned-section {
 				position: sticky;
 				top: 0;
 				z-index: 20;
-				background: var(--surface, #f5f6f7);
-				border-bottom: 1px solid rgba(19, 32, 51, 0.08);
-				box-shadow: 0 8px 20px -10px rgba(15, 23, 42, 0.18);
-				margin-bottom: 0.5rem;
-				max-height: 60vh;
-				overflow-y: auto;
+				margin-bottom: 0.6rem;
+				box-shadow: 0 10px 22px -12px rgba(15, 23, 42, 0.28);
+				border: 1px solid rgba(215, 25, 32, 0.25) !important;
+				/* Opaque background — overrides the translucent .metric-section default
+				   so content scrolling underneath does not bleed through. */
+				background: #ffffff !important;
 			}
 
-			body.theme-dark .weekly-pinned-bar {
-				background: var(--surface-dark, #0e1a2a);
-				border-bottom-color: rgba(255, 255, 255, 0.08);
+			.weekly-pinned-section .metric-section-body {
+				max-height: 60vh;
+				overflow-y: auto;
+				background: #ffffff;
+			}
+
+			.weekly-pinned-section .weekly-metric-label-cell {
+				background: linear-gradient(180deg, rgba(215, 25, 32, 0.06), rgba(215, 25, 32, 0.02));
+			}
+
+			body.theme-dark .weekly-pinned-section,
+			body.theme-dark .weekly-pinned-section .metric-section-body {
+				background: #0e1a2a !important;
+				border-color: rgba(215, 25, 32, 0.45) !important;
 			}
 
 			.weekly-metric-label-row {

@@ -4307,7 +4307,6 @@
 								<div class="chart-mode-tabs" id="chartModeControls"></div>
 							</div>
 							<div class="chart-control-group">
-								<div class="field-label chart-control-label">Výrez grafu</div>
 								<div class="chart-mode-tabs" id="chartMonthFilterControls"></div>
 							</div>
 						</div>
@@ -5506,11 +5505,7 @@
 					return '<option value="' + escapeHtml(scope.id) + '" ' + selected + '>' + escapeHtml(scope.label) + '</option>';
 				}).join('');
 
-				document.getElementById('scopeSummary').innerHTML = [
-					'<div>Aktívny scope: <strong>' + escapeHtml(payload.scope.label) + '</strong></div>',
-					'<div>Počet filiálok: <strong>' + payload.scope.storeIds.length + '</strong></div>',
-					'<div>Režim: <strong>' + escapeHtml(payload.scope.type) + '</strong></div>'
-				].join('');
+				document.getElementById('scopeSummary').innerHTML = '';
 			}
 
 			function renderMonthSelect(payload) {
@@ -7423,14 +7418,24 @@
 				const pinnedRows = pinnedSections.map(renderSectionRows).join('');
 				const restRows = restSections.map(renderSectionRows).join('');
 
-				const pinnedTable = pinnedSections.length
-					? '<div class="weekly-pinned-bar">' + tableHead + pinnedRows + '</tbody></table></div></div>'
+				// Pinned table is rendered as its OWN sticky <section>. The shared
+				// .metric-section CSS uses overflow:hidden + clip-path, which would kill
+				// position:sticky for a child wrapper — so the sticky must be applied
+				// to the section itself (kept outside the clipped section that holds
+				// the rest of the metrics).
+				const pinnedSection = pinnedSections.length
+					? '<section class="metric-section metric-section--weekly-compact weekly-pinned-section">'
+						+ '<div class="metric-section-body">'
+						+ tableHead + pinnedRows + '</tbody></table></div>'
+						+ '</div></section>'
 					: '';
-				const restTable = tableHead + restRows + '</tbody></table></div>';
 
-				container.innerHTML = '<section class="metric-section metric-section--weekly-compact"><div class="metric-section-body">'
+				container.innerHTML = pinnedSection
+					+ '<section class="metric-section metric-section--weekly-compact">'
+					+ '<div class="metric-section-body">'
 					+ (isWeeklyLoading ? '<div class="weekly-loading-indicator" aria-live="polite">Načítavam uložené týždenné úpravy pre ' + escapeHtml(formatMonthShort(focusMonth)) + '.</div>' : '')
-					+ pinnedTable + restTable + '</section>';
+					+ tableHead + restRows + '</tbody></table></div>'
+					+ '</div></section>';
 
 				container.querySelectorAll('[data-toggle-metric]').forEach(function(button) {
 					button.addEventListener('click', function() {
