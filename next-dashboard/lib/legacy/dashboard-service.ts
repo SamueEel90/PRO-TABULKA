@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { resolveMonthLabel } from '@/lib/months';
 import { computeNetHoursDelta } from '@/lib/legacy/shared';
-import { newId, nowIso, pushBatch, pushBulkReplaceSlice, pushDelete, pushNew, pushUpdate, type BatchOp } from '@/lib/sheets/write-through';
+import { newId, nowIso, pushBatch, type BatchOp } from '@/lib/sheets/write-through';
 import type {
   DashboardPayload,
   DashboardScope,
@@ -1960,6 +1960,15 @@ export async function saveDashboardChangesToSql(
     weekly: weeklyUpdates.length,
   }, '[save] preflight (structure/user/scope)');
 
+  // Unified batch accumulator: all 3 sections (adjustments + weekly + notes
+  // + trailing activity) push their Sheets ops here and their Prisma mirror
+  // work as closures. One pushBatch at the end of the function replaces what
+  // used to be up to 4 separate Apps Script calls — saves ~8-15s on combined
+  // saves (each Apps Script call has ~2-3s baseline HTTP + Web App overhead
+  // plus LockService acquisition).
+  const allBatchOps: BatchOp[] = [];
+  const deferredMirrors: Array<() => Promise<void>> = [];
+
   if (adjustmentUpdates.length) {
     if (user.role !== 'VOD' || scope.type !== 'STORE' || scope.storeIds[0] !== user.primaryStoreId) {
       throw new Error('Úpravy VOD môže zapisovať iba VOD používateľ pre svoju filiálku.');
@@ -2118,83 +2127,76 @@ export async function saveDashboardChangesToSql(
         });
       }
 
-      // 6. ONE batch call replaces what used to be 3-8 separate Apps Script
-      //    calls (Metric × K + MonthlyValue + structure-hours delete +
-      //    ActivityEntry). Single HTTP round-trip + single LockService
-      //    acquisition. Critical under concurrent load.
-      const batchOps: BatchOp[] = [];
+      // 6. Push Sheets ops into the unified accumulator. Single Apps Script
+      //    call at the end of the function — see top of saveDashboardChangesToSql.
       if (metricRecordsToWrite.length > 0) {
-        batchOps.push({ op: 'bulkUpsertById', tab: 'Metric', records: metricRecordsToWrite });
+        allBatchOps.push({ op: 'bulkUpsertById', tab: 'Metric', records: metricRecordsToWrite });
       }
-      batchOps.push({ op: 'bulkUpsertById', tab: 'MonthlyValue', records: mvRecords });
+      allBatchOps.push({ op: 'bulkUpsertById', tab: 'MonthlyValue', records: mvRecords });
       if (structureHoursToDrop.length > 0) {
-        batchOps.push({ op: 'bulkDeleteByIds', tab: 'MonthlyValue', ids: structureHoursToDrop.map(r => r.id) });
+        allBatchOps.push({ op: 'bulkDeleteByIds', tab: 'MonthlyValue', ids: structureHoursToDrop.map(r => r.id) });
       }
       if (activityRecords.length > 0) {
-        batchOps.push({ op: 'bulkAppend', tab: 'ActivityEntry', records: activityRecords });
+        allBatchOps.push({ op: 'bulkAppend', tab: 'ActivityEntry', records: activityRecords });
       }
-      const tAdjBatch = Date.now();
-      await pushBatch(batchOps);
       saveLog.info({
-        ms: Date.now() - tAdjBatch,
-        ops: batchOps.length,
         mv: mvRecords.length,
         metrics: metricRecordsToWrite.length,
         structureDelete: structureHoursToDrop.length,
         activity: activityRecords.length,
-      }, '[save] adjustments pushBatch → Sheets');
+      }, '[save] adjustments queued');
 
-      // 7. Mirror everything to the local Prisma cache. Order matches the
-      //    Sheets batch so the cache ends up identical to what's in Sheets.
-      const tAdjMirror = Date.now();
-      for (const { code, def, existing } of metricUpdatesForCache) {
-        if (existing) {
-          await prisma.metric.update({
-            where: { code },
-            data: { displayName: def.displayName, unit: def.unit || null, aggregation: 'sum', updatedAt: new Date(now) },
-          });
-        } else {
-          await prisma.metric.create({
-            data: {
-              code,
-              displayName: def.displayName,
-              unit: def.unit || null,
-              aggregation: 'sum',
-              createdAt: new Date(now),
-              updatedAt: new Date(now),
-            },
+      // 7. Defer Prisma mirror to run after the unified Sheets push succeeds.
+      //    Captures the locally-computed records via closure.
+      deferredMirrors.push(async () => {
+        for (const { code, def, existing } of metricUpdatesForCache) {
+          if (existing) {
+            await prisma.metric.update({
+              where: { code },
+              data: { displayName: def.displayName, unit: def.unit || null, aggregation: 'sum', updatedAt: new Date(now) },
+            });
+          } else {
+            await prisma.metric.create({
+              data: {
+                code,
+                displayName: def.displayName,
+                unit: def.unit || null,
+                aggregation: 'sum',
+                createdAt: new Date(now),
+                updatedAt: new Date(now),
+              },
+            });
+          }
+        }
+        await prisma.monthlyValue.deleteMany({
+          where: {
+            source: 'VOD',
+            storeId,
+            OR: prepared.map(p => ({ metricCode: p.metricCode, monthId: p.monthId })),
+          },
+        });
+        await prisma.monthlyValue.createMany({
+          data: mvRecords.map(r => ({
+            ...r,
+            importedAt: new Date(r.importedAt),
+            createdAt: new Date(r.createdAt),
+            updatedAt: new Date(r.updatedAt),
+          })),
+        });
+        if (structureHoursToDrop.length > 0) {
+          await prisma.monthlyValue.deleteMany({
+            where: { source: 'VOD', storeId, metricCode: structureHoursMetricCode, monthId: { in: structureMonthIds } },
           });
         }
-      }
-      await prisma.monthlyValue.deleteMany({
-        where: {
-          source: 'VOD',
-          storeId,
-          OR: prepared.map(p => ({ metricCode: p.metricCode, monthId: p.monthId })),
-        },
+        if (activityRecords.length > 0) {
+          try {
+            await prisma.activityEntry.createMany({
+              data: activityRecords.map(r => ({ ...r, createdAt: new Date(r.createdAt) })),
+            });
+          } catch { /* best effort — activity log shouldn't break the save */ }
+        }
       });
-      await prisma.monthlyValue.createMany({
-        data: mvRecords.map(r => ({
-          ...r,
-          importedAt: new Date(r.importedAt),
-          createdAt: new Date(r.createdAt),
-          updatedAt: new Date(r.updatedAt),
-        })),
-      });
-      if (structureHoursToDrop.length > 0) {
-        await prisma.monthlyValue.deleteMany({
-          where: { source: 'VOD', storeId, metricCode: structureHoursMetricCode, monthId: { in: structureMonthIds } },
-        });
-      }
-      if (activityRecords.length > 0) {
-        try {
-          await prisma.activityEntry.createMany({
-            data: activityRecords.map(r => ({ ...r, createdAt: new Date(r.createdAt) })),
-          });
-        } catch { /* best effort — activity log shouldn't break the save */ }
-      }
       result.savedAdjustments = mvRecords.length;
-      saveLog.info({ ms: Date.now() - tAdjMirror }, '[save] adjustments Prisma mirror');
     } else if (touchedStructureMonths.size > 0) {
       // Edge case: user edited only GROSS_HOURS-style metrics (which are
       // computed, not stored), so prepared is empty — but we still need
@@ -2206,9 +2208,11 @@ export async function saveDashboardChangesToSql(
         select: { id: true },
       });
       if (idsToDrop.length > 0) {
-        await pushBatch([{ op: 'bulkDeleteByIds', tab: 'MonthlyValue', ids: idsToDrop.map(r => r.id) }]);
-        await prisma.monthlyValue.deleteMany({
-          where: { source: 'VOD', storeId, metricCode: structureHoursMetricCode, monthId: { in: structureMonthIds } },
+        allBatchOps.push({ op: 'bulkDeleteByIds', tab: 'MonthlyValue', ids: idsToDrop.map(r => r.id) });
+        deferredMirrors.push(async () => {
+          await prisma.monthlyValue.deleteMany({
+            where: { source: 'VOD', storeId, metricCode: structureHoursMetricCode, monthId: { in: structureMonthIds } },
+          });
         });
       }
     }
@@ -2270,40 +2274,36 @@ export async function saveDashboardChangesToSql(
       where: { storeId, OR: touchedConds },
       select: { id: true },
     });
-    const weeklyBatchOps: BatchOp[] = [];
     if (existingIdsToDrop.length > 0) {
-      weeklyBatchOps.push({ op: 'bulkDeleteByIds', tab: 'WeeklyVodOverride', ids: existingIdsToDrop.map(r => r.id) });
+      allBatchOps.push({ op: 'bulkDeleteByIds', tab: 'WeeklyVodOverride', ids: existingIdsToDrop.map(r => r.id) });
     }
     if (newOverrideRecords.length > 0) {
-      weeklyBatchOps.push({ op: 'bulkAppend', tab: 'WeeklyVodOverride', records: newOverrideRecords });
-    }
-    if (weeklyBatchOps.length > 0) {
-      // ONE batch call: collapse delete + append into a single Apps Script
-      // round-trip with one LockService acquisition. Cheaper than
-      // pushBulkReplaceSlice (which rewrote the whole tab) and doesn't
-      // require an optimistic-locking re-read.
-      await pushBatch(weeklyBatchOps);
+      allBatchOps.push({ op: 'bulkAppend', tab: 'WeeklyVodOverride', records: newOverrideRecords });
     }
     saveLog.info({
       ms: Date.now() - tWeekly,
       newRecords: newOverrideRecords.length,
       droppedIds: existingIdsToDrop.length,
       touchedPairs: touchedWeeklyPairs.size,
-      sheetsCall: weeklyBatchOps.length > 0,
-    }, '[save] weekly batch → Sheets');
-    // Mirror to cache
-    for (const key of touchedWeeklyPairs) {
-      const [metric, monthLabel] = key.split('|');
-      await prisma.weeklyVodOverride.deleteMany({ where: { storeId, metric, monthLabel } });
-    }
+      queuedSheetsOps: (existingIdsToDrop.length > 0 ? 1 : 0) + (newOverrideRecords.length > 0 ? 1 : 0),
+    }, '[save] weekly queued');
+    // Defer Prisma mirror.
+    deferredMirrors.push(async () => {
+      for (const key of touchedWeeklyPairs) {
+        const [metric, monthLabel] = key.split('|');
+        await prisma.weeklyVodOverride.deleteMany({ where: { storeId, metric, monthLabel } });
+      }
+      if (newOverrideRecords.length) {
+        await prisma.weeklyVodOverride.createMany({
+          data: newOverrideRecords.map(r => ({
+            ...r,
+            createdAt: new Date(r.createdAt),
+            updatedAt: new Date(r.updatedAt),
+          })),
+        });
+      }
+    });
     if (newOverrideRecords.length) {
-      await prisma.weeklyVodOverride.createMany({
-        data: newOverrideRecords.map(r => ({
-          ...r,
-          createdAt: new Date(r.createdAt),
-          updatedAt: new Date(r.updatedAt),
-        })),
-      });
       result.savedWeeklyAdjustments = newOverrideRecords.length;
     }
   }
@@ -2427,27 +2427,20 @@ export async function saveDashboardChangesToSql(
       result.savedNotes += 1;
     }
 
-    // ONE batch call replaces N×(pushUpdate|pushNew|pushDelete) round-trips.
-    const noteBatchOps: BatchOp[] = [];
+    // Queue Sheets ops + Prisma mirror into the unified accumulators.
     if (notesToUpsert.length > 0) {
-      noteBatchOps.push({ op: 'bulkUpsertById', tab: 'DashboardNote', records: notesToUpsert });
+      allBatchOps.push({ op: 'bulkUpsertById', tab: 'DashboardNote', records: notesToUpsert });
     }
     if (noteIdsToDelete.length > 0) {
-      noteBatchOps.push({ op: 'bulkDeleteByIds', tab: 'DashboardNote', ids: noteIdsToDelete });
+      allBatchOps.push({ op: 'bulkDeleteByIds', tab: 'DashboardNote', ids: noteIdsToDelete });
     }
-    if (noteBatchOps.length > 0) {
-      const tNotes = Date.now();
-      await pushBatch(noteBatchOps);
-      saveLog.info({
-        ms: Date.now() - tNotes,
-        ops: noteBatchOps.length,
-        upsert: notesToUpsert.length,
-        delete: noteIdsToDelete.length,
-      }, '[save] notes pushBatch → Sheets');
-      const tNotesMirror = Date.now();
+    saveLog.info({
+      upsert: notesToUpsert.length,
+      delete: noteIdsToDelete.length,
+    }, '[save] notes queued');
+    deferredMirrors.push(async () => {
       for (const fn of mirrorOps) await fn();
-      saveLog.info({ ms: Date.now() - tNotesMirror }, '[save] notes Prisma mirror');
-    }
+    });
   }
 
   // Per-adjustment activity is logged inline above. Here we only log a summary
@@ -2455,24 +2448,43 @@ export async function saveDashboardChangesToSql(
   // without monthly adjustments.
   if (result.savedWeeklyAdjustments > 0 && result.savedAdjustments === 0) {
     const activityScope = buildNoteScope(user, scope);
-    try {
-      const now = nowIso();
-      const activityRecord = {
-        id: newId(),
-        scopeKey: activityScope.key,
-        actorRole: user.role,
-        actorName: user.displayName,
-        action: 'save',
-        metricKey: null,
-        monthLabel: null,
-        detail: `Uložené týždenné úpravy: ${result.savedWeeklyAdjustments}`,
-        createdAt: now,
-      };
-      await pushNew('ActivityEntry', activityRecord);
-      await prisma.activityEntry.create({
-        data: { ...activityRecord, createdAt: new Date(now) },
-      });
-    } catch { /* best effort */ }
+    const trailingActivityNow = nowIso();
+    const trailingActivityRecord = {
+      id: newId(),
+      scopeKey: activityScope.key,
+      actorRole: user.role,
+      actorName: user.displayName,
+      action: 'save',
+      metricKey: null,
+      monthLabel: null,
+      detail: `Uložené týždenné úpravy: ${result.savedWeeklyAdjustments}`,
+      createdAt: trailingActivityNow,
+    };
+    allBatchOps.push({ op: 'bulkAppend', tab: 'ActivityEntry', records: [trailingActivityRecord] });
+    deferredMirrors.push(async () => {
+      try {
+        await prisma.activityEntry.create({
+          data: { ...trailingActivityRecord, createdAt: new Date(trailingActivityNow) },
+        });
+      } catch { /* best effort — activity log shouldn't break the save */ }
+    });
+  }
+
+  // UNIFIED PUSH: one Apps Script call for the entire save. Replaces what used
+  // to be up to 4 separate calls (adjustments + structure-only + weekly +
+  // notes + trailing activity), each paying ~2-3s of Apps Script Web App
+  // baseline overhead. Prisma mirrors run AFTER the Sheets write succeeds,
+  // matching the original write-through ordering.
+  if (allBatchOps.length > 0) {
+    const tUnified = Date.now();
+    await pushBatch(allBatchOps);
+    saveLog.info({
+      ms: Date.now() - tUnified,
+      ops: allBatchOps.length,
+    }, '[save] unified pushBatch → Sheets');
+    const tMirror = Date.now();
+    for (const fn of deferredMirrors) await fn();
+    saveLog.info({ ms: Date.now() - tMirror }, '[save] unified Prisma mirror');
   }
 
   saveLog.info({
@@ -2480,6 +2492,7 @@ export async function saveDashboardChangesToSql(
     savedAdjustments: result.savedAdjustments,
     savedWeekly: result.savedWeeklyAdjustments,
     savedNotes: result.savedNotes,
+    sheetsOps: allBatchOps.length,
   }, '[save] DONE');
   return result;
 }

@@ -117,7 +117,15 @@ type CacheMeta = {
   /** Error from last failed rebuild, if any. */
   lastError?: string;
 };
-const SCHEMA_VERSION = 2;
+// Bumped to 3 (2026-05-20): force a full cache rebuild after the Apps Script
+// `coerceDateValuesToMonthIds` was extended to ActivityEntry / TaskItem /
+// WeeklyVodOverride / IstAdjustmentRequest monthLabel-style columns. Existing
+// cached rows still hold the raw ISO strings (e.g. "2026-03-31T22:00:00.000Z")
+// from previous pulls done against the old coerce. Schema-version mismatch
+// triggers `rebuildCache` on the first request from every lambda; the new
+// pull goes through the updated coerce and re-fills the cache with the
+// proper "marec 2026" labels.
+const SCHEMA_VERSION = 3;
 
 /**
  * For each parent tab, the child tabs whose FK columns reference it. If a
@@ -390,19 +398,17 @@ async function loadTabsFromSheets(
 
   const { data } = await sheets.readAll([...ordered]);
 
-  // Wipe in reverse FK order so we don't violate FK constraints when both
-  // a parent and one of its children are in this batch.
-  for (const tab of [...ordered].reverse()) {
-    const delegate = getModelDelegate(prisma, tab);
-    await delegate.deleteMany({ where: {} });
-  }
-
   const inBatch = new Set<SheetTabName>(ordered);
   const parentIds = new Map<SheetTabName, Set<string>>();
 
   // Lazily fetch the id set for a parent that's NOT in this batch (we trust
   // whatever is currently in the cache). For parents in the batch we read
   // the set built during their insert step.
+  //
+  // IMPORTANT: this runs OUTSIDE the rebuild transaction below, so the
+  // findMany sees the pre-rebuild state of the parent tab (which is exactly
+  // what we want — we filter children against the parent ids that will
+  // still exist after the rebuild).
   const getParentIds = async (parent: SheetTabName): Promise<Set<string>> => {
     const existing = parentIds.get(parent);
     if (existing) return existing;
@@ -419,6 +425,9 @@ async function loadTabsFromSheets(
     return set;
   };
 
+  // PHASE 1 — process each tab into a deduped+FK-filtered record list. No DB
+  // mutations yet, so concurrent readers see the OLD cache state throughout.
+  const preparedByTab = new Map<SheetTabName, Record<string, unknown>[]>();
   for (const tab of ordered) {
     const rows = data[tab];
     let deduped: Record<string, unknown>[] = [];
@@ -496,16 +505,36 @@ async function loadTabsFromSheets(
       if (k !== null && k !== undefined && k !== '') idSet.add(String(k));
     }
     parentIds.set(tab, idSet);
-
-    if (deduped.length === 0) {
-      log.info({ tab }, 'Loaded tab (empty after dedup/FK filter)');
-      continue;
-    }
-
-    const delegate = getModelDelegate(prisma, tab);
-    await delegate.createMany({ data: deduped });
-    log.debug({ tab, count: deduped.length }, 'Loaded tab');
+    preparedByTab.set(tab, deduped);
   }
+
+  // PHASE 2 — apply all wipes + inserts inside a single transaction. With
+  // SQLite WAL mode, concurrent readers see the OLD state until commit;
+  // there is NO window in which the tab appears empty. Fixes the IST modal
+  // flicker / "Žiadne mesiace" race during cache rebuilds.
+  //
+  // Timeout 60s covers worst case: full rebuild with 32k MonthlyValue rows
+  // (createMany on local SQLite typically completes in 1-3s but partials
+  // can stack up under contention).
+  await prisma.$transaction(async (tx) => {
+    // Wipe in reverse FK order so we don't violate FK constraints when both
+    // a parent and one of its children are in this batch.
+    for (const tab of [...ordered].reverse()) {
+      const delegate = getModelDelegate(tx as unknown as PrismaClient, tab);
+      await delegate.deleteMany({ where: {} });
+    }
+    // Insert in FK order.
+    for (const tab of ordered) {
+      const deduped = preparedByTab.get(tab) ?? [];
+      if (deduped.length === 0) {
+        log.info({ tab }, 'Loaded tab (empty after dedup/FK filter)');
+        continue;
+      }
+      const delegate = getModelDelegate(tx as unknown as PrismaClient, tab);
+      await delegate.createMany({ data: deduped });
+      log.debug({ tab, count: deduped.length }, 'Loaded tab');
+    }
+  }, { timeout: 60_000, maxWait: 10_000 });
 }
 
 /**

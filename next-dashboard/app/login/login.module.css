@@ -374,3 +374,62 @@
   line-height: 1.4;
   font-style: italic;
 }
+
+/* Full-screen post-login overlay: shown after credentials succeed, while the
+   browser navigates to the dashboard and the destination page is still being
+   server-rendered (cold lambda → ~5-15s). Without this the user sees a blank
+   page or browser-default loading and thinks the app is hung. */
+.loadingOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  background: rgba(15, 23, 42, 0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #fff;
+}
+
+.loadingSpinner {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.22);
+  border-top-color: #fff;
+  animation: loginSpin 0.8s linear infinite;
+}
+
+.loadingTitle {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.loadingSubtitle {
+  font-size: 0.82rem;
+  opacity: 0.8;
+  max-width: 26rem;
+  text-align: center;
+}
+
+@keyframes loginSpin { to { transform: rotate(360deg); } }
+
+.buttonContent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+}
+
+.buttonSpinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  animation: loginSpin 0.7s linear infinite;
+}

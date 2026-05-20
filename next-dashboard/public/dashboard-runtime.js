@@ -1,4 +1,25 @@
 ﻿			const THEME_STORAGE_KEY = 'proDashboardThemeMode';
+			const PINNED_METRICS_STORAGE_KEY = 'proDashboardPinnedMetrics';
+
+			// Load the pinned-metrics set from localStorage. Shape: { [normalizedMetric]: true }.
+			// Pinned metrics are sorted to the top of the monthly view so frequently-used
+			// metrics don't require scrolling. Stored per-browser (no server-side sync).
+			function loadPinnedMetricsFromStorage() {
+				try {
+					const raw = window.localStorage.getItem(PINNED_METRICS_STORAGE_KEY);
+					if (!raw) return {};
+					const parsed = JSON.parse(raw);
+					return parsed && typeof parsed === 'object' ? parsed : {};
+				} catch (e) {
+					return {};
+				}
+			}
+
+			function savePinnedMetricsToStorage(pinned) {
+				try {
+					window.localStorage.setItem(PINNED_METRICS_STORAGE_KEY, JSON.stringify(pinned || {}));
+				} catch (e) { /* quota / private-mode — silently ignore */ }
+			}
 
 			const state = {
 				loginValue: '',
@@ -14,6 +35,7 @@
 				pendingNotes: {},
 				vklNoteScopeMode: 'scope',
 				collapsedMetrics: {},
+				pinnedMetrics: loadPinnedMetricsFromStorage(),
 				autoSaveTimer: null,
 				saveStatusTimer: null,
 				activeNoteMetric: '',
@@ -849,6 +871,65 @@
 				return Boolean(state.collapsedMetrics[getMetricCollapseKey(metric)]);
 			}
 
+			// Metrics whose adjustment values are constrained by sign. "Saldo DF (-)"
+			// is conceptually a deficit, so positive entries are nonsensical —
+			// clamp them to <= 0 (a positive 5 becomes -5; zero stays zero).
+			function isNegativeOnlyMetric(metric) {
+				return normalizeMetricName(metric) === normalizeMetricName('Saldo DF (-)');
+			}
+
+			function clampMetricValue(metric, value) {
+				const num = Number(value || 0);
+				if (Number.isNaN(num)) return 0;
+				if (isNegativeOnlyMetric(metric)) {
+					return -Math.abs(num);
+				}
+				return num;
+			}
+
+			// Pinned metrics use the same normalized-name key as collapsed metrics.
+			function getMetricPinKey(metric) {
+				return normalizeMetricName(metric);
+			}
+
+			function isMetricPinned(metric) {
+				return Boolean(state.pinnedMetrics[getMetricPinKey(metric)]);
+			}
+
+			function toggleMetricPinned(metric) {
+				const key = getMetricPinKey(metric);
+				if (state.pinnedMetrics[key]) {
+					delete state.pinnedMetrics[key];
+				} else {
+					state.pinnedMetrics[key] = true;
+				}
+				savePinnedMetricsToStorage(state.pinnedMetrics);
+				const payload = getActiveDashboard();
+				if (payload) {
+					renderMetricTable(payload);
+				}
+			}
+
+			// Stable-sort `sections` so pinned ones come first while preserving the
+			// relative order of unpinned ones (and the relative order between pinned
+			// ones, which matches the order they were pinned in the source list).
+			// Used in monthly view only — the weekly compact view has its own
+			// priority-based sort that already pins "Hodiny netto" / "Obrat" /
+			// "Čistý výkon" to the top.
+			function sortSectionsByPinned(sections) {
+				if (!Array.isArray(sections) || sections.length === 0) return sections;
+				const pinned = [];
+				const rest = [];
+				for (let i = 0; i < sections.length; i++) {
+					if (isMetricPinned(sections[i].metric)) {
+						pinned.push(sections[i]);
+					} else {
+						rest.push(sections[i]);
+					}
+				}
+				return pinned.concat(rest);
+			}
+
 			function getFilteredMetricSections(payload) {
 				if (!payload || !Array.isArray(payload.table)) {
 					return [];
@@ -1082,9 +1163,26 @@
 				if (!scopeKey) return;
 				const scopeId = (payload.scope && payload.scope.id) || '';
 				const role = (payload.user && payload.user.role) || '';
+				const scopeType = (payload.scope && payload.scope.type) || '';
+				const vklName = (payload.user && payload.user.vklName) || '';
+				const gfName = (payload.user && payload.user.gfName) || '';
 				const userIdKey = scopeId + ':' + role;
 
-				fetch('/api/tasks?scopeKey=' + encodeURIComponent(scopeKey))
+				// Broadcast hierarchy MUST match the lower task list / note threads:
+				// without it the kokpit count would miss VKL-broadcast tasks
+				// assigned to a VOD (they live under AGGREGATE|VKL|... not STORE|...).
+				let broadcastScopeKey = '';
+				if (role === 'VOD' && scopeType === 'STORE' && vklName) {
+					broadcastScopeKey = 'AGGREGATE|VKL|' + vklName;
+				} else if (role === 'VKL' && gfName) {
+					broadcastScopeKey = 'AGGREGATE|GF|' + gfName;
+				}
+
+				let tasksUrl = '/api/tasks?scopeKey=' + encodeURIComponent(scopeKey);
+				if (broadcastScopeKey) {
+					tasksUrl += '&broadcastScopeKey=' + encodeURIComponent(broadcastScopeKey);
+				}
+				fetch(tasksUrl)
 					.then(function(r) { return r.json(); })
 					.then(function(data) {
 						if (!data || !data.ok) return;
@@ -1107,12 +1205,21 @@
 					})
 					.catch(function() {});
 
-				fetch('/api/activity?scopeKey=' + encodeURIComponent(scopeKey) + '&userId=' + encodeURIComponent(userIdKey))
+				// peek=1: kokpit just glances at the counter — must not bump
+				// lastSeen, otherwise concurrent polls race and the new-count
+				// flips to 0 even when entries are clearly visible below.
+				fetch('/api/activity?peek=1&scopeKey=' + encodeURIComponent(scopeKey) + '&userId=' + encodeURIComponent(userIdKey))
 					.then(function(r) { return r.json(); })
 					.then(function(data) {
 						if (!data || !data.ok) return;
 						const newCountEl = document.getElementById('overviewActivityNew');
-						if (newCountEl) newCountEl.textContent = String(data.newCount || 0);
+						// Show TOTAL number of recent entries, not "since last seen".
+						// Self-edits already mark themselves seen in the activity
+						// endpoint flow, so newCount was always 0 for the user who
+						// made the changes — confusing when entries are visible
+						// right below the badge.
+						const entryCount = (data.entries || []).length;
+						if (newCountEl) newCountEl.textContent = String(entryCount);
 						const listEl = document.getElementById('overviewActivityList');
 						if (!listEl) return;
 						const entries = data.entries || [];
@@ -2873,7 +2980,10 @@
 						const dayWeights = metricInputs.map(function(item) {
 							return Number(item.dataset.dayCount || 0);
 						});
-						const normalizedInputValue = roundPreviewValue(Number(this.value || 0), getRoundModeForFormat(format));
+						// Clamp sign-constrained metrics (e.g. Saldo DF (-)) before
+						// rounding so the rounded value matches what we'll store.
+						const clampedInput = clampMetricValue(metric, this.value);
+						const normalizedInputValue = roundPreviewValue(clampedInput, getRoundModeForFormat(format));
 						this.value = normalizedInputValue;
 
 						if (!state.pendingAdjustments[metric]) {
@@ -3057,7 +3167,10 @@
 				const workingDaysByMonth = resolveWorkingDaysForStructure(payload.table, payload.months);
 				const focusedMonth = getFocusedMonthForCompactTables(payload.months);
 				const visibleMonthEntries = getVisibleMonthEntries(payload.months);
-				const filteredSections = getFilteredMetricSections(payload);
+				// Pinned metrics float to the top of the monthly view. The list is
+				// otherwise unchanged so the rest of the page (counts, controls)
+				// behaves exactly as before.
+				const filteredSections = sortSectionsByPinned(getFilteredMetricSections(payload));
 				const container = document.getElementById('metricTableContainer');
 				const getFocusedMonthCellClass = function(month) {
 					return month === focusedMonth ? 'metric-month-cell is-focused' : '';
@@ -3090,8 +3203,16 @@
 						: '';
 					const headerMeta = [compactMonthsLabel, section.breakdown && section.breakdown.length ? 'VKL/GF drill-down po filiĂˇlkach' : ''].filter(Boolean).join(' â€˘ ');
 					const toggleLabel = isCollapsed ? 'RozbaliĹĄ' : 'ZbaliĹĄ';
+					const isPinned = isMetricPinned(section.metric);
+					// Pin icon: filled when pinned, outline when not. Floats the section
+					// to the top of the monthly view (state stored in localStorage).
+					const pinSvg = isPinned
+						? '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76V6h6v4.76l3 4.24v2H6v-2z"/></svg>'
+						: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76V6h6v4.76l3 4.24v2H6v-2z"/></svg>';
+					const pinTitle = isPinned ? 'Odopnúť (zrušiť pripnutie na vrchu)' : 'Pripnúť na vrch';
+					const pinButton = '<button class="metric-pin' + (isPinned ? ' is-pinned' : '') + '" type="button" data-pin-metric="' + escapeHtml(section.metric) + '" aria-pressed="' + (isPinned ? 'true' : 'false') + '" title="' + escapeHtml(pinTitle) + '" aria-label="' + escapeHtml(pinTitle) + '">' + pinSvg + '</button>';
 					const compareToolbar = isWorkforceStructureMetric(section.metric) ? '<div class="metric-toolbar-row">' + renderStructureCompareToggle() + '</div>' : '';
-					const header = '<div class="metric-heading"><div class="metric-header-row"><div class="metric-title-stack"><div class="metric-title-group"><span>' + escapeHtml(getMetricDisplayLabel(section.metric)) + '</span></div>'
+					const header = '<div class="metric-heading"><div class="metric-header-row"><div class="metric-title-stack"><div class="metric-title-group">' + pinButton + '<span>' + escapeHtml(getMetricDisplayLabel(section.metric)) + '</span></div>'
 						+ (headerMeta ? '<span class="tiny">' + escapeHtml(headerMeta) + '</span>' : '')
 						+ '</div><div class="metric-actions"><button class="metric-toggle" type="button" data-toggle-metric="' + escapeHtml(section.metric) + '" aria-expanded="' + (isCollapsed ? 'false' : 'true') + '">' + toggleLabel + '</button></div>'
 						+ '</div>' + compareToolbar + '</div>';
@@ -3157,10 +3278,17 @@
 					input.addEventListener('change', function() {
 						const metric = this.dataset.metric;
 						const month = this.dataset.month;
+						// Clamp sign-constrained metrics (e.g. Saldo DF (-)) before
+						// storing. Mirror the clamped value back to the input so the
+						// user sees what was actually saved.
+						const clamped = clampMetricValue(metric, this.value);
+						if (clamped !== Number(this.value || 0)) {
+							this.value = clamped;
+						}
 						if (!state.pendingAdjustments[metric]) {
 							state.pendingAdjustments[metric] = {};
 						}
-						state.pendingAdjustments[metric][month] = Number(this.value || 0);
+						state.pendingAdjustments[metric][month] = clamped;
 						removePendingWeeklyAdjustmentValues(metric, month);
 						refreshLocalPreview();
 					});
@@ -3189,6 +3317,12 @@
 				container.querySelectorAll('[data-toggle-metric]').forEach(function(button) {
 					button.addEventListener('click', function() {
 						toggleMetricCollapsed(this.dataset.toggleMetric);
+					});
+				});
+
+				container.querySelectorAll('[data-pin-metric]').forEach(function(button) {
+					button.addEventListener('click', function() {
+						toggleMetricPinned(this.dataset.pinMetric);
 					});
 				});
 			}
