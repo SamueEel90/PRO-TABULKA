@@ -245,6 +245,15 @@
 				overflow: hidden;
 			}
 
+			/* Hide the floating "Menu" hamburger while the sidebar is open
+			   — otherwise it stacks on top of the open sidebar (z-index 145
+			   > sidebar 140) and looks like the panel is stuck. Matches the
+			   Index.html dashboard parity rule. */
+			body.nav-open .shell-menu-button {
+				opacity: 0;
+				pointer-events: none;
+			}
+
 			/* ── Shell chrome: hamburger + utility bar ─────────────────── */
 			.summary-title {
 				display: flex;
@@ -2954,6 +2963,10 @@
 					setNavigationOpen(false);
 				}
 			});
+
+			// Sync DOM with state on init — defends against stale body.nav-open
+			// or .sidebar.is-open surviving an SPA navigation back to /sumar.
+			setNavigationOpen(false);
 
 			state.loginValue = getRequestedLoginValue();
 			loadSummary();
