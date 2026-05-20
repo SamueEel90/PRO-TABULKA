@@ -50,6 +50,10 @@ export function TaskCounter({ scopeKey, broadcastScopeKey, currentRole, currentA
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<'open' | 'done' | 'all'>('open');
+  // Tracks which task is currently flipping status so we can show a spinner
+  // on its specific button (the Sheets save takes 3-8s; without feedback
+  // users click multiple times). Value format: "<status>:<taskId>".
+  const [pendingTaskAction, setPendingTaskAction] = useState<string | null>(null);
   const canCompleteTasks = currentRole === 'VOD';
 
   const fetchTasks = useCallback(async () => {
@@ -79,6 +83,7 @@ export function TaskCounter({ scopeKey, broadcastScopeKey, currentRole, currentA
   }, [fetchTasks]);
 
   const handleStatusChange = async (taskId: string, newStatus: 'open' | 'done') => {
+    setPendingTaskAction(`${newStatus}:${taskId}`);
     try {
       await fetch(`/api/tasks/${taskId}`, {
         method: 'PATCH',
@@ -90,6 +95,8 @@ export function TaskCounter({ scopeKey, broadcastScopeKey, currentRole, currentA
       window.dispatchEvent(new CustomEvent('pro-dashboard:activity-changed'));
     } catch {
       /* ignore */
+    } finally {
+      setPendingTaskAction(null);
     }
   };
 
@@ -198,10 +205,15 @@ export function TaskCounter({ scopeKey, broadcastScopeKey, currentRole, currentA
                       className="task-item-button task-item-button--done"
                       onClick={() => handleStatusChange(task.id, 'done')}
                       title="Označiť ako splnené"
+                      disabled={pendingTaskAction !== null}
                     >
-                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
+                      {pendingTaskAction === `done:${task.id}` ? (
+                        <span className="inline-spinner inline-spinner--sm" aria-hidden="true" />
+                      ) : (
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
                     </button>
                   ) : (
                     <button
@@ -209,10 +221,15 @@ export function TaskCounter({ scopeKey, broadcastScopeKey, currentRole, currentA
                       className="task-item-button task-item-button--reopen"
                       onClick={() => handleStatusChange(task.id, 'open')}
                       title="Vrátiť späť"
+                      disabled={pendingTaskAction !== null}
                     >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" />
-                      </svg>
+                      {pendingTaskAction === `open:${task.id}` ? (
+                        <span className="inline-spinner inline-spinner--sm" aria-hidden="true" />
+                      ) : (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" />
+                        </svg>
+                      )}
                     </button>
                   )}
                 </div>

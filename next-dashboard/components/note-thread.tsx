@@ -81,6 +81,11 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
   const [text, setText] = useState('');
   const [createTask, setCreateTask] = useState(false);
   const [error, setError] = useState('');
+  // Track which task is currently being mutated (status flip / delete) so we
+  // can show an inline spinner on its specific button. The Sheets save can
+  // take 3-8s — without this the user clicks "Splnené" and sees no feedback,
+  // then clicks again thinking the first click didn't register.
+  const [pendingTaskAction, setPendingTaskAction] = useState<string | null>(null);
   const isGf = currentRole === 'GF';
   const canBroadcastAsGf = isGf && Boolean(gfName);
   const [gfTarget, setGfTarget] = useState<GfTarget>({ kind: 'all' });
@@ -236,6 +241,7 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
 
   const handleDeleteTask = async (taskId: string) => {
     if (!confirm('Zmazať túto úlohu?')) return;
+    setPendingTaskAction(`delete:${taskId}`);
     try {
       await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
       await fetchComments();
@@ -243,10 +249,13 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
       window.dispatchEvent(new CustomEvent('pro-dashboard:tasks-changed'));
     } catch {
       setError('Nepodarilo sa zmazať úlohu.');
+    } finally {
+      setPendingTaskAction(null);
     }
   };
 
   const handleTaskStatusChange = async (taskId: string, newStatus: 'open' | 'done') => {
+    setPendingTaskAction(`${newStatus}:${taskId}`);
     try {
       await fetch(`/api/tasks/${taskId}`, {
         method: 'PATCH',
@@ -261,6 +270,8 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
       window.dispatchEvent(new CustomEvent('pro-dashboard:tasks-changed'));
     } catch {
       setError('Nepodarilo sa upraviť úlohu.');
+    } finally {
+      setPendingTaskAction(null);
     }
   };
 
@@ -426,7 +437,11 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
               onClick={handleSendPersonal}
               disabled={personalSending || !personalText.trim()}
             >
-              {personalSending ? '…' : 'Uložiť'}
+              {personalSending ? (
+                <>
+                  <span className="inline-spinner inline-spinner--sm" aria-hidden="true" /> Ukladám…
+                </>
+              ) : 'Uložiť'}
             </button>
           </div>
         </div>
@@ -518,22 +533,42 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
                     type="button"
                     className="note-task-button note-task-button--done"
                     onClick={() => handleTaskStatusChange(task.id, 'done')}
+                    disabled={pendingTaskAction !== null}
                   >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    Označiť ako splnené
+                    {pendingTaskAction === `done:${task.id}` ? (
+                      <>
+                        <span className="inline-spinner inline-spinner--sm" aria-hidden="true" />
+                        Ukladám…
+                      </>
+                    ) : (
+                      <>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        Označiť ako splnené
+                      </>
+                    )}
                   </button>
                   {canDeleteTasks ? (
                     <button
                       type="button"
                       className="note-task-button note-task-button--delete"
                       onClick={() => handleDeleteTask(task.id)}
+                      disabled={pendingTaskAction !== null}
                     >
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                      </svg>
-                      Zmazať úlohu
+                      {pendingTaskAction === `delete:${task.id}` ? (
+                        <>
+                          <span className="inline-spinner inline-spinner--sm" aria-hidden="true" />
+                          Mažem…
+                        </>
+                      ) : (
+                        <>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                          </svg>
+                          Zmazať úlohu
+                        </>
+                      )}
                     </button>
                   ) : null}
                 </div>
@@ -547,8 +582,14 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
                       type="button"
                       className="note-task-button note-task-button--reopen"
                       onClick={() => handleTaskStatusChange(task.id, 'open')}
+                      disabled={pendingTaskAction !== null}
                     >
-                      Vrátiť späť
+                      {pendingTaskAction === `open:${task.id}` ? (
+                        <>
+                          <span className="inline-spinner inline-spinner--sm" aria-hidden="true" />
+                          Ukladám…
+                        </>
+                      ) : 'Vrátiť späť'}
                     </button>
                   ) : null}
                 </div>
@@ -613,7 +654,11 @@ export function NoteThread({ scopeKey, broadcastScopeKey, metricKey, metricTitle
             onClick={handleSend}
             disabled={sending || !text.trim()}
           >
-            {sending ? '...' : 'Odoslať'}
+            {sending ? (
+              <>
+                <span className="inline-spinner" aria-hidden="true" /> Odosielam…
+              </>
+            ) : 'Odoslať'}
           </button>
         </div>
         {canCreateTasks ? (

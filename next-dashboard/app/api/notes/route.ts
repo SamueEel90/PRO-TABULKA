@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 
-import { ensureCacheFresh } from '@/lib/db/client';
+import { ensureCacheFresh, ensureCacheFreshForRequest, setAfterSaveCookie } from '@/lib/db/client';
 import { sendNotificationEmail } from '@/lib/mailer';
 import { prisma } from '@/lib/prisma';
-import { newId, nowIso, pushNew } from '@/lib/sheets/write-through';
+import { newId, nowIso, pushBatch, type BatchOp } from '@/lib/sheets/write-through';
 
 /**
  * GET /api/notes?scopeKey=...&metricKey=...&broadcastScopeKey=...
@@ -14,7 +14,7 @@ import { newId, nowIso, pushNew } from '@/lib/sheets/write-through';
  */
 export async function GET(request: Request) {
   try {
-    await ensureCacheFresh();
+    await ensureCacheFreshForRequest(request);
 
     const url = new URL(request.url);
     const scopeKey = url.searchParams.get('scopeKey') || '';
@@ -90,7 +90,10 @@ export async function POST(request: Request) {
     const trimmedText = String(text).trim();
     const now = nowIso();
 
-    // 1. Build comment record (id/timestamp fixed client-side so Sheets and SQLite match)
+    // Build all 2-3 records (NoteComment + optional TaskItem + ActivityEntry)
+    // up front. ONE pushBatch replaces what used to be 2-3 sequential pushNew
+    // calls — each paid ~3-5s Apps Script Web App baseline. Combined ~3-5s
+    // instead of 9-15s.
     const commentRecord = {
       id: newId(),
       scopeKey,
@@ -101,10 +104,46 @@ export async function POST(request: Request) {
       createdAt: now,
     };
 
-    // 2. Push to Sheets first — throws on failure, aborts before local write
-    await pushNew('NoteComment', commentRecord);
+    const taskRecord = createTask
+      ? {
+          id: newId(),
+          scopeKey,
+          metricKey,
+          monthLabel: null,
+          text: trimmedText,
+          status: 'open',
+          createdByRole: role,
+          createdByName: author,
+          createdAt: now,
+          completedByName: null,
+          completedAt: null,
+          sourceCommentId: commentRecord.id,
+        }
+      : null;
 
-    // 3. Mirror into local cache
+    const activityRecord = {
+      id: newId(),
+      scopeKey,
+      actorRole: role,
+      actorName: author,
+      action: createTask ? 'task-created' : 'comment',
+      metricKey,
+      monthLabel: null,
+      detail: trimmedText.slice(0, 200),
+      createdAt: now,
+    };
+
+    const batchOps: BatchOp[] = [
+      { op: 'bulkAppend', tab: 'NoteComment', records: [commentRecord] },
+    ];
+    if (taskRecord) {
+      batchOps.push({ op: 'bulkAppend', tab: 'TaskItem', records: [taskRecord] });
+    }
+    batchOps.push({ op: 'bulkAppend', tab: 'ActivityEntry', records: [activityRecord] });
+
+    await pushBatch(batchOps);
+
+    // Mirror into local cache after the unified Sheets write succeeds.
     const comment = await prisma.noteComment.create({
       data: {
         ...commentRecord,
@@ -113,24 +152,7 @@ export async function POST(request: Request) {
     });
 
     let task = null;
-    if (createTask) {
-      const taskRecord = {
-        id: newId(),
-        scopeKey,
-        metricKey,
-        monthLabel: null,
-        text: trimmedText,
-        status: 'open',
-        createdByRole: role,
-        createdByName: author,
-        createdAt: now,
-        completedByName: null,
-        completedAt: null,
-        sourceCommentId: comment.id,
-      };
-
-      await pushNew('TaskItem', taskRecord);
-
+    if (taskRecord) {
       task = await prisma.taskItem.create({
         data: {
           ...taskRecord,
@@ -138,24 +160,10 @@ export async function POST(request: Request) {
           completedAt: null,
         },
       });
-
       void notifyTaskAssigned({ scopeKey, metricKey, role, author, text: trimmedText });
     }
 
-    // 4. Activity log — best-effort, don't fail the whole request if it errors
     try {
-      const activityRecord = {
-        id: newId(),
-        scopeKey,
-        actorRole: role,
-        actorName: author,
-        action: createTask ? 'task-created' : 'comment',
-        metricKey,
-        monthLabel: null,
-        detail: trimmedText.slice(0, 200),
-        createdAt: now,
-      };
-      await pushNew('ActivityEntry', activityRecord);
       await prisma.activityEntry.create({
         data: { ...activityRecord, createdAt: new Date(now) },
       });
@@ -163,7 +171,7 @@ export async function POST(request: Request) {
       /* best effort — activity log shouldn't break note creation */
     }
 
-    return NextResponse.json({ ok: true, comment, task });
+    return setAfterSaveCookie(NextResponse.json({ ok: true, comment, task }));
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Nepodarilo sa pridať komentár.' }, { status: 500 });
   }

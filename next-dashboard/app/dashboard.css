@@ -50,6 +50,21 @@ summary {
 .loader-spinner { width: 1.5rem; height: 1.5rem; border: 2.5px solid var(--line); border-top-color: var(--brand); border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Small spinner for buttons / inline feedback. Inherits color via currentColor
+   so it works on both dark (brand-colored) and light buttons. */
+.inline-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: -2px;
+}
+.inline-spinner--sm { width: 10px; height: 10px; border-width: 1.5px; }
+.inline-spinner--lg { width: 18px; height: 18px; border-width: 2.5px; vertical-align: -4px; }
+
 /* === Index.html dashboard styles === */
 			html {
 				-webkit-text-size-adjust: 100%;
@@ -2809,6 +2824,109 @@ body.theme-dark .metric-section {
 				align-items: center;
 				gap: 0.42rem;
 				flex-wrap: wrap;
+			}
+
+			/* Pin button: floats a metric section to the top of the monthly view.
+			   Lives inside .metric-title-group next to the metric name. Outline icon
+			   when not pinned, filled + brand color when pinned. */
+			.metric-pin {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				width: 1.55rem;
+				height: 1.55rem;
+				padding: 0;
+				border: 1px solid var(--line, rgba(19, 32, 51, 0.12));
+				background: transparent;
+				color: var(--muted, #63778f);
+				border-radius: 0.55rem;
+				cursor: pointer;
+				transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+			}
+
+			.metric-pin:hover {
+				color: var(--brand, #d71920);
+				border-color: var(--brand, #d71920);
+				background: rgba(215, 25, 32, 0.05);
+			}
+
+			.metric-pin.is-pinned {
+				color: var(--brand, #d71920);
+				border-color: var(--brand, #d71920);
+				background: rgba(215, 25, 32, 0.10);
+			}
+
+			.metric-pin.is-pinned:hover {
+				background: rgba(215, 25, 32, 0.18);
+			}
+
+			.metric-pin:focus-visible {
+				outline: none;
+				box-shadow: 0 0 0 2px rgba(215, 25, 32, 0.35);
+			}
+
+			/* Pinned metrics float to the top of the monthly view and stay sticky
+			   while the rest of the page scrolls. Multiple pinned metrics stack
+			   inside this single sticky bar so all of them remain visible. */
+			.metric-pinned-bar {
+				position: sticky;
+				top: 0;
+				z-index: 20;
+				display: flex;
+				flex-direction: column;
+				gap: 0.6rem;
+				padding: 0.5rem 0;
+				margin-bottom: 0.6rem;
+				background: var(--surface, #f5f6f7);
+				border-bottom: 1px solid rgba(19, 32, 51, 0.08);
+				box-shadow: 0 8px 20px -10px rgba(15, 23, 42, 0.18);
+				max-height: 70vh;
+				overflow-y: auto;
+			}
+
+			body.theme-dark .metric-pinned-bar {
+				background: var(--surface-dark, #0e1a2a);
+				border-bottom-color: rgba(255, 255, 255, 0.08);
+			}
+
+			.metric-pinned-bar .metric-section {
+				margin: 0;
+			}
+
+			.metric-pinned-bar .metric-section.is-pinned-sticky .metric-heading {
+				background: linear-gradient(180deg, rgba(215, 25, 32, 0.06), rgba(215, 25, 32, 0.02));
+			}
+
+			/* Weekly view sticky pin bar: holds a duplicate weekly-compact-table for pinned
+			   metrics so they stay visible while the rest of the page scrolls. */
+			.weekly-pinned-bar {
+				position: sticky;
+				top: 0;
+				z-index: 20;
+				background: var(--surface, #f5f6f7);
+				border-bottom: 1px solid rgba(19, 32, 51, 0.08);
+				box-shadow: 0 8px 20px -10px rgba(15, 23, 42, 0.18);
+				margin-bottom: 0.5rem;
+				max-height: 60vh;
+				overflow-y: auto;
+			}
+
+			body.theme-dark .weekly-pinned-bar {
+				background: var(--surface-dark, #0e1a2a);
+				border-bottom-color: rgba(255, 255, 255, 0.08);
+			}
+
+			.weekly-metric-label-row {
+				display: flex;
+				align-items: center;
+				gap: 0.4rem;
+			}
+
+			.metric-pin--weekly {
+				width: 1.35rem;
+				height: 1.35rem;
+				border-radius: 0.4rem;
+				flex-shrink: 0;
 			}
 
 			.metric-vod-note {

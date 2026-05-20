@@ -5,6 +5,13 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import type { MetricFormat, MetricRow, WorkforceStructureMixValue } from '@/lib/legacy/contracts';
 import { applyLayout, loadLayout, subscribeLayout, type MetricLayout } from '@/lib/metric-layout';
 import { loadShowSavedMetrics, subscribeShowSavedMetrics, toggleShowSavedMetric } from '@/lib/forecast-display-mode';
+import {
+  clampMetricValue,
+  isNegativeOnlyMetric,
+  loadPinnedMetrics,
+  subscribePinnedMetrics,
+  togglePinnedMetric,
+} from '@/lib/pinned-metrics';
 import { NoteThread } from './note-thread';
 import { ActivityFeed } from './activity-feed';
 import { TaskCounter } from './task-counter';
@@ -477,7 +484,11 @@ function renderCell(section: MonthlyTableSectionModel, row: MonthlyTableRowModel
             disabled={disabled}
             value={typeof value === 'number' ? value : 0}
             onChange={(event) => {
-              window.applyReactForecastAdjustment?.(section.metric, month, Number(event.currentTarget.value || 0));
+              const clamped = clampMetricValue(section.metric, event.currentTarget.value);
+              if (isNegativeOnlyMetric(section.metric) && String(clamped) !== event.currentTarget.value) {
+                event.currentTarget.value = String(clamped);
+              }
+              window.applyReactForecastAdjustment?.(section.metric, month, clamped);
             }}
           />
         </td>
@@ -500,6 +511,7 @@ export function IndexDashboardMonthlyTable() {
   const [detail, setDetail] = useState<MonthlyTableRenderDetail | null>(null);
   const [layout, setLayout] = useState<MetricLayout>({ order: [], hidden: [] });
   const [showSavedMetrics, setShowSavedMetrics] = useState<Set<string>>(() => new Set());
+  const [pinnedMetrics, setPinnedMetrics] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     const handleRender = (event: Event) => {
@@ -560,13 +572,33 @@ export function IndexDashboardMonthlyTable() {
     return unsubscribe;
   }, [scopeId, role]);
 
+  useEffect(() => {
+    if (!scopeId || !role) {
+      setPinnedMetrics(new Set());
+      return;
+    }
+    setPinnedMetrics(loadPinnedMetrics(scopeId, role));
+    const unsubscribe = subscribePinnedMetrics(scopeId, role, () => {
+      setPinnedMetrics(loadPinnedMetrics(scopeId, role));
+    });
+    return unsubscribe;
+  }, [scopeId, role]);
+
   const orderedSections = useMemo(() => {
     if (!detail) {
       return [];
     }
     const ordered = applyLayout(detail.sections, layout);
-    return ordered.map((section) => ({ ...section, showSavedForecast: showSavedMetrics.has(section.metric) }));
-  }, [detail, layout, showSavedMetrics]);
+    const withSaved = ordered.map((section) => ({ ...section, showSavedForecast: showSavedMetrics.has(section.metric) }));
+    if (pinnedMetrics.size === 0) return withSaved;
+    const pinned: typeof withSaved = [];
+    const rest: typeof withSaved = [];
+    for (const section of withSaved) {
+      if (pinnedMetrics.has(section.metric)) pinned.push(section);
+      else rest.push(section);
+    }
+    return pinned.concat(rest);
+  }, [detail, layout, showSavedMetrics, pinnedMetrics]);
 
   return (
     <>
@@ -585,15 +617,49 @@ export function IndexDashboardMonthlyTable() {
         </div>
       ) : null}
 <div id="metricTableReactRoot" hidden={!detail}>
-        {detail ? orderedSections.map((section) => {
+        {(() => {
+          if (!detail) return null;
+          const pinned = orderedSections.filter((s) => pinnedMetrics.has(s.metric));
+          const rest = orderedSections.filter((s) => !pinnedMetrics.has(s.metric));
+          const renderSection = (section: typeof orderedSections[number], opts?: { isPinned?: boolean; pinIndex?: number }) => {
           const toggleLabel = section.collapsed ? 'Rozbaliť' : 'Zbaliť';
+          const isPinnedSection = Boolean(opts?.isPinned);
 
           return (
-            <section className={`metric-section${section.collapsed ? ' is-collapsed' : ''}`} key={section.metric}>
+            <section
+              className={`metric-section${section.collapsed ? ' is-collapsed' : ''}${isPinnedSection ? ' is-pinned-sticky' : ''}`}
+              key={section.metric}
+              style={isPinnedSection ? ({ ['--metric-pin-index' as never]: opts?.pinIndex ?? 0 } as React.CSSProperties) : undefined}
+            >
               <div className="metric-heading">
                 <div className="metric-header-row">
                   <div className="metric-title-stack">
                     <div className="metric-title-group">
+                      {scopeId && role ? (
+                        <button
+                          aria-label={pinnedMetrics.has(section.metric) ? 'Odopnúť metriku' : 'Pripnúť metriku na vrch'}
+                          aria-pressed={pinnedMetrics.has(section.metric) ? 'true' : 'false'}
+                          className={`metric-pin${pinnedMetrics.has(section.metric) ? ' is-pinned' : ''}`}
+                          title={pinnedMetrics.has(section.metric) ? 'Odopnúť (zrušiť pripnutie na vrchu)' : 'Pripnúť na vrch'}
+                          type="button"
+                          onClick={() => {
+                            const next = togglePinnedMetric(scopeId, role, section.metric);
+                            setPinnedMetrics(new Set(next));
+                          }}
+                        >
+                          {pinnedMetrics.has(section.metric) ? (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M12 17v5" />
+                              <path d="M9 10.76V6h6v4.76l3 4.24v2H6v-2z" />
+                            </svg>
+                          ) : (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M12 17v5" />
+                              <path d="M9 10.76V6h6v4.76l3 4.24v2H6v-2z" />
+                            </svg>
+                          )}
+                        </button>
+                      ) : null}
                       <span>{section.title}</span>
                       <NoteThread
                         scopeKey={noteScopeKey}
@@ -722,7 +788,18 @@ export function IndexDashboardMonthlyTable() {
               ) : null}
             </section>
           );
-        }) : null}
+          };
+          return (
+            <>
+              {pinned.length > 0 ? (
+                <div className="metric-pinned-bar">
+                  {pinned.map((section, idx) => renderSection(section, { isPinned: true, pinIndex: idx }))}
+                </div>
+              ) : null}
+              {rest.map((section) => renderSection(section))}
+            </>
+          );
+        })()}
       </div>
       <div id="metricTableContainer" hidden={Boolean(detail)} />
     </>

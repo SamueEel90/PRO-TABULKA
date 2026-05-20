@@ -2511,6 +2511,41 @@
 				flex-wrap: wrap;
 			}
 
+			/* Pin button: floats a metric section to the top of the monthly view.
+			   Lives inside .metric-title-group next to the metric name. Outline icon
+			   when not pinned, filled + brand color when pinned. */
+			.metric-pin {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				width: 1.55rem;
+				height: 1.55rem;
+				padding: 0;
+				border: 1px solid var(--line, rgba(19, 32, 51, 0.12));
+				background: transparent;
+				color: var(--muted, #63778f);
+				border-radius: 0.55rem;
+				cursor: pointer;
+				transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+			}
+			.metric-pin:hover {
+				color: var(--brand, #d71920);
+				border-color: var(--brand, #d71920);
+				background: rgba(215, 25, 32, 0.05);
+			}
+			.metric-pin.is-pinned {
+				color: var(--brand, #d71920);
+				border-color: var(--brand, #d71920);
+				background: rgba(215, 25, 32, 0.10);
+			}
+			.metric-pin.is-pinned:hover {
+				background: rgba(215, 25, 32, 0.18);
+			}
+			.metric-pin:focus-visible {
+				outline: none;
+				box-shadow: 0 0 0 2px rgba(215, 25, 32, 0.35);
+			}
+
 			.metric-title-stack {
 				display: grid;
 				gap: 0.08rem;
@@ -4306,6 +4341,46 @@
 		<script>
 			const GLOBAL_SCOPE_NOTE_KEY = '__GLOBAL_SCOPE_NOTES__';
 			const THEME_STORAGE_KEY = 'proDashboardThemeMode';
+			// Storage key matches lib/pinned-metrics.ts on the React side so weekly (legacy
+			// renderer) and monthly (React renderer) share the same pinned set per scope+role.
+			const PINNED_METRICS_STORAGE_PREFIX = 'proDashboard.pinnedMetrics';
+			const PINNED_METRICS_EVENT = 'pro-dashboard:pinned-metrics-changed';
+
+			function getPinnedScopeId() {
+				try { return (state && state.dashboard && state.dashboard.scope && state.dashboard.scope.id) ? String(state.dashboard.scope.id) : 'unknown'; }
+				catch (e) { return 'unknown'; }
+			}
+			function getPinnedRole() {
+				try { return (state && state.dashboard && state.dashboard.user && state.dashboard.user.role) ? String(state.dashboard.user.role).toUpperCase() : 'UNKNOWN'; }
+				catch (e) { return 'UNKNOWN'; }
+			}
+			function getPinnedStorageKey() {
+				return PINNED_METRICS_STORAGE_PREFIX + '.' + getPinnedScopeId() + '.' + getPinnedRole();
+			}
+			function loadPinnedMetricsFromStorage() {
+				try {
+					const raw = window.localStorage.getItem(getPinnedStorageKey());
+					if (!raw) return {};
+					const parsed = JSON.parse(raw);
+					const map = {};
+					if (Array.isArray(parsed)) {
+						for (let i = 0; i < parsed.length; i++) {
+							if (typeof parsed[i] === 'string') map[parsed[i]] = true;
+						}
+					}
+					return map;
+				} catch (e) { return {}; }
+			}
+			function savePinnedMetricsToStorage(pinned) {
+				try {
+					const arr = Object.keys(pinned || {}).filter(function(k) { return pinned[k]; });
+					window.localStorage.setItem(getPinnedStorageKey(), JSON.stringify(arr));
+					window.dispatchEvent(new CustomEvent(PINNED_METRICS_EVENT, { detail: {
+						scopeId: getPinnedScopeId(),
+						role: getPinnedRole(),
+					} }));
+				} catch (e) {}
+			}
 
 			const state = {
 				loginValue: '',
@@ -4321,6 +4396,7 @@
 				pendingNotes: {},
 				vklNoteScopeMode: 'scope',
 				collapsedMetrics: {},
+				pinnedMetrics: loadPinnedMetricsFromStorage(),
 				autoSaveTimer: null,
 				saveStatusTimer: null,
 				activeNoteMetric: '',
@@ -5074,6 +5150,8 @@
 						state.dashboard = payload;
 						state.previewDashboard = null;
 						state.activeNoteMetric = '';
+						// Re-read pinned metrics now that scope+role are known (storage is scope-keyed).
+						state.pinnedMetrics = loadPinnedMetricsFromStorage();
 						closeNoteModal();
 						renderDashboard(state.dashboard);
 						if (!config.silent) {
@@ -5159,6 +5237,57 @@
 
 			function isMetricCollapsed(metric) {
 				return Boolean(state.collapsedMetrics[getMetricCollapseKey(metric)]);
+			}
+
+			// Metrics whose adjustment values are constrained by sign. "Saldo DF (-)"
+			// is a deficit — positive entries are nonsensical, clamp to <= 0.
+			function isNegativeOnlyMetric(metric) {
+				return normalizeMetricName(metric) === normalizeMetricName('Saldo DF (-)');
+			}
+			function clampMetricValue(metric, value) {
+				const num = Number(value || 0);
+				if (Number.isNaN(num)) return 0;
+				if (isNegativeOnlyMetric(metric)) return -Math.abs(num);
+				return num;
+			}
+
+			// Pinned metrics float to the top of the view. Persisted per scope+role in localStorage
+			// (see PINNED_METRICS_STORAGE_PREFIX at the top of the file) and shared with React.
+			function getMetricPinKey(metric) { return String(metric || ''); }
+			function isMetricPinned(metric) { return Boolean(state.pinnedMetrics[getMetricPinKey(metric)]); }
+			function toggleMetricPinned(metric) {
+				const key = getMetricPinKey(metric);
+				if (state.pinnedMetrics[key]) {
+					delete state.pinnedMetrics[key];
+				} else {
+					state.pinnedMetrics[key] = true;
+				}
+				savePinnedMetricsToStorage(state.pinnedMetrics);
+				const payload = getActiveDashboard();
+				if (payload) renderMetricTable(payload);
+			}
+			// Listen for cross-component pin changes (e.g. React monthly view toggles a pin —
+			// reload from storage and re-render so weekly stays in sync).
+			window.addEventListener(PINNED_METRICS_EVENT, function(event) {
+				try {
+					const detail = event && event.detail ? event.detail : null;
+					if (detail && (detail.scopeId !== getPinnedScopeId() || String(detail.role || '').toUpperCase() !== getPinnedRole())) return;
+					state.pinnedMetrics = loadPinnedMetricsFromStorage();
+					const payload = getActiveDashboard();
+					if (payload && typeof renderMetricTable === 'function') renderMetricTable(payload);
+				} catch (e) {}
+			});
+
+			// Stable sort: pinned first, others keep original relative order.
+			function sortSectionsByPinned(sections) {
+				if (!Array.isArray(sections) || sections.length === 0) return sections;
+				const pinned = [];
+				const rest = [];
+				for (let i = 0; i < sections.length; i++) {
+					if (isMetricPinned(sections[i].metric)) pinned.push(sections[i]);
+					else rest.push(sections[i]);
+				}
+				return pinned.concat(rest);
 			}
 
 			function getFilteredMetricSections(payload) {
@@ -5468,9 +5597,26 @@
 				if (!scopeKey) return;
 				const scopeId = (payload.scope && payload.scope.id) || '';
 				const role = (payload.user && payload.user.role) || '';
+				const scopeType = (payload.scope && payload.scope.type) || '';
+				const vklName = (payload.user && payload.user.vklName) || '';
+				const gfName = (payload.user && payload.user.gfName) || '';
 				const userIdKey = scopeId + ':' + role;
 
-				fetch('/api/tasks?scopeKey=' + encodeURIComponent(scopeKey))
+				// Broadcast hierarchy MUST match the lower task list / note threads:
+				// without it the kokpit count would miss VKL-broadcast tasks
+				// assigned to a VOD (they live under AGGREGATE|VKL|... not STORE|...).
+				let broadcastScopeKey = '';
+				if (role === 'VOD' && scopeType === 'STORE' && vklName) {
+					broadcastScopeKey = 'AGGREGATE|VKL|' + vklName;
+				} else if (role === 'VKL' && gfName) {
+					broadcastScopeKey = 'AGGREGATE|GF|' + gfName;
+				}
+
+				let tasksUrl = '/api/tasks?scopeKey=' + encodeURIComponent(scopeKey);
+				if (broadcastScopeKey) {
+					tasksUrl += '&broadcastScopeKey=' + encodeURIComponent(broadcastScopeKey);
+				}
+				fetch(tasksUrl)
 					.then(function(r) { return r.json(); })
 					.then(function(data) {
 						if (!data || !data.ok) return;
@@ -5493,12 +5639,18 @@
 					})
 					.catch(function() {});
 
-				fetch('/api/activity?scopeKey=' + encodeURIComponent(scopeKey) + '&userId=' + encodeURIComponent(userIdKey))
+				// peek=1: kokpit just glances at the counter — must not bump lastSeen,
+				// otherwise concurrent polls race and the count flips to 0.
+				fetch('/api/activity?peek=1&scopeKey=' + encodeURIComponent(scopeKey) + '&userId=' + encodeURIComponent(userIdKey))
 					.then(function(r) { return r.json(); })
 					.then(function(data) {
 						if (!data || !data.ok) return;
 						const newCountEl = document.getElementById('overviewActivityNew');
-						if (newCountEl) newCountEl.textContent = String(data.newCount || 0);
+						// Show TOTAL number of recent entries, not "since last seen" —
+						// self-edits otherwise leave the badge stuck at 0 while
+						// entries are clearly visible right below it.
+						const entryCount = (data.entries || []).length;
+						if (newCountEl) newCountEl.textContent = String(entryCount);
 						const listEl = document.getElementById('overviewActivityList');
 						if (!listEl) return;
 						const entries = data.entries || [];
@@ -7197,7 +7349,8 @@
 				const container = document.getElementById('metricTableContainer');
 				const focusMonth = getWeeklyFocusMonth(payload);
 				const buckets = buildMonthWeekBuckets(focusMonth);
-				const filteredSections = getWeeklyCompactMetricSections(payload);
+				const filteredSectionsRaw = getWeeklyCompactMetricSections(payload);
+				const filteredSections = sortSectionsByPinned(filteredSectionsRaw);
 				const isWeeklyLoading = isWeeklyOverridesLoadingForView(payload, focusMonth);
 				const weeklySeriesCache = {};
 
@@ -7212,7 +7365,7 @@
 					}).join('')
 					+ '<th><div class="weekly-header-stack"><span class="weekly-header-main">Sumár</span><span class="weekly-header-sub">Mesiac</span></div></th></tr></thead><tbody>';
 
-				const tableRows = filteredSections.map(function(section) {
+				function renderSectionRows(section) {
 					const snapshot = getMetricSnapshot(payload, section.metric, focusMonth);
 					const distributionMode = getWeeklyDistributionMode(snapshot);
 					const weeklySeries = buildWeeklySeriesForSection(section, payload, buckets, focusMonth, weeklySeriesCache);
@@ -7229,10 +7382,16 @@
 					}
 					const monthMeta = monthMetaParts.join(' • ');
 					const collapsedMetricLabel = getCollapsedWeeklyMetricLabel(section.metric);
-					const labelCell = '<td class="weekly-metric-label-cell"><div class="weekly-metric-label-head" data-toggle-metric="' + escapeHtml(section.metric) + '" aria-expanded="' + (isCollapsed ? 'false' : 'true') + '"><div class="weekly-metric-name">' + escapeHtml(getMetricDisplayLabel(section.metric)) + '</div></div><div class="weekly-metric-sub">' + escapeHtml(monthMeta) + '</div></td>';
+					const isPinned = isMetricPinned(section.metric);
+					const pinSvg = isPinned
+						? '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76V6h6v4.76l3 4.24v2H6v-2z"/></svg>'
+						: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76V6h6v4.76l3 4.24v2H6v-2z"/></svg>';
+					const pinTitle = isPinned ? 'Odopnúť' : 'Pripnúť na vrch';
+					const pinBtn = '<button class="metric-pin metric-pin--weekly' + (isPinned ? ' is-pinned' : '') + '" type="button" data-pin-metric="' + escapeHtml(section.metric) + '" aria-pressed="' + (isPinned ? 'true' : 'false') + '" title="' + escapeHtml(pinTitle) + '" aria-label="' + escapeHtml(pinTitle) + '">' + pinSvg + '</button>';
+					const labelCell = '<td class="weekly-metric-label-cell"><div class="weekly-metric-label-row">' + pinBtn + '<div class="weekly-metric-label-head" data-toggle-metric="' + escapeHtml(section.metric) + '" aria-expanded="' + (isCollapsed ? 'false' : 'true') + '"><div class="weekly-metric-name">' + escapeHtml(getMetricDisplayLabel(section.metric)) + '</div></div></div><div class="weekly-metric-sub">' + escapeHtml(monthMeta) + '</div></td>';
 
 					if (isCollapsed) {
-						return '<tr class="weekly-collapsed-row"><td class="weekly-metric-label-cell weekly-metric-label-cell--collapsed" colspan="' + (buckets.length + 2) + '"><div class="weekly-metric-label-head" data-toggle-metric="' + escapeHtml(section.metric) + '" aria-expanded="false"><div class="weekly-metric-name weekly-metric-name--collapsed" title="' + escapeHtml(section.metric) + '">' + escapeHtml(collapsedMetricLabel) + '</div></div></td></tr>';
+						return '<tr class="weekly-collapsed-row"><td class="weekly-metric-label-cell weekly-metric-label-cell--collapsed" colspan="' + (buckets.length + 2) + '"><div class="weekly-metric-label-row">' + pinBtn + '<div class="weekly-metric-label-head" data-toggle-metric="' + escapeHtml(section.metric) + '" aria-expanded="false"><div class="weekly-metric-name weekly-metric-name--collapsed" title="' + escapeHtml(section.metric) + '">' + escapeHtml(collapsedMetricLabel) + '</div></div></div></td></tr>';
 					}
 
 					const mainRow = '<tr>' + labelCell
@@ -7257,15 +7416,32 @@
 						+ '</tr>';
 					const breakdownRow = renderWeeklyStoreBreakdownBlock(section, payload, buckets, focusMonth);
 					return mainRow + breakdownRow;
-				}).join('');
+				}
+
+				const pinnedSections = filteredSections.filter(function(s) { return isMetricPinned(s.metric); });
+				const restSections = filteredSections.filter(function(s) { return !isMetricPinned(s.metric); });
+				const pinnedRows = pinnedSections.map(renderSectionRows).join('');
+				const restRows = restSections.map(renderSectionRows).join('');
+
+				const pinnedTable = pinnedSections.length
+					? '<div class="weekly-pinned-bar">' + tableHead + pinnedRows + '</tbody></table></div></div>'
+					: '';
+				const restTable = tableHead + restRows + '</tbody></table></div>';
 
 				container.innerHTML = '<section class="metric-section metric-section--weekly-compact"><div class="metric-section-body">'
 					+ (isWeeklyLoading ? '<div class="weekly-loading-indicator" aria-live="polite">Načítavam uložené týždenné úpravy pre ' + escapeHtml(formatMonthShort(focusMonth)) + '.</div>' : '')
-					+ tableHead + tableRows + '</tbody></table></div></section>';
+					+ pinnedTable + restTable + '</section>';
 
 				container.querySelectorAll('[data-toggle-metric]').forEach(function(button) {
 					button.addEventListener('click', function() {
 						toggleMetricCollapsed(this.dataset.toggleMetric);
+					});
+				});
+
+				container.querySelectorAll('[data-pin-metric]').forEach(function(button) {
+					button.addEventListener('click', function(event) {
+						event.stopPropagation();
+						toggleMetricPinned(this.dataset.pinMetric);
 					});
 				});
 
@@ -7281,7 +7457,9 @@
 						const dayWeights = metricInputs.map(function(item) {
 							return Number(item.dataset.dayCount || 0);
 						});
-						const normalizedInputValue = roundPreviewValue(Number(this.value || 0), getRoundModeForFormat(format));
+						// Clamp sign-constrained metrics (e.g. Saldo DF (-)) before rounding.
+						const clampedInput = clampMetricValue(metric, this.value);
+						const normalizedInputValue = roundPreviewValue(clampedInput, getRoundModeForFormat(format));
 						this.value = normalizedInputValue;
 
 						if (!state.pendingAdjustments[metric]) {
@@ -7472,7 +7650,9 @@
 				const workingDaysByMonth = resolveWorkingDaysForStructure(payload.table, payload.months);
 				const focusedMonth = getFocusedMonthForCompactTables(payload.months);
 				const visibleMonthEntries = getVisibleMonthEntries(payload.months);
-				const filteredSections = getFilteredMetricSections(payload);
+				// Pinned metrics float to the top of the monthly view (state stored
+				// in localStorage). Rest of the order is preserved.
+				const filteredSections = sortSectionsByPinned(getFilteredMetricSections(payload));
 				const container = document.getElementById('metricTableContainer');
 				const getFocusedMonthCellClass = function(month) {
 					return month === focusedMonth ? 'metric-month-cell is-focused' : '';
@@ -7505,8 +7685,14 @@
 						: '';
 					const headerMeta = [compactMonthsLabel, section.breakdown && section.breakdown.length ? 'VKL/GF drill-down po filiálkach' : ''].filter(Boolean).join(' • ');
 					const toggleLabel = isCollapsed ? 'Rozbaliť' : 'Zbaliť';
+					const isPinned = isMetricPinned(section.metric);
+					const pinSvg = isPinned
+						? '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76V6h6v4.76l3 4.24v2H6v-2z"/></svg>'
+						: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76V6h6v4.76l3 4.24v2H6v-2z"/></svg>';
+					const pinTitle = isPinned ? 'Odopnúť (zrušiť pripnutie na vrchu)' : 'Pripnúť na vrch';
+					const pinButton = '<button class="metric-pin' + (isPinned ? ' is-pinned' : '') + '" type="button" data-pin-metric="' + escapeHtml(section.metric) + '" aria-pressed="' + (isPinned ? 'true' : 'false') + '" title="' + escapeHtml(pinTitle) + '" aria-label="' + escapeHtml(pinTitle) + '">' + pinSvg + '</button>';
 					const compareToolbar = isWorkforceStructureMetric(section.metric) ? '<div class="metric-toolbar-row">' + renderStructureCompareToggle() + '</div>' : '';
-					const header = '<div class="metric-heading"><div class="metric-header-row"><div class="metric-title-stack"><div class="metric-title-group"><span>' + escapeHtml(getMetricDisplayLabel(section.metric)) + '</span></div>'
+					const header = '<div class="metric-heading"><div class="metric-header-row"><div class="metric-title-stack"><div class="metric-title-group">' + pinButton + '<span>' + escapeHtml(getMetricDisplayLabel(section.metric)) + '</span></div>'
 						+ (headerMeta ? '<span class="tiny">' + escapeHtml(headerMeta) + '</span>' : '')
 						+ '</div><div class="metric-actions"><button class="metric-toggle" type="button" data-toggle-metric="' + escapeHtml(section.metric) + '" aria-expanded="' + (isCollapsed ? 'false' : 'true') + '">' + toggleLabel + '</button></div>'
 						+ '</div>' + compareToolbar + '</div>';
@@ -7572,10 +7758,17 @@
 					input.addEventListener('change', function() {
 						const metric = this.dataset.metric;
 						const month = this.dataset.month;
+						// Clamp sign-constrained metrics (e.g. Saldo DF (-)) before
+						// storing. Mirror the clamped value back so the user sees
+						// what was actually saved.
+						const clamped = clampMetricValue(metric, this.value);
+						if (clamped !== Number(this.value || 0)) {
+							this.value = clamped;
+						}
 						if (!state.pendingAdjustments[metric]) {
 							state.pendingAdjustments[metric] = {};
 						}
-						state.pendingAdjustments[metric][month] = Number(this.value || 0);
+						state.pendingAdjustments[metric][month] = clamped;
 						removePendingWeeklyAdjustmentValues(metric, month);
 						refreshLocalPreview();
 					});
@@ -7604,6 +7797,12 @@
 				container.querySelectorAll('[data-toggle-metric]').forEach(function(button) {
 					button.addEventListener('click', function() {
 						toggleMetricCollapsed(this.dataset.toggleMetric);
+					});
+				});
+
+				container.querySelectorAll('[data-pin-metric]').forEach(function(button) {
+					button.addEventListener('click', function() {
+						toggleMetricPinned(this.dataset.pinMetric);
 					});
 				});
 			}
@@ -9493,11 +9692,16 @@
 
 			function saveAdjustments() {
 				hideSaveStatus();
+				// autoSave: true → non-blocking save status indicator + optimistic
+				// UI apply + silent dashboard reload, instead of the big blocking
+				// modal. Sheets save still runs (5-15s) but the user can keep
+				// working while it completes in the background. Failure still
+				// surfaces via alert (silent: false).
 				saveDashboardChanges_({
 					silent: false,
 					includeAdjustments: true,
 					includeNotes: true,
-					autoSave: false,
+					autoSave: true,
 				});
 			}
 

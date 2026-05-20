@@ -26,6 +26,11 @@ export function LoginForm({ callbackUrl, initialError = '' }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // After signIn succeeds we trigger navigation; the destination page can take
+  // 5-15s to render on a cold Vercel lambda (Sheets cache rebuild). We keep
+  // a full-screen overlay visible during that window so the user knows things
+  // are still happening — not a blank/broken page.
+  const [navigating, setNavigating] = useState(false);
   const [errorMessage, setErrorMessage] = useState(resolveError(initialError));
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -47,6 +52,7 @@ export function LoginForm({ callbackUrl, initialError = '' }: LoginFormProps) {
       return;
     }
     if (result?.url) {
+      setNavigating(true);
       window.location.href = result.url;
     }
   };
@@ -84,9 +90,22 @@ export function LoginForm({ callbackUrl, initialError = '' }: LoginFormProps) {
         </label>
 
         <button type="submit" className={styles.devButton} disabled={submitting || !email.trim() || !password}>
-          {submitting ? 'Prihlasovanie…' : 'Prihlásiť sa'}
+          <span className={styles.buttonContent}>
+            {submitting ? <span className={styles.buttonSpinner} aria-hidden="true" /> : null}
+            {submitting ? 'Prihlasovanie…' : 'Prihlásiť sa'}
+          </span>
         </button>
       </form>
+
+      {navigating ? (
+        <div className={styles.loadingOverlay} role="status" aria-live="polite">
+          <div className={styles.loadingSpinner} aria-hidden="true" />
+          <div className={styles.loadingTitle}>Načítavam dashboard…</div>
+          <div className={styles.loadingSubtitle}>
+            Sťahujem dáta z Google Sheets a pripravujem pohľad. Pri prvom otvorení to môže trvať pár sekúnd.
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

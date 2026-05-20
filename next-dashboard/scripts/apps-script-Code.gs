@@ -168,12 +168,30 @@ function handleModifiedTimes() {
 // was corrupted before this guard was in place.
 // -----------------------------------------------------------------------------
 
+// Columns that Sheets locale would otherwise auto-parse as Date — values like
+// "2026-09" (monthId), "marec 2026" (monthLabel), "10. - 16. marec" (rangeLabel).
+// Force them to @ (text) format before any write. The reader path also self-
+// heals already-corrupted rows by reformatting stray Date cells back to text.
+//
+// The COLUMN NAME drives how a Date is reformatted on read:
+//   monthId → "YYYY-MM"
+//   id/label (on Month tab) → "YYYY-MM" / "<sk-month> <year>" respectively
+//   monthLabel / rangeLabel / weekLabel → "<sk-month> <year>" (best-effort)
 var TEXT_COLUMNS_BY_TAB = {
   MonthlyValue: ['monthId'],
   ImportBatch: ['monthId'],
-  IstAdjustmentRequest: ['monthId'],
+  IstAdjustmentRequest: ['monthId', 'monthLabel'],
   Month: ['id', 'label'],
+  ActivityEntry: ['monthLabel'],
+  TaskItem: ['monthLabel'],
+  WeeklyVodOverride: ['monthLabel', 'rangeLabel', 'weekLabel'],
 };
+
+// Slovak month names — used to render Date → "<month> <year>" on reads.
+var SK_MONTH_NAMES = [
+  'január', 'február', 'marec', 'apríl', 'máj', 'jún',
+  'júl', 'august', 'september', 'október', 'november', 'december',
+];
 
 function ensureTextColumnsFormatted(sheet, tabName) {
   var textCols = TEXT_COLUMNS_BY_TAB[tabName];
@@ -188,29 +206,47 @@ function ensureTextColumnsFormatted(sheet, tabName) {
   }
 }
 
-// Convert Date cell values in known-text columns back to "YYYY-MM" strings.
-// Used on read paths so legacy corrupted rows still surface as the expected
-// FK-joinable format.
+// Convert Date cell values in known-text columns back to a canonical string.
+// The chosen format depends on the column name — monthId-style columns get
+// "YYYY-MM"; monthLabel-style columns get "<sk-month> <year>" so the UI shows
+// e.g. "marec 2026" instead of the raw ISO datetime ("2026-03-31T22:00:00Z").
+// Self-heals data corrupted by older deploys that lacked the @ format guard.
 function coerceDateValuesToMonthIds(values, tabName) {
   var textCols = TEXT_COLUMNS_BY_TAB[tabName];
   if (!textCols || textCols.length === 0 || values.length < 1) return values;
   var headers = values[0];
-  var colIndexes = [];
+  // Build [headerIndex, formatMode] pairs. formatMode is 'monthId' for the
+  // numeric "YYYY-MM" form, 'monthLabel' for the Slovak word form. Anything
+  // else falls back to 'monthLabel' (more readable than ISO).
+  var coercions = [];
   for (var c = 0; c < textCols.length; c++) {
-    var idx = headers.indexOf(textCols[c]);
-    if (idx >= 0) colIndexes.push(idx);
+    var colName = textCols[c];
+    var idx = headers.indexOf(colName);
+    if (idx < 0) continue;
+    var mode;
+    if (colName === 'monthId' || (tabName === 'Month' && colName === 'id')) {
+      mode = 'monthId';
+    } else {
+      mode = 'monthLabel';
+    }
+    coercions.push([idx, mode]);
   }
-  if (colIndexes.length === 0) return values;
+  if (coercions.length === 0) return values;
 
   for (var r = 1; r < values.length; r++) {
-    for (var k = 0; k < colIndexes.length; k++) {
-      var ci = colIndexes[k];
+    for (var k = 0; k < coercions.length; k++) {
+      var ci = coercions[k][0];
+      var mode = coercions[k][1];
       var v = values[r][ci];
       if (v instanceof Date) {
-        // Pad month to 2 digits. Use UTC components to avoid timezone drift.
+        // UTC components avoid timezone drift (Slovak locale is UTC+1/+2).
         var y = v.getUTCFullYear();
         var m = v.getUTCMonth() + 1;
-        values[r][ci] = y + '-' + (m < 10 ? '0' + m : String(m));
+        if (mode === 'monthId') {
+          values[r][ci] = y + '-' + (m < 10 ? '0' + m : String(m));
+        } else {
+          values[r][ci] = SK_MONTH_NAMES[m - 1] + ' ' + y;
+        }
       }
     }
   }

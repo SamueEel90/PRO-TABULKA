@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 
-import { ensureCacheFresh } from '@/lib/db/client';
+import { ensureCacheFresh, ensureCacheFreshForRequest, setAfterSaveCookie } from '@/lib/db/client';
 import { prisma } from '@/lib/prisma';
-import { newId, nowIso, pushNew } from '@/lib/sheets/write-through';
+import { newId, nowIso, pushBatch, type BatchOp } from '@/lib/sheets/write-through';
 
 /**
  * GET /api/tasks?scopeKey=...&broadcastScopeKey=...&metricKey=...
@@ -11,7 +11,7 @@ import { newId, nowIso, pushNew } from '@/lib/sheets/write-through';
  */
 export async function GET(request: Request) {
   try {
-    await ensureCacheFresh();
+    await ensureCacheFreshForRequest(request);
     const url = new URL(request.url);
     const scopeKey = url.searchParams.get('scopeKey') || '';
     const broadcastScopeKey = url.searchParams.get('broadcastScopeKey') || '';
@@ -87,24 +87,29 @@ export async function POST(request: Request) {
       completedAt: null,
       sourceCommentId: sourceCommentId || null,
     };
-    await pushNew('TaskItem', taskRecord);
+    const activityRecord = {
+      id: newId(),
+      scopeKey,
+      actorRole: createdByRole,
+      actorName: createdByName,
+      action: 'task-created',
+      metricKey: metricKey || null,
+      monthLabel: monthLabel || null,
+      detail: trimmedText.slice(0, 200),
+      createdAt: now,
+    };
+
+    // ONE batch call instead of 2 sequential pushNew — saves ~3-5s of Apps
+    // Script Web App overhead.
+    await pushBatch([
+      { op: 'bulkAppend', tab: 'TaskItem', records: [taskRecord] },
+      { op: 'bulkAppend', tab: 'ActivityEntry', records: [activityRecord] },
+    ]);
+
     const task = await prisma.taskItem.create({
       data: { ...taskRecord, createdAt: new Date(now), completedAt: null },
     });
-
     try {
-      const activityRecord = {
-        id: newId(),
-        scopeKey,
-        actorRole: createdByRole,
-        actorName: createdByName,
-        action: 'task-created',
-        metricKey: metricKey || null,
-        monthLabel: monthLabel || null,
-        detail: trimmedText.slice(0, 200),
-        createdAt: now,
-      };
-      await pushNew('ActivityEntry', activityRecord);
       await prisma.activityEntry.create({
         data: { ...activityRecord, createdAt: new Date(now) },
       });
@@ -112,7 +117,7 @@ export async function POST(request: Request) {
       /* best effort */
     }
 
-    return NextResponse.json({ ok: true, task });
+    return setAfterSaveCookie(NextResponse.json({ ok: true, task }));
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Nepodarilo sa vytvoriť úlohu.' }, { status: 500 });
   }

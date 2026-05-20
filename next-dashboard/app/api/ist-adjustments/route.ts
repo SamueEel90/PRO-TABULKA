@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { ensureCacheFresh } from '@/lib/db/client';
+import { ensureCacheFresh, ensureCacheFreshForRequest } from '@/lib/db/client';
 import { prisma } from '@/lib/prisma';
 import { getUserFromHeaders } from '@/lib/auth/session';
 import { newId, nowIso, pushNew } from '@/lib/sheets/write-through';
@@ -45,7 +45,7 @@ async function resolveMetricCode(label: string): Promise<string | null> {
  */
 export async function GET(request: Request) {
   try {
-    await ensureCacheFresh();
+    await ensureCacheFreshForRequest(request);
     const user = getUserFromHeaders(request.headers);
     const url = new URL(request.url);
     const storeId = url.searchParams.get('storeId') || '';
