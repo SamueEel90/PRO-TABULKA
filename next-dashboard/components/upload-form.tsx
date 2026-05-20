@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-type ImportMode = 'monthly' | 'plan' | 'structure-login' | 'reset-ist-vod' | 'reset-vod';
+type ImportMode = 'monthly' | 'plan' | 'structure-login' | 'reset-ist-vod' | 'reset-vod' | 'reset-discussions';
 
 type Phase = { label: string; weight: number };
 
@@ -48,6 +48,12 @@ const PHASES: Record<ImportMode, Phase[]> = {
     { label: 'Mažem týždenné VOD overrides', weight: 2 },
     { label: 'Čistím lokálny cache', weight: 1 },
   ],
+  'reset-discussions': [
+    { label: 'Načítavam aktuálny stav', weight: 1 },
+    { label: 'Mažem komentáre a úlohy v Sheets', weight: 3 },
+    { label: 'Mažem poznámky v Sheets', weight: 2 },
+    { label: 'Čistím lokálny cache', weight: 1 },
+  ],
 };
 
 /** Approx total expected duration per mode (ms). Tuned from observed runs. */
@@ -57,6 +63,7 @@ const EXPECTED_DURATION_MS: Record<ImportMode, number> = {
   'structure-login': 20_000,
   'reset-ist-vod': 15_000,
   'reset-vod': 12_000,
+  'reset-discussions': 10_000,
 };
 
 function formatElapsed(ms: number): string {
@@ -94,9 +101,11 @@ export function UploadForm({ adminSecret = '' }: { adminSecret?: string }) {
       ? '/api/import/reset-ist-vod'
       : importMode === 'reset-vod'
         ? '/api/import/reset-vod'
-        : importMode === 'plan'
-          ? '/api/import/monthly-plan'
-          : '/api/import/monthly-ist';
+        : importMode === 'reset-discussions'
+          ? '/api/import/reset-discussions'
+          : importMode === 'plan'
+            ? '/api/import/monthly-plan'
+            : '/api/import/monthly-ist';
 
   const acceptedFileTypes = importMode === 'structure-login'
     ? '.xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -171,6 +180,8 @@ export function UploadForm({ adminSecret = '' }: { adminSecret?: string }) {
         setMessage(`Hotovo. Zmazané IST riadky: ${payload.deletedIstRows}. Zmazané VOD riadky: ${payload.deletedVodRows}. Zmazané týždenné VOD úpravy: ${payload.deletedWeeklyOverrides}.`);
       } else if (importMode === 'reset-vod') {
         setMessage(`Hotovo. Zmazané VOD riadky: ${payload.deletedVodRows}. Zmazané týždenné VOD úpravy: ${payload.deletedWeeklyOverrides}.`);
+      } else if (importMode === 'reset-discussions') {
+        setMessage(`Hotovo. Zmazané komentáre: ${payload.deletedComments}. Zmazané úlohy: ${payload.deletedTasks}. Zmazané poznámky: ${payload.deletedNotes}.`);
       } else if (importMode === 'plan') {
         setMessage(`Hotovo. PLAN sheet ${payload.sheetName}. Filiálok: ${payload.stores}, mesiacov: ${payload.months}, metrík: ${payload.metrics}. Importovaných riadkov: ${payload.rowCount}. Súbor: ${payload.fileName}`);
       } else {
@@ -178,7 +189,7 @@ export function UploadForm({ adminSecret = '' }: { adminSecret?: string }) {
       }
 
       form.reset();
-      if (importMode === 'reset-ist-vod' || importMode === 'reset-vod') {
+      if (importMode === 'reset-ist-vod' || importMode === 'reset-vod' || importMode === 'reset-discussions') {
         setImportMode('monthly');
       }
     } catch (error) {
@@ -208,6 +219,7 @@ export function UploadForm({ adminSecret = '' }: { adminSecret?: string }) {
           <option value="structure-login">Štruktúra GF / VKL / filiálky + loginy</option>
           <option value="reset-ist-vod">Vymazať všetok IST a úpravy VOD</option>
           <option value="reset-vod">Vymazať len úpravy VOD</option>
+          <option value="reset-discussions">Vymazať komentáre a poznámky</option>
         </select>
       </label>
 
@@ -231,11 +243,13 @@ export function UploadForm({ adminSecret = '' }: { adminSecret?: string }) {
         </>
       ) : importMode === 'reset-ist-vod' ? (
         <p className="upload-help-text">Táto akcia zmaže všetky mesačné IST dáta, všetky mesačné úpravy VOD aj všetky týždenné VOD override. Štruktúra, loginy a PLAN ostanú bez zmeny.</p>
-      ) : (
+      ) : importMode === 'reset-vod' ? (
         <p className="upload-help-text">Táto akcia zmaže len mesačné úpravy VOD a týždenné VOD override. IST dáta, štruktúra, loginy a PLAN ostanú bez zmeny.</p>
+      ) : (
+        <p className="upload-help-text">Táto akcia zmaže všetky komentáre v thread-och, priradené úlohy a jednorázové poznámky k metrikám. Mesačné dáta (IST/PLAN/VOD), štruktúra ani používatelia sa nedotknú. Audit log (ActivityEntry) zostáva.</p>
       )}
 
-      {importMode !== 'reset-ist-vod' && importMode !== 'reset-vod' ? (
+      {importMode !== 'reset-ist-vod' && importMode !== 'reset-vod' && importMode !== 'reset-discussions' ? (
         <label>
           <span>{importMode === 'structure-login' ? 'Excel workbook' : importMode === 'plan' ? 'Súbor PLANGJ2026' : 'Súbor ISTGJ2026'}</span>
           <input name="file" type="file" accept={acceptedFileTypes} required disabled={isPending} />
@@ -249,7 +263,7 @@ export function UploadForm({ adminSecret = '' }: { adminSecret?: string }) {
 
       <button type="submit" disabled={isPending}>
         {isPending
-          ? importMode === 'reset-ist-vod' || importMode === 'reset-vod'
+          ? importMode === 'reset-ist-vod' || importMode === 'reset-vod' || importMode === 'reset-discussions'
             ? 'Mažem...'
             : 'Importujem...'
           : importMode === 'structure-login'
@@ -258,9 +272,11 @@ export function UploadForm({ adminSecret = '' }: { adminSecret?: string }) {
               ? 'Vymazať IST a VOD'
               : importMode === 'reset-vod'
                 ? 'Vymazať úpravy VOD'
-                : importMode === 'plan'
-                  ? 'Nahrať PLANGJ2026'
-                  : 'Nahrať ISTGJ2026'}
+                : importMode === 'reset-discussions'
+                  ? 'Vymazať komentáre a poznámky'
+                  : importMode === 'plan'
+                    ? 'Nahrať PLANGJ2026'
+                    : 'Nahrať ISTGJ2026'}
       </button>
 
       {showProgress ? (

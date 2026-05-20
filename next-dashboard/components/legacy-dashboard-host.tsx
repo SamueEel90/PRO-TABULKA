@@ -375,6 +375,9 @@ export function LegacyDashboardHost({ asset, bodyMode = 'full' }: { asset: Legac
           document.body.classList.remove('legacy-dashboard-page');
           document.body.classList.remove('legacy-sumar-page');
           document.body.classList.remove('sidebar-open');
+          // Sumar uses `nav-open` as its own sidebar-open marker. Both classes
+          // can persist across SPA navigation if the host unmounts mid-state.
+          document.body.classList.remove('nav-open');
         };
 
         setLoadState({ status: 'ready' });
